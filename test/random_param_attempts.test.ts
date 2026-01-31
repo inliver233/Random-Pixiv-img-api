@@ -88,5 +88,41 @@ describe('GET /random (attempts)', () => {
     });
     expect(pickRandomImageStream).not.toHaveBeenCalled();
   });
-});
 
+  it('accepts attempts with format=json (does not call stream picker)', async () => {
+    pickRandomImageRecord.mockResolvedValueOnce(null);
+
+    const app = await createApp();
+
+    const res = await request(app)
+      .get('/random?format=json&attempts=9')
+      .set('x-request-id', 'req-random-attempts-format-json')
+      .expect(404);
+
+    expect(res.headers['cache-control']).toBe('no-store');
+    expect(pickRandomImageRecord).toHaveBeenCalledTimes(1);
+    expect(pickRandomImageStream).not.toHaveBeenCalled();
+  });
+
+  it('accepts attempts with redirect=1 (does not call stream picker)', async () => {
+    pickRandomImageRecord.mockResolvedValueOnce({
+      id: 99n,
+      illustId: 199n,
+      pageIndex: 0,
+      ext: 'jpg',
+      originalUrl: 'https://example.test/original.jpg',
+    });
+
+    const app = await createApp();
+
+    const res = await request(app)
+      .get('/random?redirect=1&attempts=9')
+      .set('x-request-id', 'req-random-attempts-redirect-1')
+      .expect(302);
+
+    expect(res.headers['cache-control']).toBe('no-store');
+    expect(pickRandomImageRecord).toHaveBeenCalledTimes(1);
+    expect(pickRandomImageStream).not.toHaveBeenCalled();
+    expect(res.headers.location).toBe('/i/99.jpg');
+  });
+});
