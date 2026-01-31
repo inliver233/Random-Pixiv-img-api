@@ -22,16 +22,11 @@ services:
       POSTGRES_USER: pixivcat
       POSTGRES_PASSWORD: pixivcat
       POSTGRES_DB: pixivcat
-    ports:
-      - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
 
   memcached:
     image: memcached:1.6-alpine
-    ports:
-      - "11211:11211"
 
 volumes:
   pgdata:
-

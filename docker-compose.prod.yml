@@ -1,0 +1,14 @@
+services:
+  backend:
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+
+  postgres:
+    restart: unless-stopped
+    ports: []
+
+  memcached:
+    restart: unless-stopped
+    ports: []
+
