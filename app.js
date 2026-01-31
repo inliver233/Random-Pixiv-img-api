@@ -15,6 +15,7 @@ const requestIdMiddleware = require('./src/middlewares/requestIdMiddleware');
 const httpLoggerMiddleware = require('./src/middlewares/httpLoggerMiddleware');
 const showVersion = require('./src/middlewares/headerMiddleware');
 const errorHandler = require('./src/middlewares/errorHandler');
+const apiRoutes = require('./src/routes/api');
 const pixivRoutes = require('./src/routes/pixivRoutes');
 
 const app = express();
@@ -28,6 +29,7 @@ app.use(requestIdMiddleware);
 app.use(httpLoggerMiddleware);
 
 // Routes
+app.use('/', apiRoutes);
 app.use('/', showVersion, pixivRoutes);
 
 // Error handling middleware
