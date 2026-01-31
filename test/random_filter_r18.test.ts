@@ -71,6 +71,18 @@ describe('GET /random (filter r18)', () => {
     expect(filters).toEqual({});
   });
 
+  it('combines r18 and orientation filters', async () => {
+    const app = await createApp();
+
+    await request(app)
+      .get('/random?r18=1&orientation=portrait')
+      .set('accept', 'application/json')
+      .expect(404);
+
+    const filters = pickRandomImageStream.mock.calls[0]?.[0];
+    expect(filters).toEqual({ xRestrict: 1, orientation: 1 });
+  });
+
   it('returns 400 for invalid r18', async () => {
     const app = await createApp();
 
