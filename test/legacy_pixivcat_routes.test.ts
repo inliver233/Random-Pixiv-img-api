@@ -11,6 +11,7 @@ const require = createRequire(import.meta.url);
 
 const mockAxiosGet = vi.fn();
 const mockPixivGetPixivIllustIdData = vi.fn();
+const mockPgQuery = vi.fn();
 
 function installCommonJsMocks() {
   const axiosPath = require.resolve('axios');
@@ -19,6 +20,20 @@ function installCommonJsMocks() {
     filename: axiosPath,
     loaded: true,
     exports: { get: mockAxiosGet },
+  } as any;
+
+  const pgPath = require.resolve('pg');
+  require.cache[pgPath] = {
+    id: pgPath,
+    filename: pgPath,
+    loaded: true,
+    exports: {
+      Pool: class MockPool {
+        query(...args: any[]) {
+          return mockPgQuery(...args);
+        }
+      },
+    },
   } as any;
 
   const pixivServicePath = require.resolve('../src/services/pixivService.js');
@@ -49,6 +64,8 @@ describe('legacy pixivcat routes', () => {
   beforeEach(() => {
     mockAxiosGet.mockReset();
     mockPixivGetPixivIllustIdData.mockReset();
+    mockPgQuery.mockReset();
+    mockPgQuery.mockResolvedValue({ rows: [] });
   });
 
   it('validates illustId', async () => {
@@ -100,6 +117,30 @@ describe('legacy pixivcat routes', () => {
     expect(res.headers['content-type']).toContain('image/jpeg');
     expect(Buffer.isBuffer(res.body)).toBe(true);
     expect(res.body.toString('utf8')).toBe('hello');
+  });
+
+  it('uses DB original_url when present and skips Pixiv API', async () => {
+    const app = createLegacyApp();
+
+    const originUrl = 'https://i.pximg.net/img-original/123_p0.jpg';
+    mockPgQuery.mockImplementation(async (sql: string) => {
+      if (sql.includes('SELECT original_url')) return { rows: [{ original_url: originUrl }] };
+      if (sql.includes('page_index > 0')) return { rows: [] };
+      return { rows: [] };
+    });
+
+    mockAxiosGet.mockResolvedValueOnce({
+      data: Readable.from([Buffer.from('db')]),
+    } as any);
+
+    const res = await request(app).get('/123.jpg').buffer(true).expect(200);
+
+    expect(res.headers['cache-control']).toContain('max-age=31536000');
+    expect(res.headers['x-origin-url']).toBe(originUrl);
+    expect(res.headers['content-type']).toContain('image/jpeg');
+    expect(mockPixivGetPixivIllustIdData).not.toHaveBeenCalled();
+    expect(Buffer.isBuffer(res.body)).toBe(true);
+    expect(res.body.toString('utf8')).toBe('db');
   });
 
   it('streams webp image with long-cache headers', async () => {
