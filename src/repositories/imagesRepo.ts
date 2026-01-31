@@ -172,6 +172,7 @@ export type PickRandomFilters = {
   includedTags?: string[] | null;
   excludedTags?: string[] | null;
   userId?: bigint | null;
+  illustId?: bigint | null;
 };
 
 export type PickRandomDebug = {
@@ -195,6 +196,10 @@ function buildPickRandomBaseWhere(filters: PickRandomFilters) {
 
   if (filters.userId !== undefined && filters.userId !== null) {
     where.userId = filters.userId;
+  }
+
+  if (filters.illustId !== undefined && filters.illustId !== null) {
+    where.illustId = filters.illustId;
   }
 
   if (filters.orientation !== undefined && filters.orientation !== null && filters.orientation !== 0) {
@@ -281,6 +286,10 @@ function buildPickRandomSqlConditions(filters: PickRandomFilters): Prisma.Sql[] 
 
   if (filters.userId !== undefined && filters.userId !== null) {
     conditions.push(Prisma.sql`user_id = ${filters.userId}`);
+  }
+
+  if (filters.illustId !== undefined && filters.illustId !== null) {
+    conditions.push(Prisma.sql`illust_id = ${filters.illustId}`);
   }
 
   if (filters.orientation !== undefined && filters.orientation !== null && filters.orientation !== 0) {
