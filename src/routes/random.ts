@@ -236,6 +236,32 @@ function parseIncludedTags(value: unknown): string[] | undefined {
   return [...new Set(tags)];
 }
 
+function parseExcludedTags(value: unknown): string[] | undefined {
+  if (value === undefined || value === null) return undefined;
+
+  const raw = Array.isArray(value) ? String(value[0] || '') : String(value ?? '');
+  const normalized = raw.trim();
+
+  if (!normalized) {
+    const err = new Error('Invalid excluded_tags.');
+    (err as any).status = 400;
+    throw err;
+  }
+
+  const tags = normalized
+    .split('|')
+    .map((tag) => tag.trim())
+    .filter((tag) => tag !== '');
+
+  if (tags.length === 0) {
+    const err = new Error('Invalid excluded_tags.');
+    (err as any).status = 400;
+    throw err;
+  }
+
+  return [...new Set(tags)];
+}
+
 router.get('/', (req, res, next) => {
   (async () => {
     res.setHeader('Cache-Control', 'no-store');
@@ -251,6 +277,7 @@ router.get('/', (req, res, next) => {
     const minHeight = parseMinHeight((req.query as any).min_height);
     const minPixels = parseMinPixels((req.query as any).min_pixels);
     const includedTags = parseIncludedTags((req.query as any).included_tags);
+    const excludedTags = parseExcludedTags((req.query as any).excluded_tags);
 
     const filters: any = {};
     if (xRestrict !== undefined) filters.xRestrict = xRestrict;
@@ -259,6 +286,7 @@ router.get('/', (req, res, next) => {
     if (minHeight !== undefined) filters.minHeight = minHeight;
     if (minPixels !== undefined) filters.minPixels = minPixels;
     if (includedTags !== undefined) filters.includedTags = includedTags;
+    if (excludedTags !== undefined) filters.excludedTags = excludedTags;
 
     if (redirect) {
       const image = await pickRandomImageRecord(filters, random);

@@ -170,6 +170,7 @@ export type PickRandomFilters = {
   minHeight?: number | null;
   minPixels?: number | null;
   includedTags?: string[] | null;
+  excludedTags?: string[] | null;
 };
 
 export type PickRandomDebug = {
@@ -222,6 +223,19 @@ function buildPickRandomBaseWhere(filters: PickRandomFilters) {
         },
       });
     }
+  }
+
+  if (filters.excludedTags !== undefined && filters.excludedTags !== null && filters.excludedTags.length > 0) {
+    where.AND ??= [];
+    where.AND.push({
+      imageTags: {
+        none: {
+          tag: {
+            name: { in: filters.excludedTags },
+          },
+        },
+      },
+    });
   }
 
   return where;
@@ -289,6 +303,21 @@ function buildPickRandomSqlConditions(filters: PickRandomFilters): Prisma.Sql[] 
           WHERE t.name IN (${tagsSql})
           GROUP BY it.image_id
           HAVING COUNT(DISTINCT t.name) = ${tagCount}
+        )
+      `,
+    );
+  }
+
+  if (filters.excludedTags !== undefined && filters.excludedTags !== null && filters.excludedTags.length > 0) {
+    const tagsSql = Prisma.join(filters.excludedTags.map((tag) => Prisma.sql`${tag}`));
+
+    conditions.push(
+      Prisma.sql`
+        id NOT IN (
+          SELECT it.image_id
+          FROM image_tags it
+          JOIN tags t ON t.id = it.tag_id
+          WHERE t.name IN (${tagsSql})
         )
       `,
     );
