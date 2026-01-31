@@ -2,6 +2,9 @@ import axios from 'axios';
 import crypto from 'node:crypto';
 import qs from 'qs';
 
+import { getEnv } from '../config/env';
+import logger from '../logger/logger';
+
 const AUTH_TOKEN_URL = 'https://oauth.secure.pixiv.net/auth/token';
 
 type PixivAuthEntry = {
@@ -19,13 +22,7 @@ type PixivAuthRefreshResponse = {
   expires_in: number;
 };
 
-const refreshTokens = JSON.parse(process.env.REFRESH_TOKENS as string) as RefreshTokensEnv;
-const pixivAuth: PixivAuthEntry[] = refreshTokens.map((token) => ({
-  refreshToken: token,
-  accessToken: '',
-  expireTimestamp: 0,
-  refreshing: false,
-}));
+let pixivAuth: PixivAuthEntry[] | null = null;
 let currentTokenIndex = 0;
 
 export const maskHeader: Record<string, string> = {
@@ -60,37 +57,65 @@ const refreshAccessToken = async (refreshToken: string): Promise<PixivAuthRefres
   return response.data.response;
 };
 
+export type PixivTokenStrategy = 'round_robin' | 'random';
+
+export function selectTokenIndex(strategy: PixivTokenStrategy, tokenCount: number, prevIndex: number): number {
+  if (tokenCount <= 0) return 0;
+  if (strategy === 'random') return Math.floor(Math.random() * tokenCount);
+  return (prevIndex + 1) % tokenCount;
+}
+
+const ensurePixivAuthInitialized = (): PixivAuthEntry[] => {
+  if (pixivAuth) return pixivAuth;
+
+  const env = getEnv();
+  pixivAuth = (env.REFRESH_TOKENS as RefreshTokensEnv).map((token) => ({
+    refreshToken: token,
+    accessToken: '',
+    expireTimestamp: 0,
+    refreshing: false,
+  }));
+
+  return pixivAuth;
+};
+
 const getAccessTokenIndex = () => {
-  // Rotate index
-  currentTokenIndex = (currentTokenIndex + 1) % pixivAuth.length;
+  const env = getEnv();
+  const auth = ensurePixivAuthInitialized();
+
+  currentTokenIndex = selectTokenIndex(env.PIXIV_TOKEN_STRATEGY, auth.length, currentTokenIndex);
   return currentTokenIndex;
 };
 
 export const getAccessToken = async (): Promise<string> => {
+  const auth = ensurePixivAuthInitialized();
   const tokenIndex = getAccessTokenIndex();
 
-  if (pixivAuth[tokenIndex].expireTimestamp < Date.now()) {
-    if (!pixivAuth[tokenIndex].refreshing) {
+  if (auth[tokenIndex].expireTimestamp < Date.now()) {
+    if (!auth[tokenIndex].refreshing) {
       // Set the refreshing flag to indicate that a refresh is in progress
-      pixivAuth[tokenIndex].refreshing = true;
+      auth[tokenIndex].refreshing = true;
 
       try {
-        const refreshRes = await refreshAccessToken(pixivAuth[tokenIndex].refreshToken);
-        pixivAuth[tokenIndex].accessToken = refreshRes.access_token;
-        pixivAuth[tokenIndex].refreshToken = refreshRes.refresh_token;
-        pixivAuth[tokenIndex].expireTimestamp = Date.now() + refreshRes.expires_in * 0.9 * 1000;
-        console.log(`Pixiv access token[${tokenIndex}] refreshed`);
-      } catch (err) {
-        console.log('Pixiv refresh token failed.', err);
+        const refreshRes = await refreshAccessToken(auth[tokenIndex].refreshToken);
+        auth[tokenIndex].accessToken = refreshRes.access_token;
+        auth[tokenIndex].refreshToken = refreshRes.refresh_token;
+        auth[tokenIndex].expireTimestamp = Date.now() + refreshRes.expires_in * 0.9 * 1000;
+        logger.info({ token_index: tokenIndex }, 'Pixiv access token refreshed');
+      } catch (err: any) {
+        logger.warn(
+          { token_index: tokenIndex, err: { message: err?.message, code: err?.code, status: err?.response?.status } },
+          'Pixiv refresh token failed',
+        );
       } finally {
         // Reset the refreshing flag when the refresh is completed (whether successful or not)
-        pixivAuth[tokenIndex].refreshing = false;
+        auth[tokenIndex].refreshing = false;
       }
     } else {
       // If another refresh is already in progress, wait for its completion
       await new Promise<void>((resolve) => {
         const interval = setInterval(() => {
-          if (!pixivAuth[tokenIndex].refreshing) {
+          if (!auth[tokenIndex].refreshing) {
             clearInterval(interval);
             resolve();
           }
@@ -99,6 +124,5 @@ export const getAccessToken = async (): Promise<string> => {
     }
   }
 
-  return pixivAuth[tokenIndex].accessToken;
+  return auth[tokenIndex].accessToken;
 };
-

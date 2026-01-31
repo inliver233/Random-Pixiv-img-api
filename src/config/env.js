@@ -13,24 +13,39 @@ function booleanFromEnv(value) {
 
 const booleanSchema = z.preprocess(booleanFromEnv, z.boolean());
 
-const refreshTokensSchema = z.string().transform((value, ctx) => {
-  try {
-    const parsed = JSON.parse(value);
-    if (!Array.isArray(parsed) || parsed.some((item) => typeof item !== 'string' || item.trim() === '')) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: 'REFRESH_TOKENS must be a JSON array of non-empty strings.',
-      });
-      return z.NEVER;
+function parseRefreshTokensValue(value) {
+  const trimmed = value.trim();
+  if (!trimmed) return [];
+
+  if (trimmed.startsWith('[')) {
+    try {
+      const parsed = JSON.parse(trimmed);
+      if (!Array.isArray(parsed)) return [];
+      return parsed
+        .filter((item) => typeof item === 'string')
+        .map((token) => token.trim())
+        .filter((token) => token !== '');
+    } catch {
+      return [];
     }
-    return parsed;
-  } catch {
+  }
+
+  return trimmed
+    .split(',')
+    .map((token) => token.trim())
+    .filter((token) => token !== '');
+}
+
+const refreshTokensSchema = z.string().transform((value, ctx) => {
+  const parsed = parseRefreshTokensValue(value);
+  if (parsed.length === 0) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
-      message: 'REFRESH_TOKENS must be a valid JSON array string.',
+      message: 'REFRESH_TOKENS must be a non-empty JSON array or a comma-separated string.',
     });
     return z.NEVER;
   }
+  return parsed;
 });
 
 const envSchema = z
@@ -42,6 +57,8 @@ const envSchema = z
 
     HOST: z.string().min(1).default('127.0.0.1'),
     PORT: z.coerce.number().int().min(1).max(65535).default(3000),
+
+    PIXIV_TOKEN_STRATEGY: z.enum(['round_robin', 'random']).optional().default('round_robin'),
 
     DATABASE_URL: z.string().min(1).optional(),
     DB_SSL: booleanSchema.optional(),
@@ -105,5 +122,5 @@ function validateEnv() {
 module.exports = {
   getEnv,
   validateEnv,
+  parseRefreshTokensValue,
 };
-
