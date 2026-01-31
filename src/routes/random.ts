@@ -20,8 +20,15 @@ function parseFormat(value: unknown): 'image' | 'json' {
 }
 
 function parseRedirect(value: unknown): boolean {
-  const raw = Array.isArray(value) ? String(value[0] || '') : String(value || '');
-  return raw.trim() === '1';
+  const raw = Array.isArray(value) ? String(value[0] || '') : String(value ?? '');
+  const normalized = raw.trim();
+
+  if (!normalized || normalized === '0') return false;
+  if (normalized === '1') return true;
+
+  const err = new Error('Invalid redirect.');
+  (err as any).status = 400;
+  throw err;
 }
 
 function bigintToSafeNumber(value: bigint, code: string): number {
