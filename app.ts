@@ -8,7 +8,7 @@ import pixivRoutes from './src/routes/pixivRoutes';
 dotenv.config();
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT ? Number(process.env.PORT) : 3000;
 const HOST = process.env.HOST || '127.0.0.1';
 
 app.set('view engine', 'ejs');
