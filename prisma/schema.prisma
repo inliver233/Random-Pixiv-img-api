@@ -69,3 +69,16 @@ model ImageTag {
   @@index([tagId, imageId], map: "image_tags_tag")
   @@map("image_tags")
 }
+
+model Import {
+  id        BigInt   @id @default(autoincrement())
+  createdAt DateTime @default(now()) @map("created_at")
+  createdBy String?  @map("created_by") @db.Text
+  source    String?  @db.Text
+  total     Int
+  success   Int
+  failed    Int
+  detail    Json?    @db.JsonB
+
+  @@map("imports")
+}
