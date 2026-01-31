@@ -94,6 +94,18 @@ describe('GET /random (filter orientation)', () => {
     expect(filters).toEqual({ xRestrict: 0 });
   });
 
+  it('combines orientation and r18 filters', async () => {
+    const app = await createApp();
+
+    await request(app)
+      .get('/random?r18=2&orientation=landscape')
+      .set('accept', 'application/json')
+      .expect(404);
+
+    const filters = pickRandomImageStream.mock.calls[0]?.[0];
+    expect(filters).toEqual({ xRestrict: 2, orientation: 2 });
+  });
+
   it('returns 400 for invalid orientation', async () => {
     const app = await createApp();
 
@@ -128,4 +140,3 @@ describe('GET /random (filter orientation)', () => {
     expect(pickRandomImageStream).not.toHaveBeenCalled();
   });
 });
-
