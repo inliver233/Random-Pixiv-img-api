@@ -13,5 +13,5 @@
     "checkJs": false
   },
   "include": ["app.ts", "src/**/*.js", "src/**/*.ts"],
-  "exclude": ["dist", "node_modules"]
+  "exclude": ["dist", "node_modules", "src/routes/pixivRoutes.js"]
 }
