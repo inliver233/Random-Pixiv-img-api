@@ -168,6 +168,7 @@ export type PickRandomFilters = {
   orientation?: number | null;
   minWidth?: number | null;
   minHeight?: number | null;
+  minPixels?: number | null;
 };
 
 export type PickRandomDebug = {
@@ -211,6 +212,10 @@ function buildPickRandomBaseWhere(filters: PickRandomFilters) {
 }
 
 async function pickRandomByRandomKey(filters: PickRandomFilters, r: number) {
+  if (filters.minPixels !== undefined && filters.minPixels !== null) {
+    return pickRandomByRandomKeyRaw(filters, r);
+  }
+
   const prisma = getPrismaClient();
   const baseWhere = buildPickRandomBaseWhere(filters);
 
@@ -230,16 +235,7 @@ async function pickRandomByRandomKey(filters: PickRandomFilters, r: number) {
   });
 }
 
-function normalizeTablesamplePercent(input: number | undefined): number {
-  const percent = input ?? 1;
-  if (!Number.isFinite(percent)) return 1;
-  if (percent <= 0) return 0.1;
-  if (percent > 100) return 100;
-  return percent;
-}
-
-async function pickRandomByTablesample(filters: PickRandomFilters, percent: number) {
-  const prisma = getPrismaClient();
+function buildPickRandomSqlConditions(filters: PickRandomFilters): Prisma.Sql[] {
   const env = getEnv();
 
   const conditions: Prisma.Sql[] = [Prisma.sql`status = ${IMAGE_STATUS_ACTIVE}`];
@@ -260,10 +256,66 @@ async function pickRandomByTablesample(filters: PickRandomFilters, percent: numb
     conditions.push(Prisma.sql`height >= ${filters.minHeight}`);
   }
 
+  if (filters.minPixels !== undefined && filters.minPixels !== null) {
+    conditions.push(Prisma.sql`(width * height) >= ${filters.minPixels}`);
+  }
+
   if (env.RANDOM_FAIL_COOLDOWN_MS > 0) {
     const cutoff = new Date(Date.now() - env.RANDOM_FAIL_COOLDOWN_MS);
     conditions.push(Prisma.sql`(last_fail_at IS NULL OR last_fail_at < ${cutoff})`);
   }
+
+  return conditions;
+}
+
+async function pickRandomByRandomKeyRaw(filters: PickRandomFilters, r: number) {
+  const prisma = getPrismaClient();
+
+  const conditions = buildPickRandomSqlConditions(filters);
+
+  const withRandomKey = Prisma.join([...conditions, Prisma.sql`random_key >= ${r}`], ' AND ');
+  const firstRows = await prisma.$queryRaw<{ id: bigint | string }[]>(
+    Prisma.sql`
+      SELECT id
+      FROM images
+      WHERE ${withRandomKey}
+      ORDER BY random_key ASC
+      LIMIT 1
+    `,
+  );
+
+  const fallbackRows = firstRows.length > 0
+    ? firstRows
+    : await prisma.$queryRaw<{ id: bigint | string }[]>(
+      Prisma.sql`
+        SELECT id
+        FROM images
+        WHERE ${Prisma.join(conditions, ' AND ')}
+        ORDER BY random_key ASC
+        LIMIT 1
+      `,
+    );
+
+  if (fallbackRows.length === 0) return null;
+
+  const rawId = fallbackRows[0]?.id;
+  if (rawId === undefined || rawId === null) return null;
+  const id = typeof rawId === 'bigint' ? rawId : BigInt(rawId);
+
+  return prisma.image.findUnique({ where: { id } });
+}
+
+function normalizeTablesamplePercent(input: number | undefined): number {
+  const percent = input ?? 1;
+  if (!Number.isFinite(percent)) return 1;
+  if (percent <= 0) return 0.1;
+  if (percent > 100) return 100;
+  return percent;
+}
+
+async function pickRandomByTablesample(filters: PickRandomFilters, percent: number) {
+  const prisma = getPrismaClient();
+  const conditions = buildPickRandomSqlConditions(filters);
 
   const whereSql = Prisma.join(conditions, ' AND ');
   const percentSql = Prisma.raw(normalizeTablesamplePercent(percent).toString());

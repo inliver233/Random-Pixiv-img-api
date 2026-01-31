@@ -5,6 +5,7 @@ import { IMAGE_STATUS_ACTIVE, IMAGE_STATUS_BROKEN, getById, markFail, markOk, pi
 
 describe('imagesRepo', () => {
   const prisma = {
+    $queryRaw: vi.fn(),
     image: {
       findUnique: vi.fn(),
       findFirst: vi.fn(),
@@ -140,5 +141,17 @@ describe('imagesRepo', () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  it('pickRandom uses SQL when minPixels filter is set', async () => {
+    prisma.$queryRaw.mockResolvedValueOnce([]).mockResolvedValueOnce([{ id: '5' }]);
+    prisma.image.findUnique.mockResolvedValue({ id: 5n });
+
+    const res = await pickRandom({ xRestrict: 0, minPixels: 1000000 }, 0.5);
+
+    expect(prisma.image.findFirst).not.toHaveBeenCalled();
+    expect(prisma.$queryRaw).toHaveBeenCalledTimes(2);
+    expect(prisma.image.findUnique).toHaveBeenCalledWith({ where: { id: 5n } });
+    expect(res).toEqual({ id: 5n });
   });
 });

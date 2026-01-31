@@ -188,6 +188,28 @@ function parseMinHeight(value: unknown): number | undefined {
   return n;
 }
 
+function parseMinPixels(value: unknown): number | undefined {
+  if (value === undefined || value === null) return undefined;
+
+  const raw = Array.isArray(value) ? String(value[0] || '') : String(value ?? '');
+  const normalized = raw.trim();
+
+  if (!normalized || !/^\d+$/.test(normalized)) {
+    const err = new Error('Invalid min_pixels.');
+    (err as any).status = 400;
+    throw err;
+  }
+
+  const n = Number(normalized);
+  if (!Number.isSafeInteger(n) || n < 0) {
+    const err = new Error('Invalid min_pixels.');
+    (err as any).status = 400;
+    throw err;
+  }
+
+  return n;
+}
+
 router.get('/', (req, res, next) => {
   (async () => {
     res.setHeader('Cache-Control', 'no-store');
@@ -201,12 +223,14 @@ router.get('/', (req, res, next) => {
     const orientation = parseOrientation((req.query as any).orientation);
     const minWidth = parseMinWidth((req.query as any).min_width);
     const minHeight = parseMinHeight((req.query as any).min_height);
+    const minPixels = parseMinPixels((req.query as any).min_pixels);
 
     const filters: any = {};
     if (xRestrict !== undefined) filters.xRestrict = xRestrict;
     if (orientation !== undefined) filters.orientation = orientation;
     if (minWidth !== undefined) filters.minWidth = minWidth;
     if (minHeight !== undefined) filters.minHeight = minHeight;
+    if (minPixels !== undefined) filters.minPixels = minPixels;
 
     if (redirect) {
       const image = await pickRandomImageRecord(filters, random);
