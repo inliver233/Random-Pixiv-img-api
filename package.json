@@ -11,12 +11,15 @@
     "start:prod": "node dist/app.js",
     "build": "tsc -p tsconfig.json && node -e \"const fs=require('fs'); fs.mkdirSync('dist/views',{recursive:true}); fs.copyFileSync('views/error.ejs','dist/views/error.ejs');\"",
     "dev": "nodemon app.js",
+    "prisma:generate": "prisma generate",
+    "prisma:migrate": "prisma migrate dev",
     "test": "vitest run",
     "lint": "eslint ."
   },
   "author": "jongcs",
   "license": "MIT",
   "dependencies": {
+    "@prisma/client": "^7.3.0",
     "axios": "^1.7.7",
     "dotenv": "^17.2.3",
     "ejs": "^3.1.10",
@@ -39,6 +42,7 @@
     "eslint-plugin-promise": "^7.2.1",
     "globals": "^17.0.0",
     "nodemon": "^3.1.7",
+    "prisma": "^7.3.0",
     "supertest": "^7.2.2",
     "typescript": "^5.9.3",
     "vitest": "^4.0.18"
