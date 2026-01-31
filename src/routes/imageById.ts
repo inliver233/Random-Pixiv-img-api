@@ -1,10 +1,11 @@
 import { Router } from 'express';
 
+import imageByIdController from '../controllers/imageByIdController';
+
 const router = Router();
 
 router.get('/:id.:ext', (req, res) => {
-  res.status(501).json({ error: 'not_implemented', route: '/i/:id.:ext' });
+  void imageByIdController.getImageById(req, res);
 });
 
 export default router;
-
