@@ -1,5 +1,7 @@
 import type { NextFunction, Request, Response } from 'express';
 
+import { ALLOWED_IMAGE_EXTENSIONS } from '../utils/contentType';
+
 export function validateIllustId(req: Request, res: Response, next: NextFunction) {
   const illustId = String((req.params as any).illustId);
   // Check if the illustId contains only digits
@@ -29,11 +31,10 @@ export function validatePageNumber(req: Request, res: Response, next: NextFuncti
 }
 
 export function validateExtension(req: Request, res: Response, next: NextFunction) {
-  const allowedExtensions = ['jpg', 'jpeg', 'png', 'gif'];
   const fileExtension = String((req.params as any).fileExtension).toLowerCase();
 
   // Check if the file extension is valid
-  if (allowedExtensions.includes(fileExtension)) {
+  if (ALLOWED_IMAGE_EXTENSIONS.includes(fileExtension)) {
     next();
   } else {
     res.status(400).render('error', {
@@ -43,4 +44,3 @@ export function validateExtension(req: Request, res: Response, next: NextFunctio
     });
   }
 }
-

@@ -27,11 +27,11 @@ function validatePageNumber(req, res, next) {
 }
 
 function validateExtension(req, res, next) {
-  const allowedExtensions = ['jpg', 'jpeg', 'png', 'gif'];
+  const { ALLOWED_IMAGE_EXTENSIONS } = require('../utils/contentType');
   const fileExtension = req.params.fileExtension.toLowerCase();
 
   // Check if the file extension is valid
-  if (allowedExtensions.includes(fileExtension)) {
+  if (ALLOWED_IMAGE_EXTENSIONS.includes(fileExtension)) {
     next();
   } else {
     res.status(400).render('error', {

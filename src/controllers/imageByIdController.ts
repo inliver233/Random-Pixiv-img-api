@@ -4,26 +4,12 @@ import type { Readable } from 'node:stream';
 
 import { fetchPixivImageStream } from '../http/pixivImageHttp';
 import { IMAGE_STATUS_BROKEN, getById, markFail } from '../repositories/imagesRepo';
+import { getImageContentTypeFromExt, isAllowedImageExt, normalizeImageExtension } from '../utils/contentType';
 
 const responseHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Cache-Control': 'max-age=31536000, public',
 };
-
-function getImageContentType(ext: string): string {
-  const normalized = ext.startsWith('.') ? ext.toLowerCase() : `.${ext.toLowerCase()}`;
-  switch (normalized) {
-    case '.jpg':
-    case '.jpeg':
-      return 'image/jpeg';
-    case '.png':
-      return 'image/png';
-    case '.gif':
-      return 'image/gif';
-    default:
-      return 'application/octet-stream';
-  }
-}
 
 function renderError(res: Response, status: number, title: string, messageEn: string, messageZh = ''): void {
   res.status(status).render('error', {
@@ -37,14 +23,6 @@ function parsePositiveInteger(value: unknown): bigint | null {
   const raw = typeof value === 'string' ? value : String(value);
   if (!/^([1-9][0-9]*)$/.test(raw)) return null;
   return BigInt(raw);
-}
-
-function normalizeExt(value: unknown): string | null {
-  const raw = typeof value === 'string' ? value : String(value);
-  const ext = raw.trim().toLowerCase();
-  if (!ext) return null;
-  if (!/^[a-z0-9]+$/.test(ext)) return null;
-  return ext;
 }
 
 function classifyUpstreamError(err: unknown): { status: number; code: string; message: string } {
@@ -74,9 +52,9 @@ async function safeMarkFail(imageId: bigint, info: { code: string; message: stri
 
 async function getImageById(req: Request, res: Response) {
   const imageId = parsePositiveInteger((req.params as any).id);
-  const ext = normalizeExt((req.params as any).ext);
+  const ext = normalizeImageExtension((req.params as any).ext);
 
-  if (!imageId || !ext) {
+  if (!imageId || !ext || !isAllowedImageExt(ext)) {
     renderError(res, 400, '400 Bad Request', 'Invalid id or extension.');
     return;
   }
@@ -115,7 +93,7 @@ async function getImageById(req: Request, res: Response) {
     sourceStream = upstreamResponse.data;
 
     res.writeHead(200, {
-      'Content-Type': getImageContentType(ext),
+      'Content-Type': getImageContentTypeFromExt(ext) || 'application/octet-stream',
       'Content-Disposition': `filename="${imageFilename}"`,
       'X-Origin-URL': originalUrl,
       'X-Crawl-Date': new Date().toUTCString(),
@@ -173,4 +151,3 @@ const imageByIdController = {
 };
 
 export default imageByIdController;
-

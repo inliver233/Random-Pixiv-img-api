@@ -102,6 +102,25 @@ describe('legacy pixivcat routes', () => {
     expect(res.body.toString('utf8')).toBe('hello');
   });
 
+  it('streams webp image with long-cache headers', async () => {
+    const app = createLegacyApp();
+
+    const originUrl = 'https://i.pximg.net/img-original/123_p0.webp';
+    mockPixivGetPixivIllustIdData.mockResolvedValueOnce(pixivDetailSingle({ illustId: 123, originalUrl: originUrl }));
+
+    mockAxiosGet.mockResolvedValueOnce({
+      data: Readable.from([Buffer.from('webp')]),
+    } as any);
+
+    const res = await request(app).get('/123.webp').buffer(true).expect(200);
+
+    expect(res.headers['cache-control']).toContain('max-age=31536000');
+    expect(res.headers['x-origin-url']).toBe(originUrl);
+    expect(res.headers['content-type']).toContain('image/webp');
+    expect(Buffer.isBuffer(res.body)).toBe(true);
+    expect(res.body.toString('utf8')).toBe('webp');
+  });
+
   it('streams multi image page with long-cache headers', async () => {
     const app = createLegacyApp();
 

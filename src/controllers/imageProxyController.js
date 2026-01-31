@@ -1,6 +1,6 @@
 const axios = require('axios');
-const path = require('path');
 const pixivService = require('../services/pixivService');
+const { getImageContentTypeFromFilename } = require('../utils/contentType');
 
 const imageHeaders = {
   Referer: 'https://www.pixiv.net/',
@@ -38,21 +38,6 @@ const pixivApiResponseValidator = (pixivApiResponse) => {
   return null;
 };
 
-const getImageContentType = (fileName) => {
-  const extension = path.extname(fileName).toLowerCase();
-  switch (extension) {
-    case '.jpg':
-    case '.jpeg':
-      return 'image/jpeg';
-    case '.png':
-      return 'image/png';
-    case '.gif':
-      return 'image/gif';
-    default:
-      return 'application/octet-stream'; // Default to binary data if extension is not recognized
-  }
-};
-
 const getIllustSingle = async (req, res) => {
   try {
     const pixivApiResponse = await pixivService.getPixivIllustIdData(req.params.illustId);
@@ -73,7 +58,7 @@ const getIllustSingle = async (req, res) => {
     });
     const imageFilename = imageURL.substring(imageURL.lastIndexOf('/') + 1);
     res.writeHead(200, {
-      'Content-Type': getImageContentType(imageFilename),
+      'Content-Type': getImageContentTypeFromFilename(imageFilename) || 'application/octet-stream',
       'Content-Disposition': `filename="${imageFilename}"`,
       'X-Origin-URL': imageURL,
       'X-Crawl-Date': new Date().toUTCString(),
@@ -160,7 +145,7 @@ const getIllustMulti = async (req, res) => {
     });
     const imageFilename = imageURL.substring(imageURL.lastIndexOf('/') + 1);
     res.writeHead(200, {
-      'Content-Type': getImageContentType(imageFilename),
+      'Content-Type': getImageContentTypeFromFilename(imageFilename) || 'application/octet-stream',
       'Content-Disposition': `filename="${imageFilename}"`,
       'X-Origin-URL': imageURL,
       'X-Crawl-Date': new Date().toUTCString(),

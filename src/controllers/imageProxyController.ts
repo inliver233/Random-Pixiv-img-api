@@ -1,9 +1,9 @@
 import axios from 'axios';
-import path from 'node:path';
 import type { Request, Response } from 'express';
 import type { Readable } from 'node:stream';
 
 import pixivService from '../services/pixivService';
+import { getImageContentTypeFromFilename } from '../utils/contentType';
 
 const imageHeaders = {
   Referer: 'https://www.pixiv.net/',
@@ -50,21 +50,6 @@ const pixivApiResponseValidator = (pixivApiResponse: any): RenderErrorViewModel 
   return null;
 };
 
-const getImageContentType = (fileName: string): string => {
-  const extension = path.extname(fileName).toLowerCase();
-  switch (extension) {
-    case '.jpg':
-    case '.jpeg':
-      return 'image/jpeg';
-    case '.png':
-      return 'image/png';
-    case '.gif':
-      return 'image/gif';
-    default:
-      return 'application/octet-stream'; // Default to binary data if extension is not recognized
-  }
-};
-
 const getIllustSingle = async (req: Request, res: Response) => {
   try {
     const pixivApiResponse = (await pixivService.getPixivIllustIdData(String(req.params.illustId))) as any;
@@ -85,7 +70,7 @@ const getIllustSingle = async (req: Request, res: Response) => {
     });
     const imageFilename = imageURL.substring(imageURL.lastIndexOf('/') + 1);
     res.writeHead(200, {
-      'Content-Type': getImageContentType(imageFilename),
+      'Content-Type': getImageContentTypeFromFilename(imageFilename) || 'application/octet-stream',
       'Content-Disposition': `filename="${imageFilename}"`,
       'X-Origin-URL': imageURL,
       'X-Crawl-Date': new Date().toUTCString(),
@@ -175,7 +160,7 @@ const getIllustMulti = async (req: Request, res: Response) => {
     });
     const imageFilename = imageURL.substring(imageURL.lastIndexOf('/') + 1);
     res.writeHead(200, {
-      'Content-Type': getImageContentType(imageFilename),
+      'Content-Type': getImageContentTypeFromFilename(imageFilename) || 'application/octet-stream',
       'Content-Disposition': `filename="${imageFilename}"`,
       'X-Origin-URL': imageURL,
       'X-Crawl-Date': new Date().toUTCString(),

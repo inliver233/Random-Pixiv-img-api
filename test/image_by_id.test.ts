@@ -67,6 +67,22 @@ describe('GET /i/:id.:ext', () => {
     expect(prisma.image.update).not.toHaveBeenCalled();
   });
 
+  it('streams webp with image/webp content-type', async () => {
+    const originUrl = 'https://i.pximg.net/img-original/img/2026/02/01/00/00/00/123_p0.webp';
+    prisma.image.findUnique.mockResolvedValueOnce({ id: 1n, ext: 'webp', originalUrl: originUrl });
+
+    mockAxiosGet.mockResolvedValueOnce({ data: readableFromBuffer(Buffer.from('webp')) } as any);
+
+    const app = createApp();
+
+    const res = await request(app).get('/i/1.webp').buffer(true).expect(200);
+
+    expect(res.headers['content-type']).toContain('image/webp');
+    expect(res.headers['x-origin-url']).toBe(originUrl);
+    expect(Buffer.isBuffer(res.body)).toBe(true);
+    expect(res.body.toString('utf8')).toBe('webp');
+  });
+
   it('returns 404 when record does not exist', async () => {
     prisma.image.findUnique.mockResolvedValueOnce(null);
 
@@ -78,6 +94,16 @@ describe('GET /i/:id.:ext', () => {
     expect(res.text).toContain('404');
     expect(mockAxiosGet).not.toHaveBeenCalled();
     expect(prisma.image.update).not.toHaveBeenCalled();
+  });
+
+  it('returns 400 for invalid ext', async () => {
+    const app = createApp();
+
+    const res = await request(app).get('/i/1.exe').expect(400);
+
+    expect(res.text).toContain('400');
+    expect(prisma.image.findUnique).not.toHaveBeenCalled();
+    expect(mockAxiosGet).not.toHaveBeenCalled();
   });
 
   it('marks fail_count when upstream returns 404', async () => {
