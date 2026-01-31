@@ -99,6 +99,29 @@ function mulberry32(seed: number): () => number {
   };
 }
 
+function parseR18(value: unknown): number | undefined {
+  if (value === undefined || value === null) return 0;
+
+  const raw = Array.isArray(value) ? String(value[0] || '') : String(value ?? '');
+  const normalized = raw.trim().toLowerCase();
+
+  if (!normalized) {
+    const err = new Error('Invalid r18.');
+    (err as any).status = 400;
+    throw err;
+  }
+
+  if (normalized === 'any') return undefined;
+
+  if (normalized === '0' || normalized === '1' || normalized === '2') {
+    return Number(normalized);
+  }
+
+  const err = new Error('Invalid r18.');
+  (err as any).status = 400;
+  throw err;
+}
+
 router.get('/', (req, res, next) => {
   (async () => {
     res.setHeader('Cache-Control', 'no-store');
@@ -108,9 +131,9 @@ router.get('/', (req, res, next) => {
     const attempts = parseAttempts((req.query as any).attempts);
     const seed = parseSeed((req.query as any).seed);
     const random = seed ? mulberry32(fnv1a32(seed)) : Math.random;
+    const xRestrict = parseR18((req.query as any).r18);
 
-    // MVP defaults: r18=0 (x_restrict=0) and fixed attempts.
-    const filters = { xRestrict: 0 };
+    const filters = { xRestrict };
 
     if (redirect) {
       const image = await pickRandomImageRecord(filters, random);
