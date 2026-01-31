@@ -72,5 +72,56 @@ describe('GET /random (format)', () => {
       request_id: 'req-random-format-image',
     });
   });
-});
 
+  it('returns JSON payload for format=json', async () => {
+    prisma.image.findFirst.mockResolvedValueOnce({
+      id: 1n,
+      illustId: 2n,
+      pageIndex: 0,
+      ext: 'jpg',
+      originalUrl: 'https://example.test/original.jpg',
+    });
+
+    const app = createApp();
+
+    const res = await request(app)
+      .get('/random?format=json')
+      .set('x-request-id', 'req-random-format-json')
+      .expect(200);
+
+    expect(res.headers['cache-control']).toBe('no-store');
+    expect(res.body).toEqual({
+      image: {
+        id: 1,
+        illust_id: 2,
+        page_index: 0,
+        ext: 'jpg',
+      },
+      urls: {
+        proxy: '/i/1.jpg',
+        original: 'https://example.test/original.jpg',
+      },
+    });
+  });
+
+  it('treats format as case-insensitive and trims whitespace', async () => {
+    prisma.image.findFirst.mockResolvedValueOnce({
+      id: 3n,
+      illustId: 4n,
+      pageIndex: 0,
+      ext: 'png',
+      originalUrl: 'https://example.test/original.png',
+    });
+
+    const app = createApp();
+
+    const res = await request(app)
+      .get('/random?format=%20JSON%20')
+      .set('x-request-id', 'req-random-format-json-trim')
+      .expect(200);
+
+    expect(res.headers['cache-control']).toBe('no-store');
+    expect(res.body.urls.proxy).toBe('/i/3.png');
+    expect(res.body.urls.original).toBe('https://example.test/original.png');
+  });
+});
