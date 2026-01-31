@@ -147,3 +147,53 @@ export async function markOk(input: MarkOkInput) {
   });
 }
 
+export type PickRandomFilters = {
+  xRestrict?: number | null;
+  orientation?: number | null;
+  minWidth?: number | null;
+  minHeight?: number | null;
+};
+
+function buildPickRandomBaseWhere(filters: PickRandomFilters) {
+  const where: any = {
+    status: IMAGE_STATUS_ACTIVE,
+  };
+
+  if (filters.xRestrict !== undefined && filters.xRestrict !== null) {
+    where.xRestrict = filters.xRestrict;
+  }
+
+  if (filters.orientation !== undefined && filters.orientation !== null && filters.orientation !== 0) {
+    where.orientation = filters.orientation;
+  }
+
+  if (filters.minWidth !== undefined && filters.minWidth !== null) {
+    where.width = { gte: filters.minWidth };
+  }
+
+  if (filters.minHeight !== undefined && filters.minHeight !== null) {
+    where.height = { gte: filters.minHeight };
+  }
+
+  return where;
+}
+
+export async function pickRandom(filters: PickRandomFilters, r: number) {
+  const prisma = getPrismaClient();
+  const baseWhere = buildPickRandomBaseWhere(filters);
+
+  const first = await prisma.image.findFirst({
+    where: {
+      ...baseWhere,
+      randomKey: { gte: r },
+    },
+    orderBy: { randomKey: 'asc' },
+  });
+
+  if (first) return first;
+
+  return prisma.image.findFirst({
+    where: baseWhere,
+    orderBy: { randomKey: 'asc' },
+  });
+}

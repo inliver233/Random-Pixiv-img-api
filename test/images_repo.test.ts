@@ -1,12 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { setPrismaClientForTest } from '../src/db/prismaClient';
-import { IMAGE_STATUS_ACTIVE, IMAGE_STATUS_BROKEN, getById, markFail, markOk, upsert } from '../src/repositories/imagesRepo';
+import { IMAGE_STATUS_ACTIVE, IMAGE_STATUS_BROKEN, getById, markFail, markOk, pickRandom, upsert } from '../src/repositories/imagesRepo';
 
 describe('imagesRepo', () => {
   const prisma = {
     image: {
       findUnique: vi.fn(),
+      findFirst: vi.fn(),
       upsert: vi.fn(),
       update: vi.fn(),
     },
@@ -102,5 +103,31 @@ describe('imagesRepo', () => {
       },
     });
   });
-});
 
+  it('pickRandom uses two-phase random_key query and falls back when empty', async () => {
+    prisma.image.findFirst.mockResolvedValueOnce(null).mockResolvedValueOnce({ id: 3n });
+
+    const res = await pickRandom({ xRestrict: 0, minWidth: 500 }, 0.5);
+
+    expect(prisma.image.findFirst).toHaveBeenNthCalledWith(1, {
+      where: {
+        status: IMAGE_STATUS_ACTIVE,
+        xRestrict: 0,
+        width: { gte: 500 },
+        randomKey: { gte: 0.5 },
+      },
+      orderBy: { randomKey: 'asc' },
+    });
+
+    expect(prisma.image.findFirst).toHaveBeenNthCalledWith(2, {
+      where: {
+        status: IMAGE_STATUS_ACTIVE,
+        xRestrict: 0,
+        width: { gte: 500 },
+      },
+      orderBy: { randomKey: 'asc' },
+    });
+
+    expect(res).toEqual({ id: 3n });
+  });
+});
