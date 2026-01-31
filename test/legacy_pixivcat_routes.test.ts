@@ -1,0 +1,128 @@
+import express from 'express';
+import { createRequire } from 'node:module';
+import path from 'node:path';
+import { Readable } from 'node:stream';
+import request from 'supertest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+import { pixivDetailMulti, pixivDetailSingle } from './helpers/pixivFixtures';
+
+const require = createRequire(import.meta.url);
+
+const mockAxiosGet = vi.fn();
+const mockPixivGetPixivIllustIdData = vi.fn();
+
+function installCommonJsMocks() {
+  const axiosPath = require.resolve('axios');
+  require.cache[axiosPath] = {
+    id: axiosPath,
+    filename: axiosPath,
+    loaded: true,
+    exports: { get: mockAxiosGet },
+  } as any;
+
+  const pixivServicePath = require.resolve('../src/services/pixivService.js');
+  require.cache[pixivServicePath] = {
+    id: pixivServicePath,
+    filename: pixivServicePath,
+    loaded: true,
+    exports: { getPixivIllustIdData: mockPixivGetPixivIllustIdData },
+  } as any;
+}
+
+installCommonJsMocks();
+
+function createLegacyApp() {
+  const app = express();
+
+  const showVersion = require('../src/middlewares/headerMiddleware.js');
+  const pixivRoutes = require('../src/routes/pixivRoutes.js');
+
+  app.set('view engine', 'ejs');
+  app.set('views', path.join(process.cwd(), 'views'));
+
+  app.use('/', showVersion, pixivRoutes);
+  return app;
+}
+
+describe('legacy pixivcat routes', () => {
+  beforeEach(() => {
+    mockAxiosGet.mockReset();
+    mockPixivGetPixivIllustIdData.mockReset();
+  });
+
+  it('validates illustId', async () => {
+    const app = createLegacyApp();
+
+    const res = await request(app).get('/abc.jpg').expect(400);
+    expect(res.text).toContain('Invalid ID format');
+  });
+
+  it('validates extension', async () => {
+    const app = createLegacyApp();
+
+    const res = await request(app).get('/123.txt').expect(400);
+    expect(res.text).toContain('Invalid file extension');
+  });
+
+  it('redirects single route when work has multiple pages', async () => {
+    const app = createLegacyApp();
+
+    mockPixivGetPixivIllustIdData.mockResolvedValueOnce(
+      pixivDetailMulti({
+        illustId: 123,
+        originalUrls: ['https://i.pximg.net/img-original/123_p0.jpg', 'https://i.pximg.net/img-original/123_p1.jpg'],
+      }),
+    );
+
+    const res = await request(app).get('/123.jpeg').expect(301);
+    expect(res.headers.location).toBe('/123-1.jpeg');
+    expect(mockAxiosGet).not.toHaveBeenCalled();
+  });
+
+  it('streams single image with long-cache headers', async () => {
+    const app = createLegacyApp();
+
+    const originUrl = 'https://i.pximg.net/img-original/123_p0.jpg';
+    mockPixivGetPixivIllustIdData.mockResolvedValueOnce(
+      pixivDetailSingle({ illustId: 123, originalUrl: originUrl }),
+    );
+
+    mockAxiosGet.mockResolvedValueOnce({
+      data: Readable.from([Buffer.from('hello')]),
+    } as any);
+
+    const res = await request(app).get('/123.jpg').buffer(true).expect(200);
+
+    expect(res.headers['cache-control']).toContain('max-age=31536000');
+    expect(res.headers['access-control-allow-origin']).toBe('*');
+    expect(res.headers['x-origin-url']).toBe(originUrl);
+    expect(res.headers['content-type']).toContain('image/jpeg');
+    expect(Buffer.isBuffer(res.body)).toBe(true);
+    expect(res.body.toString('utf8')).toBe('hello');
+  });
+
+  it('streams multi image page with long-cache headers', async () => {
+    const app = createLegacyApp();
+
+    const originUrl = 'https://i.pximg.net/img-original/123_p1.png';
+    mockPixivGetPixivIllustIdData.mockResolvedValueOnce(
+      pixivDetailMulti({
+        illustId: 123,
+        originalUrls: ['https://i.pximg.net/img-original/123_p0.png', originUrl],
+      }),
+    );
+
+    mockAxiosGet.mockResolvedValueOnce({
+      data: Readable.from([Buffer.from('ok')]),
+    } as any);
+
+    const res = await request(app).get('/123-2.png').buffer(true).expect(200);
+
+    expect(res.headers['cache-control']).toContain('max-age=31536000');
+    expect(res.headers['x-origin-url']).toBe(originUrl);
+    expect(res.headers['content-type']).toContain('image/png');
+    expect(Buffer.isBuffer(res.body)).toBe(true);
+    expect(res.body.toString('utf8')).toBe('ok');
+  });
+});
