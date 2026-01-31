@@ -62,5 +62,45 @@ describe('GET /random (filter min_pixels)', () => {
     });
     expect(pickRandomImageStream).not.toHaveBeenCalled();
   });
-});
 
+  it('accepts min_pixels=0', async () => {
+    const app = await createApp();
+
+    await request(app)
+      .get('/random?min_pixels=0')
+      .set('accept', 'application/json')
+      .expect(404);
+
+    const filters = pickRandomImageStream.mock.calls[0]?.[0];
+    expect(filters).toEqual({ xRestrict: 0, minPixels: 0 });
+  });
+
+  it('returns 400 for empty min_pixels', async () => {
+    const app = await createApp();
+
+    const res = await request(app)
+      .get('/random?min_pixels=')
+      .set('accept', 'application/json')
+      .set('x-request-id', 'req-random-min-pixels-empty')
+      .expect(400);
+
+    expect(res.body).toEqual({
+      code: 'BAD_REQUEST',
+      message: 'Invalid min_pixels.',
+      request_id: 'req-random-min-pixels-empty',
+    });
+    expect(pickRandomImageStream).not.toHaveBeenCalled();
+  });
+
+  it('combines min_pixels with r18 and orientation', async () => {
+    const app = await createApp();
+
+    await request(app)
+      .get('/random?r18=1&orientation=portrait&min_pixels=123')
+      .set('accept', 'application/json')
+      .expect(404);
+
+    const filters = pickRandomImageStream.mock.calls[0]?.[0];
+    expect(filters).toEqual({ xRestrict: 1, orientation: 1, minPixels: 123 });
+  });
+});
