@@ -73,6 +73,8 @@ const envSchema = z
     METRICS_ENABLED: booleanSchema.optional().default(true),
     METRICS_ROUTE: z.string().min(1).optional().default('/metrics'),
 
+    RANDOM_FAIL_COOLDOWN_MS: z.coerce.number().int().min(0).optional().default(600_000),
+
     IMGPROXY_URL: z.string().url().optional(),
     IMGPROXY_KEY: z.string().min(1).optional(),
     IMGPROXY_SALT: z.string().min(1).optional(),

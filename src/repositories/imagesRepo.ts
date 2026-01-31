@@ -1,4 +1,5 @@
 import { getPrismaClient } from '../db/prismaClient';
+import { getEnv } from '../config/env';
 
 export const IMAGE_STATUS_ACTIVE = 1;
 export const IMAGE_STATUS_DISABLED = 2;
@@ -173,6 +174,12 @@ function buildPickRandomBaseWhere(filters: PickRandomFilters) {
 
   if (filters.minHeight !== undefined && filters.minHeight !== null) {
     where.height = { gte: filters.minHeight };
+  }
+
+  const env = getEnv();
+  if (env.RANDOM_FAIL_COOLDOWN_MS > 0) {
+    const cutoff = new Date(Date.now() - env.RANDOM_FAIL_COOLDOWN_MS);
+    where.OR = [{ lastFailAt: null }, { lastFailAt: { lt: cutoff } }];
   }
 
   return where;

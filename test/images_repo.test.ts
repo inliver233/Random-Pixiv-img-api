@@ -105,29 +105,40 @@ describe('imagesRepo', () => {
   });
 
   it('pickRandom uses two-phase random_key query and falls back when empty', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-02-01T00:00:00.000Z'));
+
     prisma.image.findFirst.mockResolvedValueOnce(null).mockResolvedValueOnce({ id: 3n });
 
-    const res = await pickRandom({ xRestrict: 0, minWidth: 500 }, 0.5);
+    try {
+      const res = await pickRandom({ xRestrict: 0, minWidth: 500 }, 0.5);
 
-    expect(prisma.image.findFirst).toHaveBeenNthCalledWith(1, {
-      where: {
-        status: IMAGE_STATUS_ACTIVE,
-        xRestrict: 0,
-        width: { gte: 500 },
-        randomKey: { gte: 0.5 },
-      },
-      orderBy: { randomKey: 'asc' },
-    });
+      const cutoff = new Date('2026-01-31T23:50:00.000Z');
 
-    expect(prisma.image.findFirst).toHaveBeenNthCalledWith(2, {
-      where: {
-        status: IMAGE_STATUS_ACTIVE,
-        xRestrict: 0,
-        width: { gte: 500 },
-      },
-      orderBy: { randomKey: 'asc' },
-    });
+      expect(prisma.image.findFirst).toHaveBeenNthCalledWith(1, {
+        where: {
+          status: IMAGE_STATUS_ACTIVE,
+          xRestrict: 0,
+          width: { gte: 500 },
+          OR: [{ lastFailAt: null }, { lastFailAt: { lt: cutoff } }],
+          randomKey: { gte: 0.5 },
+        },
+        orderBy: { randomKey: 'asc' },
+      });
 
-    expect(res).toEqual({ id: 3n });
+      expect(prisma.image.findFirst).toHaveBeenNthCalledWith(2, {
+        where: {
+          status: IMAGE_STATUS_ACTIVE,
+          xRestrict: 0,
+          width: { gte: 500 },
+          OR: [{ lastFailAt: null }, { lastFailAt: { lt: cutoff } }],
+        },
+        orderBy: { randomKey: 'asc' },
+      });
+
+      expect(res).toEqual({ id: 3n });
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
