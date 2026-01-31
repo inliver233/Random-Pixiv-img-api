@@ -62,5 +62,45 @@ describe('GET /random (filter min_height)', () => {
     });
     expect(pickRandomImageStream).not.toHaveBeenCalled();
   });
-});
 
+  it('accepts min_height=0', async () => {
+    const app = await createApp();
+
+    await request(app)
+      .get('/random?min_height=0')
+      .set('accept', 'application/json')
+      .expect(404);
+
+    const filters = pickRandomImageStream.mock.calls[0]?.[0];
+    expect(filters).toEqual({ xRestrict: 0, minHeight: 0 });
+  });
+
+  it('returns 400 for empty min_height', async () => {
+    const app = await createApp();
+
+    const res = await request(app)
+      .get('/random?min_height=')
+      .set('accept', 'application/json')
+      .set('x-request-id', 'req-random-min-height-empty')
+      .expect(400);
+
+    expect(res.body).toEqual({
+      code: 'BAD_REQUEST',
+      message: 'Invalid min_height.',
+      request_id: 'req-random-min-height-empty',
+    });
+    expect(pickRandomImageStream).not.toHaveBeenCalled();
+  });
+
+  it('combines min_height with r18 and orientation', async () => {
+    const app = await createApp();
+
+    await request(app)
+      .get('/random?r18=2&orientation=landscape&min_height=200')
+      .set('accept', 'application/json')
+      .expect(404);
+
+    const filters = pickRandomImageStream.mock.calls[0]?.[0];
+    expect(filters).toEqual({ xRestrict: 2, orientation: 2, minHeight: 200 });
+  });
+});
