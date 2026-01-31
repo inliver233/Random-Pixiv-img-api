@@ -19,6 +19,7 @@
     "src/routes/pixivRoutes.js",
     "src/controllers/imageProxyController.js",
     "src/services/pixivService.js",
-    "src/services/pixivAuthService.js"
+    "src/services/pixivAuthService.js",
+    "src/services/memcachedService.js"
   ]
 }
