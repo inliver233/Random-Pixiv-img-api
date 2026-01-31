@@ -14,6 +14,7 @@ try {
 const requestIdMiddleware = require('./src/middlewares/requestIdMiddleware');
 const httpLoggerMiddleware = require('./src/middlewares/httpLoggerMiddleware');
 const showVersion = require('./src/middlewares/headerMiddleware');
+const errorHandler = require('./src/middlewares/errorHandler');
 const pixivRoutes = require('./src/routes/pixivRoutes');
 
 const app = express();
@@ -30,10 +31,7 @@ app.use(httpLoggerMiddleware);
 app.use('/', showVersion, pixivRoutes);
 
 // Error handling middleware
-app.use((err, req, res, next) => { // eslint-disable-line no-unused-vars
-  console.error(err.stack);
-  res.status(500).send('Internal Server Error');
-});
+app.use(errorHandler);
 
 // Start the server (only when executed directly; allow importing app for tests)
 if (require.main === module) {

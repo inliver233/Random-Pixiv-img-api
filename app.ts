@@ -17,6 +17,7 @@ const showVersion = require('./src/middlewares/headerMiddleware').default;
 const pixivRoutes = require('./src/routes/pixivRoutes').default;
 const requestIdMiddleware = require('./src/middlewares/requestIdMiddleware').default;
 const httpLoggerMiddleware = require('./src/middlewares/httpLoggerMiddleware').default;
+const errorHandler = require('./src/middlewares/errorHandler').default;
 
 const app = express();
 const PORT = process.env.PORT ? Number(process.env.PORT) : 3000;
@@ -32,10 +33,7 @@ app.use(httpLoggerMiddleware);
 app.use('/', showVersion, pixivRoutes);
 
 // Error handling middleware
-app.use((err: unknown, req: Request, res: Response, _next: NextFunction) => {
-  console.error(err);
-  res.status(500).send('Internal Server Error');
-});
+app.use(errorHandler);
 
 // Start the server
 if (require.main === module) {
