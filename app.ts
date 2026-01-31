@@ -2,10 +2,19 @@ import express, { type NextFunction, type Request, type Response } from 'express
 import path from 'node:path';
 import dotenv from 'dotenv';
 
-import showVersion from './src/middlewares/headerMiddleware';
-import pixivRoutes from './src/routes/pixivRoutes';
+import { validateEnv } from './src/config/env';
 
 dotenv.config();
+
+try {
+  validateEnv();
+} catch (err: unknown) {
+  console.error(err instanceof Error ? err.message : err);
+  process.exit(1);
+}
+
+const showVersion = require('./src/middlewares/headerMiddleware').default;
+const pixivRoutes = require('./src/routes/pixivRoutes').default;
 
 const app = express();
 const PORT = process.env.PORT ? Number(process.env.PORT) : 3000;

@@ -2,6 +2,15 @@ const express = require('express');
 const path = require('path');
 require('dotenv').config();
 
+const { validateEnv } = require('./src/config/env');
+
+try {
+  validateEnv();
+} catch (err) {
+  console.error(err?.message || err);
+  process.exit(1);
+}
+
 const showVersion = require('./src/middlewares/headerMiddleware');
 const pixivRoutes = require('./src/routes/pixivRoutes');
 
