@@ -21,7 +21,11 @@ app.use((err, req, res, next) => { // eslint-disable-line no-unused-vars
   res.status(500).send('Internal Server Error');
 });
 
-// Start the server
-app.listen(PORT, HOST, () => {
-  console.log(`Server is running on ${HOST}:${PORT}`);
-});
+// Start the server (only when executed directly; allow importing app for tests)
+if (require.main === module) {
+  app.listen(PORT, HOST, () => {
+    console.log(`Server is running on ${HOST}:${PORT}`);
+  });
+}
+
+module.exports = app;
