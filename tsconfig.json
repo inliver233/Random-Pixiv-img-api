@@ -21,6 +21,7 @@
     "src/services/pixivService.js",
     "src/services/pixivAuthService.js",
     "src/services/memcachedService.js",
-    "src/middlewares/validationMiddleware.js"
+    "src/middlewares/validationMiddleware.js",
+    "src/middlewares/headerMiddleware.js"
   ]
 }
