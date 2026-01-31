@@ -1,0 +1,37 @@
+services:
+  backend:
+    build:
+      context: .
+    ports:
+      - "3000:3000"
+    environment:
+      HOST: 0.0.0.0
+      PORT: 3000
+      REFRESH_TOKENS: '["please_set_refresh_token"]'
+      MEMCACHED_HOST: memcached
+      MEMCACHED_PORT: 11211
+      MEMCACHED_NAMESPACE: pixiv
+      DATABASE_URL: postgresql://pixivcat:pixivcat@postgres:5432/pixivcat
+    depends_on:
+      - postgres
+      - memcached
+
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: pixivcat
+      POSTGRES_PASSWORD: pixivcat
+      POSTGRES_DB: pixivcat
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  memcached:
+    image: memcached:1.6-alpine
+    ports:
+      - "11211:11211"
+
+volumes:
+  pgdata:
+
