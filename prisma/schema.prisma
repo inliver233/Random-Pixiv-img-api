@@ -6,3 +6,42 @@ generator client {
 datasource db {
   provider = "postgresql"
 }
+
+model Image {
+  id            BigInt   @id @default(autoincrement())
+  illustId       BigInt   @map("illust_id") @db.BigInt
+  pageIndex      Int      @map("page_index")
+  ext           String   @db.Text
+
+  originalUrl   String   @map("original_url") @db.Text
+  proxyPath     String   @map("proxy_path") @db.Text
+
+  width         Int?
+  height        Int?
+  aspectRatio   Float?   @map("aspect_ratio") @db.Real
+  orientation   Int?     @db.SmallInt
+
+  xRestrict     Int?     @map("x_restrict") @db.SmallInt
+  aiType        Int?     @map("ai_type") @db.SmallInt
+
+  userId        BigInt?  @map("user_id") @db.BigInt
+  userName      String?  @map("user_name") @db.Text
+  title         String?  @db.Text
+  createdAtPixiv DateTime? @map("created_at_pixiv")
+
+  status        Int      @default(1) @db.SmallInt
+  failCount     Int      @default(0) @map("fail_count")
+  lastFailAt    DateTime? @map("last_fail_at")
+  lastOkAt      DateTime? @map("last_ok_at")
+  lastErrorCode String?  @map("last_error_code") @db.Text
+  lastErrorMsg  String?  @map("last_error_msg") @db.Text
+
+  randomKey     Float    @map("random_key") @db.Real
+
+  addedAt       DateTime @default(now()) @map("added_at")
+  updatedAt     DateTime @default(now()) @updatedAt @map("updated_at")
+
+  @@unique([illustId, pageIndex], map: "images_uniq")
+  @@index([status, xRestrict, orientation, width, height, randomKey], map: "images_filter_idx")
+  @@map("images")
+}
