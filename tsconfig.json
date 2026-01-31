@@ -13,5 +13,11 @@
     "checkJs": false
   },
   "include": ["app.ts", "src/**/*.js", "src/**/*.ts"],
-  "exclude": ["dist", "node_modules", "src/routes/pixivRoutes.js", "src/controllers/imageProxyController.js"]
+  "exclude": [
+    "dist",
+    "node_modules",
+    "src/routes/pixivRoutes.js",
+    "src/controllers/imageProxyController.js",
+    "src/services/pixivService.js"
+  ]
 }

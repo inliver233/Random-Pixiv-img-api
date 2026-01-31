@@ -67,7 +67,7 @@ const getImageContentType = (fileName: string): string => {
 
 const getIllustSingle = async (req: Request, res: Response) => {
   try {
-    const pixivApiResponse = (await pixivService.getPixivIllustIdData(req.params.illustId)) as any;
+    const pixivApiResponse = (await pixivService.getPixivIllustIdData(String(req.params.illustId))) as any;
     const pixivApiResponseValidationResult = pixivApiResponseValidator(pixivApiResponse);
     if (pixivApiResponseValidationResult !== null) {
       res.status(404).render('error', pixivApiResponseValidationResult);
@@ -143,7 +143,7 @@ const getIllustSingle = async (req: Request, res: Response) => {
 
 const getIllustMulti = async (req: Request, res: Response) => {
   try {
-    const pixivApiResponse = (await pixivService.getPixivIllustIdData(req.params.illustId)) as any;
+    const pixivApiResponse = (await pixivService.getPixivIllustIdData(String(req.params.illustId))) as any;
     const pixivApiResponseValidationResult = pixivApiResponseValidator(pixivApiResponse);
     if (pixivApiResponseValidationResult !== null) {
       res.status(404).render('error', pixivApiResponseValidationResult);
