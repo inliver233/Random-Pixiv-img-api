@@ -34,6 +34,20 @@ export async function getById(id: bigint) {
   return prisma.image.findUnique({ where: { id } });
 }
 
+export async function getByIdWithTags(id: bigint) {
+  const prisma = getPrismaClient();
+  return prisma.image.findUnique({
+    where: { id },
+    include: {
+      imageTags: {
+        include: {
+          tag: true,
+        },
+      },
+    },
+  });
+}
+
 export async function upsert(input: UpsertImageInput) {
   const prisma = getPrismaClient();
 
@@ -251,7 +265,7 @@ async function pickRandomByTablesample(filters: PickRandomFilters, percent: numb
     conditions.push(Prisma.sql`(last_fail_at IS NULL OR last_fail_at < ${cutoff})`);
   }
 
-  const whereSql = Prisma.join(conditions, Prisma.sql` AND `);
+  const whereSql = Prisma.join(conditions, ' AND ');
   const percentSql = Prisma.raw(normalizeTablesamplePercent(percent).toString());
 
   const rows = await prisma.$queryRaw<{ id: bigint | string }[]>(
