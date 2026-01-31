@@ -15,6 +15,8 @@ try {
 
 const showVersion = require('./src/middlewares/headerMiddleware').default;
 const pixivRoutes = require('./src/routes/pixivRoutes').default;
+const requestIdMiddleware = require('./src/middlewares/requestIdMiddleware').default;
+const httpLoggerMiddleware = require('./src/middlewares/httpLoggerMiddleware').default;
 
 const app = express();
 const PORT = process.env.PORT ? Number(process.env.PORT) : 3000;
@@ -22,6 +24,9 @@ const HOST = process.env.HOST || '127.0.0.1';
 
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
+
+app.use(requestIdMiddleware);
+app.use(httpLoggerMiddleware);
 
 // Routes
 app.use('/', showVersion, pixivRoutes);

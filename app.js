@@ -11,6 +11,8 @@ try {
   process.exit(1);
 }
 
+const requestIdMiddleware = require('./src/middlewares/requestIdMiddleware');
+const httpLoggerMiddleware = require('./src/middlewares/httpLoggerMiddleware');
 const showVersion = require('./src/middlewares/headerMiddleware');
 const pixivRoutes = require('./src/routes/pixivRoutes');
 
@@ -20,6 +22,9 @@ const HOST = process.env.HOST || '127.0.0.1';
 
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
+
+app.use(requestIdMiddleware);
+app.use(httpLoggerMiddleware);
 
 // Routes
 app.use('/', showVersion, pixivRoutes);
