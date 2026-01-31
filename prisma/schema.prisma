@@ -45,3 +45,11 @@ model Image {
   @@index([status, xRestrict, orientation, width, height, randomKey], map: "images_filter_idx")
   @@map("images")
 }
+
+model Tag {
+  id             BigInt  @id @default(autoincrement())
+  name           String  @unique @db.Text
+  translatedName String? @map("translated_name") @db.Text
+
+  @@map("tags")
+}
