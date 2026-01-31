@@ -262,6 +262,38 @@ function parseExcludedTags(value: unknown): string[] | undefined {
   return [...new Set(tags)];
 }
 
+const PG_BIGINT_MAX = 9223372036854775807n;
+
+function parseUserId(value: unknown): bigint | undefined {
+  if (value === undefined || value === null) return undefined;
+
+  const raw = Array.isArray(value) ? String(value[0] || '') : String(value ?? '');
+  const normalized = raw.trim();
+
+  if (!normalized || !/^\d+$/.test(normalized)) {
+    const err = new Error('Invalid user_id.');
+    (err as any).status = 400;
+    throw err;
+  }
+
+  let id: bigint;
+  try {
+    id = BigInt(normalized);
+  } catch {
+    const err = new Error('Invalid user_id.');
+    (err as any).status = 400;
+    throw err;
+  }
+
+  if (id < 1n || id > PG_BIGINT_MAX) {
+    const err = new Error('Invalid user_id.');
+    (err as any).status = 400;
+    throw err;
+  }
+
+  return id;
+}
+
 router.get('/', (req, res, next) => {
   (async () => {
     res.setHeader('Cache-Control', 'no-store');
@@ -278,6 +310,7 @@ router.get('/', (req, res, next) => {
     const minPixels = parseMinPixels((req.query as any).min_pixels);
     const includedTags = parseIncludedTags((req.query as any).included_tags);
     const excludedTags = parseExcludedTags((req.query as any).excluded_tags);
+    const userId = parseUserId((req.query as any).user_id);
 
     const filters: any = {};
     if (xRestrict !== undefined) filters.xRestrict = xRestrict;
@@ -287,6 +320,7 @@ router.get('/', (req, res, next) => {
     if (minPixels !== undefined) filters.minPixels = minPixels;
     if (includedTags !== undefined) filters.includedTags = includedTags;
     if (excludedTags !== undefined) filters.excludedTags = excludedTags;
+    if (userId !== undefined) filters.userId = userId;
 
     if (redirect) {
       const image = await pickRandomImageRecord(filters, random);
