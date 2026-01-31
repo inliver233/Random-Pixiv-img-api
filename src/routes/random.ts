@@ -8,8 +8,15 @@ import { IMAGE_STATUS_BROKEN, markFail } from '../repositories/imagesRepo';
 const router = Router();
 
 function parseFormat(value: unknown): 'image' | 'json' {
-  const raw = Array.isArray(value) ? String(value[0] || '') : String(value || '');
-  return raw.trim().toLowerCase() === 'json' ? 'json' : 'image';
+  const raw = Array.isArray(value) ? String(value[0] || '') : String(value ?? '');
+  const normalized = raw.trim().toLowerCase();
+
+  if (!normalized || normalized === 'image') return 'image';
+  if (normalized === 'json') return 'json';
+
+  const err = new Error('Invalid format.');
+  (err as any).status = 400;
+  throw err;
 }
 
 function parseRedirect(value: unknown): boolean {
