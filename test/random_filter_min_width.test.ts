@@ -62,5 +62,45 @@ describe('GET /random (filter min_width)', () => {
     });
     expect(pickRandomImageStream).not.toHaveBeenCalled();
   });
-});
 
+  it('accepts min_width=0', async () => {
+    const app = await createApp();
+
+    await request(app)
+      .get('/random?min_width=0')
+      .set('accept', 'application/json')
+      .expect(404);
+
+    const filters = pickRandomImageStream.mock.calls[0]?.[0];
+    expect(filters).toEqual({ xRestrict: 0, minWidth: 0 });
+  });
+
+  it('returns 400 for empty min_width', async () => {
+    const app = await createApp();
+
+    const res = await request(app)
+      .get('/random?min_width=')
+      .set('accept', 'application/json')
+      .set('x-request-id', 'req-random-min-width-empty')
+      .expect(400);
+
+    expect(res.body).toEqual({
+      code: 'BAD_REQUEST',
+      message: 'Invalid min_width.',
+      request_id: 'req-random-min-width-empty',
+    });
+    expect(pickRandomImageStream).not.toHaveBeenCalled();
+  });
+
+  it('combines min_width with r18 and orientation', async () => {
+    const app = await createApp();
+
+    await request(app)
+      .get('/random?r18=1&orientation=portrait&min_width=100')
+      .set('accept', 'application/json')
+      .expect(404);
+
+    const filters = pickRandomImageStream.mock.calls[0]?.[0];
+    expect(filters).toEqual({ xRestrict: 1, orientation: 1, minWidth: 100 });
+  });
+});
