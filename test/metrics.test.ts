@@ -1,0 +1,93 @@
+import express from 'express';
+import { createRequire } from 'node:module';
+import request from 'supertest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+
+const require = createRequire(import.meta.url);
+
+function resetCommonJsModules() {
+  const routePath = require.resolve('../src/routes/metrics.js');
+  delete require.cache[routePath];
+
+  const envPath = require.resolve('../src/config/env.js');
+  delete require.cache[envPath];
+}
+
+function createApp() {
+  const app = express();
+  const metricsRoute = require('../src/routes/metrics.js');
+
+  app.use('/metrics', metricsRoute);
+  return app;
+}
+
+describe('GET /metrics', () => {
+  const originalMetricsEnabled = process.env.METRICS_ENABLED;
+  const originalMetricsUser = process.env.METRICS_BASIC_AUTH_USER;
+  const originalMetricsPass = process.env.METRICS_BASIC_AUTH_PASS;
+
+  beforeEach(() => {
+    process.env.METRICS_ENABLED = 'true';
+    delete process.env.METRICS_BASIC_AUTH_USER;
+    delete process.env.METRICS_BASIC_AUTH_PASS;
+    resetCommonJsModules();
+  });
+
+  afterEach(() => {
+    if (originalMetricsEnabled === undefined) delete process.env.METRICS_ENABLED;
+    else process.env.METRICS_ENABLED = originalMetricsEnabled;
+
+    if (originalMetricsUser === undefined) delete process.env.METRICS_BASIC_AUTH_USER;
+    else process.env.METRICS_BASIC_AUTH_USER = originalMetricsUser;
+
+    if (originalMetricsPass === undefined) delete process.env.METRICS_BASIC_AUTH_PASS;
+    else process.env.METRICS_BASIC_AUTH_PASS = originalMetricsPass;
+
+    resetCommonJsModules();
+  });
+
+  it('returns 200 and includes pixivcat_up metric', async () => {
+    const app = createApp();
+
+    const res = await request(app).get('/metrics').expect(200);
+
+    expect(res.headers['content-type']).toMatch(/^text\/plain\b/i);
+    expect(res.text).toContain('pixivcat_up');
+  });
+
+  it('returns 404 when metrics are disabled', async () => {
+    process.env.METRICS_ENABLED = 'false';
+    resetCommonJsModules();
+
+    const app = createApp();
+
+    const res = await request(app).get('/metrics').expect(404);
+
+    expect(res.body).toEqual({ error: 'metrics_disabled' });
+  });
+
+  it('returns 401 when basic auth is enabled but missing/invalid', async () => {
+    process.env.METRICS_BASIC_AUTH_USER = 'user';
+    process.env.METRICS_BASIC_AUTH_PASS = 'pass';
+
+    const app = createApp();
+
+    const res = await request(app).get('/metrics').expect(401);
+
+    expect(res.headers['www-authenticate']).toContain('Basic');
+    expect(res.body).toEqual({ error: 'unauthorized' });
+  });
+
+  it('returns 200 when basic auth is enabled and correct credentials provided', async () => {
+    process.env.METRICS_BASIC_AUTH_USER = 'user';
+    process.env.METRICS_BASIC_AUTH_PASS = 'pass';
+
+    const app = createApp();
+
+    const token = Buffer.from('user:pass').toString('base64');
+    const res = await request(app).get('/metrics').set('Authorization', `Basic ${token}`).expect(200);
+
+    expect(res.text).toContain('pixivcat_up');
+  });
+});
+
