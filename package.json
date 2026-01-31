@@ -8,7 +8,11 @@
   },
   "scripts": {
     "start": "node app.js",
-    "dev": "nodemon app.js"
+    "start:prod": "node dist/app.js",
+    "build": "tsc -p tsconfig.json && node -e \"const fs=require('fs'); fs.mkdirSync('dist/views',{recursive:true}); fs.copyFileSync('views/error.ejs','dist/views/error.ejs');\"",
+    "dev": "nodemon app.js",
+    "test": "node -e \"console.log('TODO: tests not configured yet');\"",
+    "lint": "eslint ."
   },
   "author": "jongcs",
   "license": "MIT",
@@ -22,9 +26,11 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.39.2",
+    "@types/node": "^24.10.9",
     "eslint": "^9.39.2",
     "eslint-plugin-import": "^2.31.0",
     "globals": "^17.0.0",
-    "nodemon": "^3.1.7"
+    "nodemon": "^3.1.7",
+    "typescript": "^5.9.3"
   }
 }
