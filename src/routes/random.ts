@@ -65,6 +65,40 @@ function parseAttempts(value: unknown): number {
   return Math.max(1, Math.min(10, n));
 }
 
+function parseSeed(value: unknown): string | undefined {
+  if (value === undefined || value === null) return undefined;
+
+  const raw = Array.isArray(value) ? String(value[0] || '') : String(value ?? '');
+  const normalized = raw.trim();
+  if (!normalized) {
+    const err = new Error('Invalid seed.');
+    (err as any).status = 400;
+    throw err;
+  }
+
+  return normalized;
+}
+
+function fnv1a32(input: string): number {
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < input.length; i += 1) {
+    hash ^= input.charCodeAt(i);
+    hash = Math.imul(hash, 0x01000193);
+  }
+  return hash >>> 0;
+}
+
+function mulberry32(seed: number): () => number {
+  let t = seed >>> 0;
+
+  return () => {
+    t = (t + 0x6d2b79f5) >>> 0;
+    let r = Math.imul(t ^ (t >>> 15), 1 | t);
+    r ^= r + Math.imul(r ^ (r >>> 7), 61 | r);
+    return ((r ^ (r >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
 router.get('/', (req, res, next) => {
   (async () => {
     res.setHeader('Cache-Control', 'no-store');
@@ -72,12 +106,14 @@ router.get('/', (req, res, next) => {
     const format = parseFormat((req.query as any).format);
     const redirect = parseRedirect((req.query as any).redirect);
     const attempts = parseAttempts((req.query as any).attempts);
+    const seed = parseSeed((req.query as any).seed);
+    const random = seed ? mulberry32(fnv1a32(seed)) : Math.random;
 
     // MVP defaults: r18=0 (x_restrict=0) and fixed attempts.
     const filters = { xRestrict: 0 };
 
     if (redirect) {
-      const image = await pickRandomImageRecord(filters);
+      const image = await pickRandomImageRecord(filters, random);
       if (!image) {
         const err = new Error('No matching image.');
         (err as any).status = 404;
@@ -90,7 +126,7 @@ router.get('/', (req, res, next) => {
     }
 
     if (format === 'json') {
-      const image = await pickRandomImageRecord(filters);
+      const image = await pickRandomImageRecord(filters, random);
       if (!image) {
         const err = new Error('No matching image.');
         (err as any).status = 404;
@@ -119,7 +155,7 @@ router.get('/', (req, res, next) => {
     const abortController = new AbortController();
     res.on('close', () => abortController.abort());
 
-    const picked = await pickRandomImageStream(filters, attempts, abortController.signal);
+    const picked = await pickRandomImageStream(filters, attempts, abortController.signal, random);
     if (!picked) {
       const err = new Error('No matching image.');
       (err as any).status = 404;
