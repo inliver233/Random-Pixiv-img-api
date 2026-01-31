@@ -44,12 +44,34 @@ function bigintToSafeNumber(value: bigint, code: string): number {
 
 const DEFAULT_ATTEMPTS = 3;
 
+function parseAttempts(value: unknown): number {
+  const raw = Array.isArray(value) ? String(value[0] || '') : String(value ?? '');
+  const normalized = raw.trim();
+  if (!normalized) return DEFAULT_ATTEMPTS;
+
+  if (!/^\d+$/.test(normalized)) {
+    const err = new Error('Invalid attempts.');
+    (err as any).status = 400;
+    throw err;
+  }
+
+  const n = Number(normalized);
+  if (!Number.isSafeInteger(n)) {
+    const err = new Error('Invalid attempts.');
+    (err as any).status = 400;
+    throw err;
+  }
+
+  return Math.max(1, Math.min(10, n));
+}
+
 router.get('/', (req, res, next) => {
   (async () => {
     res.setHeader('Cache-Control', 'no-store');
 
     const format = parseFormat((req.query as any).format);
     const redirect = parseRedirect((req.query as any).redirect);
+    const attempts = parseAttempts((req.query as any).attempts);
 
     // MVP defaults: r18=0 (x_restrict=0) and fixed attempts.
     const filters = { xRestrict: 0 };
@@ -97,7 +119,7 @@ router.get('/', (req, res, next) => {
     const abortController = new AbortController();
     res.on('close', () => abortController.abort());
 
-    const picked = await pickRandomImageStream(filters, DEFAULT_ATTEMPTS, abortController.signal);
+    const picked = await pickRandomImageStream(filters, attempts, abortController.signal);
     if (!picked) {
       const err = new Error('No matching image.');
       (err as any).status = 404;
