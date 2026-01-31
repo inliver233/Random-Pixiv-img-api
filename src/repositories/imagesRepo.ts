@@ -1,5 +1,6 @@
 import { getPrismaClient } from '../db/prismaClient';
 import { getEnv } from '../config/env';
+import { Prisma } from '../generated/prisma/client';
 
 export const IMAGE_STATUS_ACTIVE = 1;
 export const IMAGE_STATUS_DISABLED = 2;
@@ -155,6 +156,16 @@ export type PickRandomFilters = {
   minHeight?: number | null;
 };
 
+export type PickRandomDebug = {
+  pickedBy?: 'random_key' | 'tablesample';
+};
+
+export type PickRandomOptions = {
+  strategy?: 'random_key' | 'tablesample';
+  tablesamplePercent?: number;
+  debug?: PickRandomDebug;
+};
+
 function buildPickRandomBaseWhere(filters: PickRandomFilters) {
   const where: any = {
     status: IMAGE_STATUS_ACTIVE,
@@ -185,7 +196,7 @@ function buildPickRandomBaseWhere(filters: PickRandomFilters) {
   return where;
 }
 
-export async function pickRandom(filters: PickRandomFilters, r: number) {
+async function pickRandomByRandomKey(filters: PickRandomFilters, r: number) {
   const prisma = getPrismaClient();
   const baseWhere = buildPickRandomBaseWhere(filters);
 
@@ -203,4 +214,73 @@ export async function pickRandom(filters: PickRandomFilters, r: number) {
     where: baseWhere,
     orderBy: { randomKey: 'asc' },
   });
+}
+
+function normalizeTablesamplePercent(input: number | undefined): number {
+  const percent = input ?? 1;
+  if (!Number.isFinite(percent)) return 1;
+  if (percent <= 0) return 0.1;
+  if (percent > 100) return 100;
+  return percent;
+}
+
+async function pickRandomByTablesample(filters: PickRandomFilters, percent: number) {
+  const prisma = getPrismaClient();
+  const env = getEnv();
+
+  const conditions: Prisma.Sql[] = [Prisma.sql`status = ${IMAGE_STATUS_ACTIVE}`];
+
+  if (filters.xRestrict !== undefined && filters.xRestrict !== null) {
+    conditions.push(Prisma.sql`x_restrict = ${filters.xRestrict}`);
+  }
+
+  if (filters.orientation !== undefined && filters.orientation !== null && filters.orientation !== 0) {
+    conditions.push(Prisma.sql`orientation = ${filters.orientation}`);
+  }
+
+  if (filters.minWidth !== undefined && filters.minWidth !== null) {
+    conditions.push(Prisma.sql`width >= ${filters.minWidth}`);
+  }
+
+  if (filters.minHeight !== undefined && filters.minHeight !== null) {
+    conditions.push(Prisma.sql`height >= ${filters.minHeight}`);
+  }
+
+  if (env.RANDOM_FAIL_COOLDOWN_MS > 0) {
+    const cutoff = new Date(Date.now() - env.RANDOM_FAIL_COOLDOWN_MS);
+    conditions.push(Prisma.sql`(last_fail_at IS NULL OR last_fail_at < ${cutoff})`);
+  }
+
+  const whereSql = Prisma.join(conditions, Prisma.sql` AND `);
+  const percentSql = Prisma.raw(normalizeTablesamplePercent(percent).toString());
+
+  const rows = await prisma.$queryRaw<{ id: bigint | string }[]>(
+    Prisma.sql`
+      SELECT id
+      FROM images TABLESAMPLE SYSTEM (${percentSql})
+      WHERE ${whereSql}
+      LIMIT 1
+    `,
+  );
+
+  if (rows.length === 0) return null;
+
+  const rawId = rows[0]?.id;
+  if (rawId === undefined || rawId === null) return null;
+  const id = typeof rawId === 'bigint' ? rawId : BigInt(rawId);
+
+  return prisma.image.findUnique({ where: { id } });
+}
+
+export async function pickRandom(filters: PickRandomFilters, r: number, options?: PickRandomOptions) {
+  const debug = options?.debug;
+  const strategy = options?.strategy ?? 'random_key';
+
+  if (strategy === 'tablesample') {
+    if (debug) debug.pickedBy = 'tablesample';
+    return pickRandomByTablesample(filters, options?.tablesamplePercent ?? 1);
+  }
+
+  if (debug) debug.pickedBy = 'random_key';
+  return pickRandomByRandomKey(filters, r);
 }
