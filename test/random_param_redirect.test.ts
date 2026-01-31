@@ -73,5 +73,40 @@ describe('GET /random (redirect)', () => {
     expect(res.headers['cache-control']).toBe('no-store');
     expect(res.headers.location).toBe('/i/10.jpg');
   });
-});
 
+  it('accepts redirect=0 (does not redirect)', async () => {
+    prisma.image.findFirst.mockResolvedValueOnce(null).mockResolvedValueOnce(null);
+
+    const app = createApp();
+
+    const res = await request(app)
+      .get('/random?redirect=0')
+      .set('accept', 'application/json')
+      .set('x-request-id', 'req-random-redirect-0')
+      .expect(404);
+
+    expect(res.headers.location).toBeUndefined();
+    expect(res.headers['cache-control']).toBe('no-store');
+    expect(res.body.code).toBe('NO_MATCH');
+  });
+
+  it('redirect=1 takes precedence over format=json', async () => {
+    prisma.image.findFirst.mockResolvedValueOnce({
+      id: 11n,
+      illustId: 21n,
+      pageIndex: 0,
+      ext: 'png',
+      originalUrl: 'https://example.test/original.png',
+    });
+
+    const app = createApp();
+
+    const res = await request(app)
+      .get('/random?redirect=1&format=json')
+      .set('x-request-id', 'req-random-redirect-1-format-json')
+      .expect(302);
+
+    expect(res.headers['cache-control']).toBe('no-store');
+    expect(res.headers.location).toBe('/i/11.png');
+  });
+});
