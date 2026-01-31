@@ -41,6 +41,8 @@ model Image {
   addedAt       DateTime @default(now()) @map("added_at")
   updatedAt     DateTime @default(now()) @updatedAt @map("updated_at")
 
+  imageTags     ImageTag[]
+
   @@unique([illustId, pageIndex], map: "images_uniq")
   @@index([status, xRestrict, orientation, width, height, randomKey], map: "images_filter_idx")
   @@map("images")
@@ -51,5 +53,19 @@ model Tag {
   name           String  @unique @db.Text
   translatedName String? @map("translated_name") @db.Text
 
+  imageTags      ImageTag[]
+
   @@map("tags")
+}
+
+model ImageTag {
+  imageId BigInt @map("image_id") @db.BigInt
+  tagId   BigInt @map("tag_id") @db.BigInt
+
+  image   Image  @relation(fields: [imageId], references: [id], onDelete: Cascade)
+  tag     Tag    @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([imageId, tagId])
+  @@index([tagId, imageId], map: "image_tags_tag")
+  @@map("image_tags")
 }
