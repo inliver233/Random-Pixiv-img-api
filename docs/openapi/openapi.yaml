@@ -1,0 +1,435 @@
+openapi: 3.1.0
+info:
+  title: Random Anime Image API (pixivcat-backend)
+  version: 0.0.0
+  description: |
+    本 OpenAPI 文档用于描述本项目新增的随机图片 API 与管理端点：
+      - /random（image/json/redirect）
+      - /images/:id（JSON 元信息）
+      - /i/:id.:ext（稳定图片 URL 的流式代理）
+      - /healthz
+      - /metrics
+      - /admin（AdminJS + 管理 API）
+
+    说明：
+    - legacy Pixivcat 兼容路由（/:illustId.:ext 与 /:illustId-:page.:ext）在 MVP 阶段仍保留，但不纳入本 OpenAPI 的首要范围。
+servers:
+  - url: http://127.0.0.1:3000
+
+tags:
+  - name: Random
+  - name: Images
+  - name: Health
+  - name: Metrics
+  - name: Admin
+
+paths:
+  /random:
+    get:
+      tags: [Random]
+      summary: Random image (stream/json/redirect)
+      description: |
+        默认返回图片二进制（流式），并强制 `Cache-Control: no-store`。
+        - `format=json`：返回 JSON
+        - `redirect=1`：返回 302，Location 指向稳定图片 URL（/i/:id.:ext）
+      parameters:
+        - $ref: '#/components/parameters/RandomFormat'
+        - $ref: '#/components/parameters/RandomRedirect'
+        - $ref: '#/components/parameters/RandomAttempts'
+        - $ref: '#/components/parameters/RandomSeed'
+        - $ref: '#/components/parameters/FilterR18'
+        - $ref: '#/components/parameters/FilterOrientation'
+        - $ref: '#/components/parameters/FilterMinWidth'
+        - $ref: '#/components/parameters/FilterMinHeight'
+        - $ref: '#/components/parameters/FilterMinPixels'
+        - $ref: '#/components/parameters/FilterIncludedTags'
+        - $ref: '#/components/parameters/FilterExcludedTags'
+        - $ref: '#/components/parameters/FilterUserId'
+        - $ref: '#/components/parameters/FilterIllustId'
+      responses:
+        '200':
+          description: Image stream (default) or JSON (format=json)
+          headers:
+            Cache-Control:
+              schema: { type: string }
+              description: Always `no-store` for /random
+            X-Request-Id:
+              schema: { type: string }
+              description: Correlates logs/metrics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RandomJsonResponse'
+            image/jpeg: { schema: { type: string, format: binary } }
+            image/png: { schema: { type: string, format: binary } }
+            image/gif: { schema: { type: string, format: binary } }
+            application/octet-stream: { schema: { type: string, format: binary } }
+        '302':
+          description: Redirect to stable URL (/i/:id.:ext)
+          headers:
+            Location:
+              schema: { type: string }
+              description: Stable image URL
+            Cache-Control:
+              schema: { type: string }
+              description: Always `no-store` for /random
+            X-Request-Id:
+              schema: { type: string }
+        '400':
+          $ref: '#/components/responses/JsonBadRequest'
+        '404':
+          $ref: '#/components/responses/JsonNotFound'
+        '503':
+          $ref: '#/components/responses/JsonServiceUnavailable'
+
+  /images/{id}:
+    get:
+      tags: [Images]
+      summary: Get one image record (JSON)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer, minimum: 1 }
+      responses:
+        '200':
+          description: Image record
+          headers:
+            Cache-Control:
+              schema: { type: string }
+              description: Usually `no-store` for JSON APIs
+            X-Request-Id:
+              schema: { type: string }
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImageRecord'
+        '400':
+          $ref: '#/components/responses/JsonBadRequest'
+        '404':
+          $ref: '#/components/responses/JsonNotFound'
+
+  /i/{id}.{ext}:
+    get:
+      tags: [Images]
+      summary: Stable image proxy by DB id (stream)
+      description: |
+        从 DB 读取 original_url/ext 后进行流式代理。
+        成功时使用长缓存（适合 CDN）。
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer, minimum: 1 }
+        - name: ext
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [jpg, jpeg, png, gif]
+      responses:
+        '200':
+          description: Image stream
+          headers:
+            Cache-Control:
+              schema: { type: string }
+              description: Usually `max-age=31536000, public`
+            X-Origin-URL:
+              schema: { type: string }
+            X-Crawl-Date:
+              schema: { type: string }
+            X-Request-Id:
+              schema: { type: string }
+          content:
+            image/jpeg: { schema: { type: string, format: binary } }
+            image/png: { schema: { type: string, format: binary } }
+            image/gif: { schema: { type: string, format: binary } }
+            application/octet-stream: { schema: { type: string, format: binary } }
+        '400':
+          $ref: '#/components/responses/JsonBadRequest'
+        '404':
+          $ref: '#/components/responses/JsonNotFound'
+        '503':
+          $ref: '#/components/responses/JsonServiceUnavailable'
+
+  /healthz:
+    get:
+      tags: [Health]
+      summary: Health check
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthzResponse'
+
+  /metrics:
+    get:
+      tags: [Metrics]
+      summary: Prometheus metrics
+      responses:
+        '200':
+          description: Prometheus text format
+          content:
+            text/plain:
+              schema: { type: string }
+
+  /admin:
+    get:
+      tags: [Admin]
+      summary: Admin UI (AdminJS)
+      security:
+        - AdminTokenAuth: []
+      responses:
+        '200':
+          description: Admin UI HTML
+          content:
+            text/html:
+              schema: { type: string }
+        '401':
+          $ref: '#/components/responses/JsonUnauthorized'
+
+  /admin/images/import:
+    post:
+      tags: [Admin]
+      summary: Import Pixiv original image URLs (textarea/file)
+      security:
+        - AdminTokenAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                text:
+                  type: string
+                  description: URL list (one per line)
+                file:
+                  type: string
+                  format: binary
+                  description: Text file containing URL list
+      responses:
+        '200':
+          description: Import result summary
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminImportResponse'
+        '401':
+          $ref: '#/components/responses/JsonUnauthorized'
+        '400':
+          $ref: '#/components/responses/JsonBadRequest'
+
+components:
+  securitySchemes:
+    AdminTokenAuth:
+      type: apiKey
+      in: header
+      name: Authorization
+      description: 'Use: Authorization: Bearer <ADMIN_TOKEN>'
+
+  responses:
+    JsonBadRequest:
+      description: Bad Request
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    JsonUnauthorized:
+      description: Unauthorized
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    JsonNotFound:
+      description: Not Found
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    JsonServiceUnavailable:
+      description: Service Unavailable
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  parameters:
+    RandomFormat:
+      name: format
+      in: query
+      required: false
+      schema:
+        type: string
+        enum: [image, json]
+        default: image
+    RandomRedirect:
+      name: redirect
+      in: query
+      required: false
+      schema:
+        type: integer
+        enum: [0, 1]
+        default: 0
+    RandomAttempts:
+      name: attempts
+      in: query
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 10
+        default: 3
+    RandomSeed:
+      name: seed
+      in: query
+      required: false
+      schema:
+        type: string
+        minLength: 1
+
+    FilterR18:
+      name: r18
+      in: query
+      required: false
+      schema:
+        type: integer
+        enum: [0, 1, 2]
+        default: 0
+      description: 0=全年龄(默认) 1=R18 2=R18G
+    FilterOrientation:
+      name: orientation
+      in: query
+      required: false
+      schema:
+        type: string
+        enum: [portrait, landscape, square, any]
+        default: any
+    FilterMinWidth:
+      name: min_width
+      in: query
+      required: false
+      schema: { type: integer, minimum: 0 }
+    FilterMinHeight:
+      name: min_height
+      in: query
+      required: false
+      schema: { type: integer, minimum: 0 }
+    FilterMinPixels:
+      name: min_pixels
+      in: query
+      required: false
+      schema: { type: integer, minimum: 0 }
+    FilterIncludedTags:
+      name: included_tags
+      in: query
+      required: false
+      schema:
+        type: string
+      description: 'Tag list. Default parsing (MVP): `tag1|tag2|tag3`.'
+    FilterExcludedTags:
+      name: excluded_tags
+      in: query
+      required: false
+      schema:
+        type: string
+      description: 'Tag list. Default parsing (MVP): `tag1|tag2|tag3`.'
+    FilterUserId:
+      name: user_id
+      in: query
+      required: false
+      schema: { type: integer, minimum: 1 }
+    FilterIllustId:
+      name: illust_id
+      in: query
+      required: false
+      schema: { type: integer, minimum: 1 }
+
+  schemas:
+    ErrorResponse:
+      type: object
+      required: [code, message, request_id]
+      properties:
+        code:
+          type: string
+          examples: [NO_MATCH, UNSUPPORTED_URL, UPSTREAM_RATE_LIMIT]
+        message:
+          type: string
+        request_id:
+          type: string
+
+    RandomJsonResponse:
+      type: object
+      required: [image]
+      properties:
+        image:
+          $ref: '#/components/schemas/ImageRecord'
+        urls:
+          type: object
+          properties:
+            proxy:
+              type: string
+              description: Stable proxy URL (e.g. /i/:id.:ext)
+            original:
+              type: string
+              description: Pixiv original_url (may be masked)
+
+    ImageRecord:
+      type: object
+      required: [id, illust_id, page_index]
+      properties:
+        id: { type: integer }
+        illust_id: { type: integer }
+        page_index: { type: integer, minimum: 0 }
+        ext:
+          type: string
+          enum: [jpg, jpeg, png, gif]
+        width: { type: integer, nullable: true }
+        height: { type: integer, nullable: true }
+        x_restrict:
+          type: integer
+          nullable: true
+          description: 'Pixiv restriction: 0/1/2'
+        user_id: { type: integer, nullable: true }
+        user_name: { type: string, nullable: true }
+        status:
+          type: string
+          enum: [active, disabled, broken]
+        tags:
+          type: array
+          items: { type: string }
+        fail_count: { type: integer, nullable: true }
+        last_fail_at:
+          type: string
+          format: date-time
+          nullable: true
+
+    HealthzResponse:
+      type: object
+      required: [ok]
+      properties:
+        ok: { type: boolean }
+        db:
+          type: object
+          properties:
+            ok: { type: boolean }
+            message: { type: string, nullable: true }
+        memcached:
+          type: object
+          properties:
+            ok: { type: boolean }
+            message: { type: string, nullable: true }
+
+    AdminImportResponse:
+      type: object
+      required: [total, success, failed]
+      properties:
+        total: { type: integer }
+        success: { type: integer }
+        failed: { type: integer }
+        errors:
+          type: array
+          items:
+            type: object
+            properties:
+              line: { type: integer }
+              error: { type: string }
+
