@@ -26,7 +26,7 @@ async function createApp() {
   return app;
 }
 
-describe('GET /random (filter r18)', () => {
+describe('GET /random (filter orientation)', () => {
   beforeEach(() => {
     vi.resetModules();
     pickRandomImageRecord.mockReset();
@@ -34,7 +34,7 @@ describe('GET /random (filter r18)', () => {
     pickRandomImageStream.mockResolvedValue(null);
   });
 
-  it('defaults r18 to 0 (xRestrict=0)', async () => {
+  it('defaults orientation to any (no orientation filter)', async () => {
     const app = await createApp();
 
     await request(app)
@@ -42,66 +42,90 @@ describe('GET /random (filter r18)', () => {
       .set('accept', 'application/json')
       .expect(404);
 
-    expect(pickRandomImageStream).toHaveBeenCalled();
     const filters = pickRandomImageStream.mock.calls[0]?.[0];
     expect(filters).toEqual({ xRestrict: 0 });
   });
 
-  it('maps r18=1 to xRestrict=1', async () => {
+  it('maps orientation=portrait to orientation=1', async () => {
     const app = await createApp();
 
     await request(app)
-      .get('/random?r18=1')
+      .get('/random?orientation=portrait')
       .set('accept', 'application/json')
       .expect(404);
 
     const filters = pickRandomImageStream.mock.calls[0]?.[0];
-    expect(filters).toEqual({ xRestrict: 1 });
+    expect(filters).toEqual({ xRestrict: 0, orientation: 1 });
   });
 
-  it('treats r18=any as no xRestrict filter', async () => {
+  it('maps orientation=landscape to orientation=2', async () => {
     const app = await createApp();
 
     await request(app)
-      .get('/random?r18=any')
+      .get('/random?orientation=landscape')
       .set('accept', 'application/json')
       .expect(404);
 
     const filters = pickRandomImageStream.mock.calls[0]?.[0];
-    expect(filters).toEqual({});
+    expect(filters).toEqual({ xRestrict: 0, orientation: 2 });
   });
 
-  it('returns 400 for invalid r18', async () => {
+  it('maps orientation=square to orientation=3', async () => {
+    const app = await createApp();
+
+    await request(app)
+      .get('/random?orientation=square')
+      .set('accept', 'application/json')
+      .expect(404);
+
+    const filters = pickRandomImageStream.mock.calls[0]?.[0];
+    expect(filters).toEqual({ xRestrict: 0, orientation: 3 });
+  });
+
+  it('treats orientation=any as no orientation filter', async () => {
+    const app = await createApp();
+
+    await request(app)
+      .get('/random?orientation=any')
+      .set('accept', 'application/json')
+      .expect(404);
+
+    const filters = pickRandomImageStream.mock.calls[0]?.[0];
+    expect(filters).toEqual({ xRestrict: 0 });
+  });
+
+  it('returns 400 for invalid orientation', async () => {
     const app = await createApp();
 
     const res = await request(app)
-      .get('/random?r18=3')
+      .get('/random?orientation=diagonal')
       .set('accept', 'application/json')
-      .set('x-request-id', 'req-random-r18-invalid')
+      .set('x-request-id', 'req-random-orientation-invalid')
       .expect(400);
 
     expect(res.body).toEqual({
       code: 'BAD_REQUEST',
-      message: 'Invalid r18.',
-      request_id: 'req-random-r18-invalid',
+      message: 'Invalid orientation.',
+      request_id: 'req-random-orientation-invalid',
     });
     expect(pickRandomImageStream).not.toHaveBeenCalled();
   });
 
-  it('returns 400 for empty r18 value', async () => {
+  it('returns 400 for empty orientation value', async () => {
     const app = await createApp();
 
     const res = await request(app)
-      .get('/random?r18=')
+      .get('/random?orientation=')
       .set('accept', 'application/json')
-      .set('x-request-id', 'req-random-r18-empty')
+      .set('x-request-id', 'req-random-orientation-empty')
       .expect(400);
 
     expect(res.body).toEqual({
       code: 'BAD_REQUEST',
-      message: 'Invalid r18.',
-      request_id: 'req-random-r18-empty',
+      message: 'Invalid orientation.',
+      request_id: 'req-random-orientation-empty',
     });
     expect(pickRandomImageStream).not.toHaveBeenCalled();
   });
 });
+

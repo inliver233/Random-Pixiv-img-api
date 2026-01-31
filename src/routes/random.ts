@@ -122,6 +122,28 @@ function parseR18(value: unknown): number | undefined {
   throw err;
 }
 
+function parseOrientation(value: unknown): number | undefined {
+  if (value === undefined || value === null) return undefined;
+
+  const raw = Array.isArray(value) ? String(value[0] || '') : String(value ?? '');
+  const normalized = raw.trim().toLowerCase();
+
+  if (!normalized) {
+    const err = new Error('Invalid orientation.');
+    (err as any).status = 400;
+    throw err;
+  }
+
+  if (normalized === 'any') return undefined;
+  if (normalized === 'portrait') return 1;
+  if (normalized === 'landscape') return 2;
+  if (normalized === 'square') return 3;
+
+  const err = new Error('Invalid orientation.');
+  (err as any).status = 400;
+  throw err;
+}
+
 router.get('/', (req, res, next) => {
   (async () => {
     res.setHeader('Cache-Control', 'no-store');
@@ -132,8 +154,11 @@ router.get('/', (req, res, next) => {
     const seed = parseSeed((req.query as any).seed);
     const random = seed ? mulberry32(fnv1a32(seed)) : Math.random;
     const xRestrict = parseR18((req.query as any).r18);
+    const orientation = parseOrientation((req.query as any).orientation);
 
-    const filters = { xRestrict };
+    const filters: any = {};
+    if (xRestrict !== undefined) filters.xRestrict = xRestrict;
+    if (orientation !== undefined) filters.orientation = orientation;
 
     if (redirect) {
       const image = await pickRandomImageRecord(filters, random);
