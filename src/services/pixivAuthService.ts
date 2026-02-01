@@ -1,8 +1,8 @@
-import axios from 'axios';
 import crypto from 'node:crypto';
 import qs from 'qs';
 
 import { getEnv } from '../config/env';
+import { pixivApiRequest } from '../http/axiosClient';
 import logger from '../logger/logger';
 
 const AUTH_TOKEN_URL = 'https://oauth.secure.pixiv.net/auth/token';
@@ -34,7 +34,7 @@ export const maskHeader: Record<string, string> = {
 
 const refreshAccessToken = async (refreshToken: string): Promise<PixivAuthRefreshResponse> => {
   const localTime = `${new Date().toISOString().replace(/\..+/, '')}+00:00`;
-  const response = await axios({
+  const response = await pixivApiRequest({
     method: 'post',
     url: AUTH_TOKEN_URL,
     headers: {

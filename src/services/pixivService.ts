@@ -1,4 +1,4 @@
-import axios from 'axios';
+import { pixivApiGet } from '../http/axiosClient';
 
 import { getAccessToken, maskHeader } from './pixivAuthService';
 import memcachedService from './memcachedService';
@@ -16,7 +16,7 @@ const getPixivIllustIdData = async (illustId: string | number, cache = true) => 
 
   try {
     console.log('Fetching Pixiv API data for illust ID:', illustId);
-    const response = await axios.get(`${PIXIV_BASE_URL}/illust/detail?illust_id=${illustId}`, {
+    const response = await pixivApiGet(`${PIXIV_BASE_URL}/illust/detail?illust_id=${illustId}`, {
       headers: {
         Accept: 'application/json',
         Authorization: `Bearer ${await getAccessToken()}`,

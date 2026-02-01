@@ -1,6 +1,7 @@
-import axios from 'axios';
 import type { AxiosResponse } from 'axios';
 import type { Readable } from 'node:stream';
+
+import { pixivImageGet } from './axiosClient';
 
 export const PIXIV_IMAGE_HEADERS = {
   Referer: 'https://www.pixiv.net/',
@@ -9,10 +10,9 @@ export const PIXIV_IMAGE_HEADERS = {
 };
 
 export async function fetchPixivImageStream(url: string, signal: AbortSignal): Promise<AxiosResponse<Readable>> {
-  return axios.get<Readable>(url, {
+  return pixivImageGet<Readable>(url, {
     headers: PIXIV_IMAGE_HEADERS,
     responseType: 'stream',
     signal,
   });
 }
-

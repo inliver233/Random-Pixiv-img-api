@@ -1,4 +1,4 @@
-const axios = require('axios');
+const { pixivApiGet } = require('../http/axiosClient.cjs');
 const { getAccessToken, maskHeader } = require('./pixivAuthService');
 const memcachedService = require('./memcachedService');
 
@@ -15,7 +15,7 @@ const getPixivIllustIdData = async (illustId, cache = true) => {
 
   try {
     console.log('Fetching Pixiv API data for illust ID:', illustId);
-    const response = await axios.get(`${PIXIV_BASE_URL}/illust/detail?illust_id=${illustId}`, {
+    const response = await pixivApiGet(`${PIXIV_BASE_URL}/illust/detail?illust_id=${illustId}`, {
       headers: {
         Accept: 'application/json',
         Authorization: `Bearer ${await getAccessToken()}`,

@@ -1,4 +1,4 @@
-const axios = require('axios');
+const { pixivApiRequest } = require('../http/axiosClient.cjs');
 const crypto = require('crypto');
 const qs = require('qs');
 
@@ -18,7 +18,7 @@ const maskHeader = {
 
 const refreshAccessToken = async (refreshToken) => {
   const localTime = `${new Date().toISOString().replace(/\..+/, '')}+00:00`;
-  const response = await axios({
+  const response = await pixivApiRequest({
     method: 'post',
     url: AUTH_TOKEN_URL,
     headers: {
