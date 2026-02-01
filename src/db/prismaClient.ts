@@ -2,6 +2,8 @@ import { PrismaPg } from '@prisma/adapter-pg';
 
 import { PrismaClient } from '@prisma/client';
 
+import { observeDbQueryDurationSeconds } from '../metrics/dbMetrics';
+
 type PrismaClientInstance = InstanceType<typeof PrismaClient>;
 
 declare global {
@@ -22,7 +24,26 @@ function getDatabaseUrl(): string {
 
 function createPrismaClient(): PrismaClientInstance {
   const adapter = new PrismaPg({ connectionString: getDatabaseUrl() });
-  return new PrismaClient({ adapter });
+  const client = new PrismaClient({ adapter });
+
+  const metricsEnabledValue = String(process.env.METRICS_ENABLED || '').trim().toLowerCase();
+  const metricsEnabled = !['0', 'false', 'no', 'n', 'off'].includes(metricsEnabledValue);
+
+  if (metricsEnabled) {
+    client.$use(async (params, next) => {
+      const start = process.hrtime.bigint();
+
+      try {
+        return await next(params);
+      } finally {
+        const durationSeconds = Number(process.hrtime.bigint() - start) / 1e9;
+        const queryName = params.model ? `${params.model}.${params.action}` : `raw.${params.action}`;
+        observeDbQueryDurationSeconds(queryName, durationSeconds);
+      }
+    });
+  }
+
+  return client;
 }
 
 export function setPrismaClientForTest(client: PrismaClientInstance | undefined) {
