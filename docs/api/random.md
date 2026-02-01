@@ -53,3 +53,22 @@ curl -L "http://127.0.0.1:3000/random?redirect=1" -o out.bin
 ### 常见坑
 
 - `redirect=1` 会优先于 `format`（即使 `format=json` 也会返回 302）。
+
+## `attempts`
+
+`attempts` 用于控制随机挑选失败时的重试次数：
+
+- 默认 `3`
+- 仅接受整数；非整数将返回 400（`code=BAD_REQUEST`, `message=Invalid attempts.`）
+- 会被夹到 `[1, 10]`（例如 `attempts=999` 实际按 `10` 处理）
+
+### 示例
+
+```bash
+curl -i "http://127.0.0.1:3000/random?attempts=1"
+curl -i "http://127.0.0.1:3000/random?attempts=10"
+```
+
+### 常见坑
+
+- `attempts` 越大，对数据库/上游压力越大；除非需要更强的“命中保证”，否则保持默认即可。
