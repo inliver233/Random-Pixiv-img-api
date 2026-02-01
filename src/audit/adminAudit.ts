@@ -30,7 +30,7 @@ export function auditAdminEvent(event: Omit<AdminAuditEvent, 'category'>) {
 }
 
 export function auditAdminImageStatusChange(params: {
-  action: 'image_enable' | 'image_disable';
+  action: 'image_enable' | 'image_disable' | 'image_delete';
   imageId: bigint;
   fromStatus?: number;
   toStatus: number;
@@ -49,4 +49,3 @@ export function auditAdminImageStatusChange(params: {
     user_agent: req?.headers?.['user-agent'],
   });
 }
-
