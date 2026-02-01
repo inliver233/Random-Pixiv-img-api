@@ -74,7 +74,7 @@ describe('GET /random (seed)', () => {
 
     expect(res1.headers['cache-control']).toBe('no-store');
     expect(res2.headers['cache-control']).toBe('no-store');
-    expect(res1.body.image.id).toBe(res2.body.image.id);
+    expect(res1.body.id).toBe(res2.body.id);
   });
 
   it('treats seed as trimmed', async () => {
@@ -99,7 +99,7 @@ describe('GET /random (seed)', () => {
       .get('/random?format=json&seed=%20hello%20')
       .expect(200);
 
-    expect(res1.body.image.id).toBe(res2.body.image.id);
+    expect(res1.body.id).toBe(res2.body.id);
   });
 
   it('produces different output for different seeds (format=json)', async () => {
@@ -124,7 +124,7 @@ describe('GET /random (seed)', () => {
       .get('/random?format=json&seed=world')
       .expect(200);
 
-    expect(res1.body.image.id).not.toBe(res2.body.image.id);
+    expect(res1.body.id).not.toBe(res2.body.id);
   });
 
   it('is deterministic for redirect=1 with the same seed', async () => {

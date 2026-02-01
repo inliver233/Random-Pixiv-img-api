@@ -25,11 +25,13 @@ describe('GET /random (format)', () => {
   const prisma = {
     image: {
       findFirst: vi.fn(),
+      findUnique: vi.fn(),
     },
   } as any;
 
   beforeEach(() => {
     prisma.image.findFirst.mockReset();
+    prisma.image.findUnique.mockReset();
     setPrismaClientForTest(prisma);
   });
 
@@ -81,6 +83,14 @@ describe('GET /random (format)', () => {
       ext: 'jpg',
       originalUrl: 'https://example.test/original.jpg',
     });
+    prisma.image.findUnique.mockResolvedValueOnce({
+      id: 1n,
+      illustId: 2n,
+      pageIndex: 0,
+      ext: 'jpg',
+      originalUrl: 'https://example.test/original.jpg',
+      imageTags: [],
+    });
 
     const app = createApp();
 
@@ -91,16 +101,18 @@ describe('GET /random (format)', () => {
 
     expect(res.headers['cache-control']).toBe('no-store');
     expect(res.body).toEqual({
-      image: {
-        id: 1,
-        illust_id: 2,
-        page_index: 0,
-        ext: 'jpg',
-      },
-      urls: {
-        proxy: '/i/1.jpg',
-        original: 'https://example.test/original.jpg',
-      },
+      id: 1,
+      illust_id: 2,
+      page_index: 0,
+      r18: false,
+      width: null,
+      height: null,
+      orientation: 'unknown',
+      tags: [],
+      author: { user_id: null, name: null },
+      urls: { proxy: '/i/1.jpg', origin: 'https://example.test/original.jpg' },
+      cache: { max_age: 31536000 },
+      debug: { picked_by: 'random_key', attempt: 3 },
     });
   });
 
@@ -112,6 +124,14 @@ describe('GET /random (format)', () => {
       ext: 'png',
       originalUrl: 'https://example.test/original.png',
     });
+    prisma.image.findUnique.mockResolvedValueOnce({
+      id: 3n,
+      illustId: 4n,
+      pageIndex: 0,
+      ext: 'png',
+      originalUrl: 'https://example.test/original.png',
+      imageTags: [],
+    });
 
     const app = createApp();
 
@@ -122,6 +142,6 @@ describe('GET /random (format)', () => {
 
     expect(res.headers['cache-control']).toBe('no-store');
     expect(res.body.urls.proxy).toBe('/i/3.png');
-    expect(res.body.urls.original).toBe('https://example.test/original.png');
+    expect(res.body.urls.origin).toBe('https://example.test/original.png');
   });
 });

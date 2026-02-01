@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import type { Readable } from 'node:stream';
 
+import { buildRandomJsonResponse } from '../contracts/randomResponse';
 import { getImageContentTypeFromFilename } from '../utils/contentType';
 import { pickRandomImageRecord, pickRandomImageStream } from '../services/randomService';
 import { IMAGE_STATUS_BROKEN, markFail } from '../repositories/imagesRepo';
@@ -29,17 +30,6 @@ function parseRedirect(value: unknown): boolean {
   const err = new Error('Invalid redirect.');
   (err as any).status = 400;
   throw err;
-}
-
-function bigintToSafeNumber(value: bigint, code: string): number {
-  const n = Number(value);
-  if (!Number.isSafeInteger(n)) {
-    const err = new Error('Integer out of safe range.');
-    (err as any).status = 500;
-    (err as any).code = code;
-    throw err;
-  }
-  return n;
 }
 
 const DEFAULT_ATTEMPTS = 3;
@@ -368,7 +358,8 @@ router.get('/', (req, res, next) => {
     }
 
     if (format === 'json') {
-      const image = await pickRandomImageRecord(filters, random);
+      const debug: any = {};
+      const image = await pickRandomImageRecord(filters, random, { withTags: true, debug });
       if (!image) {
         const err = new Error('No matching image.');
         (err as any).status = 404;
@@ -376,21 +367,23 @@ router.get('/', (req, res, next) => {
         throw err;
       }
 
-      const id = bigintToSafeNumber(image.id, 'IMAGE_ID_OUT_OF_RANGE');
-      const illustId = bigintToSafeNumber(image.illustId, 'ILLUST_ID_OUT_OF_RANGE');
+      const tags = Array.isArray((image as any).imageTags)
+        ? (image as any).imageTags.map((row: any) => row?.tag?.name).filter((name: any) => typeof name === 'string')
+        : [];
 
-      res.json({
-        image: {
-          id,
-          illust_id: illustId,
-          page_index: image.pageIndex,
-          ext: image.ext,
-        },
-        urls: {
-          proxy: `/i/${image.id.toString()}.${String(image.ext || 'jpg')}`,
-          original: String(image.originalUrl || ''),
-        },
-      });
+      const proxyUrl = `/i/${image.id.toString()}.${String(image.ext || 'jpg')}`;
+      const originUrl = String(image.originalUrl || '');
+
+      res.json(
+        buildRandomJsonResponse({
+          image,
+          tags,
+          proxyUrl,
+          originUrl,
+          attempt: attempts,
+          pickedBy: debug.pickedBy,
+        }),
+      );
       return;
     }
 

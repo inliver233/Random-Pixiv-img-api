@@ -1,7 +1,7 @@
 import type { Readable } from 'node:stream';
 
 import { generateRandomKey } from '../domain/randomKey';
-import { IMAGE_STATUS_BROKEN, markFail, pickRandom, type PickRandomFilters } from '../repositories/imagesRepo';
+import { getByIdWithTags, IMAGE_STATUS_BROKEN, markFail, pickRandom, type PickRandomDebug, type PickRandomFilters } from '../repositories/imagesRepo';
 import { fetchPixivImageStream } from '../http/pixivImageHttp';
 
 export type RandomStreamResult = {
@@ -11,9 +11,32 @@ export type RandomStreamResult = {
   attemptsUsed: number;
 };
 
-export async function pickRandomImageRecord(filters: PickRandomFilters, random: () => number = Math.random) {
+export type PickRandomImageRecordOptions = {
+  withTags?: boolean;
+  debug?: PickRandomDebug;
+};
+
+export async function pickRandomImageRecord(
+  filters: PickRandomFilters,
+  random: () => number = Math.random,
+  options?: PickRandomImageRecordOptions,
+) {
   const r = generateRandomKey(random);
-  return pickRandom(filters, r);
+
+  const debug = options?.debug;
+  const image = await pickRandom(filters, r, debug ? { debug } : undefined);
+  if (!image) return null;
+
+  if (options?.withTags) {
+    try {
+      const full = await getByIdWithTags(image.id);
+      if (full) return full;
+    } catch {
+      // best-effort
+    }
+  }
+
+  return image;
 }
 
 export async function pickRandomImageStream(
@@ -61,4 +84,3 @@ export async function pickRandomImageStream(
 
   return null;
 }
-
