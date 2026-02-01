@@ -409,6 +409,16 @@ components:
         type: integer
         enum: [0, 1]
         default: 0
+      description: |
+        是否返回 302 重定向到稳定图片 URL（`/i/:id.:ext`）。
+        - `0`（默认）：不重定向
+        - `1`：返回 302，响应头 `Location` 指向稳定图片 URL
+        非法值将返回 400（code=BAD_REQUEST, message=Invalid redirect.）。
+      examples:
+        no_redirect:
+          value: 0
+        redirect:
+          value: 1
     RandomAttempts:
       name: attempts
       in: query
