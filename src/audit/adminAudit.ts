@@ -1,7 +1,9 @@
 import logger from '../logger/logger';
+import { getPrismaClient } from '../db/prismaClient';
 
 type AdminAuditEvent = {
   category: 'admin';
+  actor?: string;
   action: string;
   resource: string;
   record_id?: string;
@@ -10,6 +12,7 @@ type AdminAuditEvent = {
   request_id?: string;
   ip?: string;
   user_agent?: string;
+  detail?: unknown;
 };
 
 function pickForwardedFor(req: any): string | undefined {
@@ -24,9 +27,38 @@ function getRequestId(req: any): string | undefined {
   return req?.request_id || req?.headers?.['x-request-id'] || undefined;
 }
 
-export function auditAdminEvent(event: Omit<AdminAuditEvent, 'category'>) {
+async function persistAdminAudit(full: AdminAuditEvent): Promise<void> {
+  try {
+    const prisma = getPrismaClient();
+    const model = (prisma as any).adminAudit;
+    if (!model?.create) return;
+
+    await model.create({
+      data: {
+        actor: full.actor ?? null,
+        action: full.action,
+        resource: full.resource,
+        recordId: full.record_id ?? null,
+        fromStatus: full.from_status ?? null,
+        toStatus: full.to_status ?? null,
+        requestId: full.request_id ?? null,
+        ip: full.ip ?? null,
+        userAgent: full.user_agent ?? null,
+        detail: full.detail ?? undefined,
+      },
+    });
+  } catch (err: unknown) {
+    logger.warn(
+      { err: { message: err instanceof Error ? err.message : String(err) } },
+      'admin audit persist failed',
+    );
+  }
+}
+
+export function auditAdminEvent(event: Omit<AdminAuditEvent, 'category'>): Promise<void> {
   const full: AdminAuditEvent = { category: 'admin', ...event };
   logger.info({ audit: full }, 'audit');
+  return persistAdminAudit(full);
 }
 
 export function auditAdminImageStatusChange(params: {
@@ -38,7 +70,8 @@ export function auditAdminImageStatusChange(params: {
 }) {
   const { action, imageId, fromStatus, toStatus, req } = params;
 
-  auditAdminEvent({
+  void auditAdminEvent({
+    actor: 'admin_token',
     action,
     resource: 'Image',
     record_id: imageId.toString(),

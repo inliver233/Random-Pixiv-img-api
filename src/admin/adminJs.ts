@@ -7,6 +7,7 @@ import { Prisma } from '@prisma/client';
 
 import { imageResourceOptions } from './resources/images';
 import { importResourceOptions } from './resources/imports';
+import { adminAuditResourceOptions } from './resources/adminAudits';
 
 let cachedRouter: Router | null = null;
 let cachedPromise: Promise<Router> | null = null;
@@ -420,6 +421,10 @@ export async function getAdminJsRouter(): Promise<Router> {
         {
           resource: { model: getModelByName('Tag', prismaClientModule), client: prisma, clientModule: prismaClientModule },
           options: {},
+        },
+        {
+          resource: { model: getModelByName('AdminAudit', prismaClientModule), client: prisma, clientModule: prismaClientModule },
+          options: adminAuditResourceOptions,
         },
         {
           resource: { model: getModelByName('Import', prismaClientModule), client: prisma, clientModule: prismaClientModule },

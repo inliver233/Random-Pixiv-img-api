@@ -5,6 +5,7 @@ import { getPrismaClient } from '../db/prismaClient';
 import { parsePixivUrl } from '../utils/parsePixivUrl';
 import { upsertImageForImport } from '../services/import/imageWriteService';
 import { createImport } from '../repositories/importsRepo';
+import { auditAdminEvent } from '../audit/adminAudit';
 
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const formidable = require('express-formidable') as (options?: any) => any;
@@ -170,6 +171,23 @@ router.post(
           deduped,
           unique: dedup.size,
           errors: errors.slice(0, 50),
+        },
+      });
+
+      void auditAdminEvent({
+        actor: 'admin_token',
+        action: 'images_import',
+        resource: 'Import',
+        record_id: importRecord.id.toString(),
+        request_id: (req as any)?.request_id,
+        ip: (req as any)?.ip,
+        user_agent: (req as any)?.headers?.['user-agent'],
+        detail: {
+          total_lines: totalLines,
+          unique_images: dedup.size,
+          deduped,
+          success,
+          failed,
         },
       });
 

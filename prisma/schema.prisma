@@ -82,3 +82,28 @@ model Import {
 
   @@map("imports")
 }
+
+model AdminAudit {
+  id        BigInt   @id @default(autoincrement())
+  createdAt DateTime @default(now()) @map("created_at")
+
+  actor     String? @db.Text
+  action    String  @db.Text
+  resource  String  @db.Text
+  recordId  String? @map("record_id") @db.Text
+
+  fromStatus Int? @map("from_status") @db.SmallInt
+  toStatus   Int? @map("to_status") @db.SmallInt
+
+  requestId String? @map("request_id") @db.Text
+  ip        String? @db.Text
+  userAgent String? @map("user_agent") @db.Text
+
+  detail Json? @db.JsonB
+
+  @@index([createdAt], map: "admin_audit_created_at")
+  @@index([action], map: "admin_audit_action")
+  @@index([resource], map: "admin_audit_resource")
+  @@index([recordId], map: "admin_audit_record_id")
+  @@map("admin_audit")
+}
