@@ -141,7 +141,10 @@ paths:
           headers:
             Cache-Control:
               schema: { type: string }
-              description: Usually `max-age=31536000, public`
+              description: Always `max-age=31536000, public`
+            Access-Control-Allow-Origin:
+              schema: { type: string }
+              description: Always `*`
             X-Origin-URL:
               schema: { type: string }
             X-Crawl-Date:
@@ -154,11 +157,29 @@ paths:
             image/gif: { schema: { type: string, format: binary } }
             application/octet-stream: { schema: { type: string, format: binary } }
         '400':
-          $ref: '#/components/responses/JsonBadRequest'
+          description: Bad Request (HTML error page)
+          headers:
+            X-Request-Id:
+              schema: { type: string }
+          content:
+            text/html:
+              schema: { type: string }
         '404':
-          $ref: '#/components/responses/JsonNotFound'
-        '503':
-          $ref: '#/components/responses/JsonServiceUnavailable'
+          description: Not Found (HTML error page)
+          headers:
+            X-Request-Id:
+              schema: { type: string }
+          content:
+            text/html:
+              schema: { type: string }
+        '502':
+          description: Bad Gateway (HTML error page)
+          headers:
+            X-Request-Id:
+              schema: { type: string }
+          content:
+            text/html:
+              schema: { type: string }
 
   /healthz:
     get:
