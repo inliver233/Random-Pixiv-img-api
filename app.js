@@ -13,6 +13,7 @@ try {
 
 const requestIdMiddleware = require('./src/middlewares/requestIdMiddleware');
 const httpLoggerMiddleware = require('./src/middlewares/httpLoggerMiddleware');
+const rateLimitMiddleware = require('./src/middlewares/rateLimit');
 const showVersion = require('./src/middlewares/headerMiddleware');
 const errorHandler = require('./src/middlewares/errorHandler');
 const apiRoutes = require('./src/routes/api');
@@ -29,6 +30,7 @@ app.use(requestIdMiddleware);
 app.use(httpLoggerMiddleware);
 
 // Routes
+app.use(['/random', '/i', '/images'], rateLimitMiddleware);
 app.use('/', apiRoutes);
 app.use('/', showVersion, pixivRoutes);
 

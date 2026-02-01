@@ -68,6 +68,8 @@ const envSchema = z.object({
   RATE_LIMIT_ENABLED: booleanSchema.optional().default(false),
   RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().optional().default(60_000),
   RATE_LIMIT_MAX: z.coerce.number().int().positive().optional().default(60),
+  RATE_LIMIT_MAX_API_KEY: z.coerce.number().int().positive().optional().default(300),
+  RATE_LIMIT_API_KEYS: z.string().optional(),
 
   METRICS_ENABLED: booleanSchema.optional().default(true),
   METRICS_ROUTE: z.string().min(1).optional().default('/metrics'),
@@ -119,4 +121,8 @@ export function getEnv(): AppEnv {
 
 export function validateEnv(): void {
   void getEnv();
+}
+
+export function resetEnvForTest(): void {
+  cachedEnv = null;
 }

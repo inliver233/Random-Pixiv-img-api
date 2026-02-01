@@ -18,6 +18,7 @@ const apiRoutes = require('./src/routes/api').default;
 const pixivRoutes = require('./src/routes/pixivRoutes').default;
 const requestIdMiddleware = require('./src/middlewares/requestIdMiddleware').default;
 const httpLoggerMiddleware = require('./src/middlewares/httpLoggerMiddleware').default;
+const rateLimitMiddleware = require('./src/middlewares/rateLimit').default;
 const errorHandler = require('./src/middlewares/errorHandler').default;
 
 const app = express();
@@ -31,6 +32,7 @@ app.use(requestIdMiddleware);
 app.use(httpLoggerMiddleware);
 
 // Routes
+app.use(['/random', '/i', '/images'], rateLimitMiddleware);
 app.use('/', apiRoutes);
 app.use('/', showVersion, pixivRoutes);
 
