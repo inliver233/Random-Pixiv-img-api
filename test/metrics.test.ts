@@ -53,6 +53,7 @@ describe('GET /metrics', () => {
 
     expect(res.headers['content-type']).toMatch(/^text\/plain\b/i);
     expect(res.text).toContain('pixivcat_up');
+    expect(res.text).toContain('http_requests_total');
   });
 
   it('returns 404 when metrics are disabled', async () => {
@@ -90,4 +91,3 @@ describe('GET /metrics', () => {
     expect(res.text).toContain('pixivcat_up');
   });
 });
-

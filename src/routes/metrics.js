@@ -1,6 +1,7 @@
 const express = require('express');
 const { getEnv } = require('../config/env');
 const { getMetricsRegistry } = require('../metrics/registry');
+const { ensureHttpMetricsInitialized } = require('../metrics/httpMetrics');
 
 const router = express.Router();
 
@@ -37,6 +38,8 @@ router.get('/', async (req, res) => {
     res.status(401).json({ error: 'unauthorized' });
     return;
   }
+
+  ensureHttpMetricsInitialized();
 
   const registry = getMetricsRegistry();
   res.setHeader('Content-Type', registry.contentType);

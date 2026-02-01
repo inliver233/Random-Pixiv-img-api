@@ -29,6 +29,8 @@ router.get('/', async (req, res) => {
   const { getEnv } = require('../config/env') as { getEnv: () => { METRICS_ENABLED: boolean } };
   // eslint-disable-next-line @typescript-eslint/no-var-requires
   const { getMetricsRegistry } = require('../metrics/registry') as { getMetricsRegistry: () => { contentType: string; metrics: () => Promise<string> } };
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const { ensureHttpMetricsInitialized } = require('../metrics/httpMetrics') as { ensureHttpMetricsInitialized: () => void };
 
   const env = getEnv();
   if (!env.METRICS_ENABLED) {
@@ -41,6 +43,8 @@ router.get('/', async (req, res) => {
     res.status(401).json({ error: 'unauthorized' });
     return;
   }
+
+  ensureHttpMetricsInitialized();
 
   const registry = getMetricsRegistry();
   res.setHeader('Content-Type', registry.contentType);
