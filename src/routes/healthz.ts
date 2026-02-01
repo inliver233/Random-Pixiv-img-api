@@ -28,7 +28,14 @@ router.get('/', (req, res) => {
       memcached = { ok: false, message: err instanceof Error ? err.message : String(err) };
     }
 
-    const queue = { ok: true, message: 'not_initialized' };
+    let queue: { ok: boolean; message: string | null };
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      const { getQueueHealth } = require('../queue/queue') as { getQueueHealth: () => Promise<{ ok: boolean; message: string | null }> };
+      queue = await withTimeout(getQueueHealth(), 500, 'queue timeout');
+    } catch (err: unknown) {
+      queue = { ok: false, message: err instanceof Error ? err.message : String(err) };
+    }
 
     const ok = Boolean(db.ok && memcached.ok && queue.ok);
 
