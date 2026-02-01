@@ -18,6 +18,7 @@ export type RandomJsonResponse = {
   urls: {
     proxy: string;
     origin: string;
+    imgproxy?: string;
   };
   cache: {
     max_age: number;
@@ -76,6 +77,7 @@ export function buildRandomJsonResponse(input: {
   tags: string[];
   proxyUrl: string;
   originUrl: string;
+  imgproxyUrl?: string;
   attempt: number;
   pickedBy?: unknown;
 }): RandomJsonResponse {
@@ -113,6 +115,7 @@ export function buildRandomJsonResponse(input: {
     urls: {
       proxy: input.proxyUrl,
       origin: input.originUrl,
+      ...(typeof input.imgproxyUrl === 'string' && input.imgproxyUrl.trim() !== '' ? { imgproxy: input.imgproxyUrl } : {}),
     },
     cache: {
       max_age: STABLE_IMAGE_MAX_AGE_SECONDS,
@@ -123,4 +126,3 @@ export function buildRandomJsonResponse(input: {
     },
   };
 }
-

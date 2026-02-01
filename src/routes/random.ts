@@ -1,7 +1,9 @@
 import { Router } from 'express';
 import type { Readable } from 'node:stream';
 
+import { getEnv } from '../config/env';
 import { buildRandomJsonResponse } from '../contracts/randomResponse';
+import { buildSignedImgproxyUrl } from '../imgproxy/imgproxy';
 import { incrementRandomFailTotal, incrementRandomSuccessTotal, observeRandomAttemptsHistogram } from '../metrics/randomMetrics';
 import { getImageContentTypeFromFilename } from '../utils/contentType';
 import { pickRandomImageRecord, pickRandomImageStream } from '../services/randomService';
@@ -374,6 +376,18 @@ router.get('/', (req, res, next) => {
       const proxyUrl = `/i/${image.id.toString()}.${String(image.ext || 'jpg')}`;
       const originUrl = String(image.originalUrl || '');
 
+      const env = getEnv();
+      const imgproxyUrl = env.IMGPROXY_URL && env.IMGPROXY_KEY && env.IMGPROXY_SALT && originUrl
+        ? buildSignedImgproxyUrl({
+          baseUrl: env.IMGPROXY_URL,
+          keyHex: env.IMGPROXY_KEY,
+          saltHex: env.IMGPROXY_SALT,
+          processingOptions: 'raw:1',
+          sourceUrl: originUrl,
+          extension: String(image.ext || 'jpg'),
+        })
+        : undefined;
+
       incrementRandomSuccessTotal();
       res.json(
         buildRandomJsonResponse({
@@ -381,6 +395,7 @@ router.get('/', (req, res, next) => {
           tags,
           proxyUrl,
           originUrl,
+          imgproxyUrl,
           attempt: attempts,
           pickedBy: debug.pickedBy,
         }),
