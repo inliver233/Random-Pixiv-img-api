@@ -1,5 +1,19 @@
 import { getPrismaClient } from '../../db/prismaClient';
+import { auditAdminImageStatusChange } from '../../audit/adminAudit';
 import { IMAGE_STATUS_ACTIVE, IMAGE_STATUS_BROKEN, IMAGE_STATUS_DISABLED } from '../../repositories/imagesRepo';
+
+function toBigIntId(value: any): bigint {
+  if (typeof value === 'bigint') return value;
+  if (typeof value === 'number' && Number.isFinite(value)) return BigInt(Math.trunc(value));
+  if (typeof value === 'string' && value.trim()) return BigInt(value.trim());
+  throw new Error('Invalid record id');
+}
+
+function toNumberOrNull(value: any): number | null {
+  if (value === undefined || value === null) return null;
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
+}
 
 export const imageResourceOptions = {
   listProperties: [
@@ -24,11 +38,85 @@ export const imageResourceOptions = {
     'tag',
   ],
   actions: {
-    // RAPI-0086/RAPI-0087 will introduce safe, explicit mutations (enable/disable/soft-delete).
+    // RAPI-0087 will introduce safe delete behavior (soft delete).
     new: { isVisible: false },
     edit: { isVisible: false },
     delete: { isVisible: false },
     bulkDelete: { isVisible: false },
+
+    enable: {
+      actionType: 'record',
+      icon: 'Play',
+      guard: 'Enable this image?',
+      isVisible: (context: any) => toNumberOrNull(context?.record?.params?.status) !== IMAGE_STATUS_ACTIVE,
+      handler: async (request: any, _res: any, context: any) => {
+        const { record, currentAdmin, h, resource } = context;
+        if (!record) throw new Error('Record is required');
+
+        if (request?.method === 'get') {
+          return { record: record.toJSON(currentAdmin) };
+        }
+
+        const prisma = getPrismaClient();
+        const imageId = toBigIntId(record.id?.() ?? record.params?.id);
+        const fromStatus = toNumberOrNull(record.params?.status) ?? undefined;
+        const toStatus = IMAGE_STATUS_ACTIVE;
+
+        await prisma.image.update({ where: { id: imageId }, data: { status: toStatus } });
+        record.params.status = toStatus;
+
+        auditAdminImageStatusChange({
+          action: 'image_enable',
+          imageId,
+          fromStatus,
+          toStatus,
+          req: request,
+        });
+
+        return {
+          record: record.toJSON(currentAdmin),
+          notice: { type: 'success', message: 'Enabled' },
+          redirectUrl: h.recordActionUrl({ resourceId: resource.id(), recordId: record.id(), actionName: 'show' }),
+        };
+      },
+    },
+
+    disable: {
+      actionType: 'record',
+      icon: 'Pause',
+      guard: 'Disable this image?',
+      isVisible: (context: any) => toNumberOrNull(context?.record?.params?.status) === IMAGE_STATUS_ACTIVE,
+      handler: async (request: any, _res: any, context: any) => {
+        const { record, currentAdmin, h, resource } = context;
+        if (!record) throw new Error('Record is required');
+
+        if (request?.method === 'get') {
+          return { record: record.toJSON(currentAdmin) };
+        }
+
+        const prisma = getPrismaClient();
+        const imageId = toBigIntId(record.id?.() ?? record.params?.id);
+        const fromStatus = toNumberOrNull(record.params?.status) ?? undefined;
+        const toStatus = IMAGE_STATUS_DISABLED;
+
+        await prisma.image.update({ where: { id: imageId }, data: { status: toStatus } });
+        record.params.status = toStatus;
+
+        auditAdminImageStatusChange({
+          action: 'image_disable',
+          imageId,
+          fromStatus,
+          toStatus,
+          req: request,
+        });
+
+        return {
+          record: record.toJSON(currentAdmin),
+          notice: { type: 'success', message: 'Disabled' },
+          redirectUrl: h.recordActionUrl({ resourceId: resource.id(), recordId: record.id(), actionName: 'show' }),
+        };
+      },
+    },
 
     statusCounts: {
       actionType: 'resource',
