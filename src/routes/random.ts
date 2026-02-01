@@ -2,7 +2,7 @@ import { Router } from 'express';
 import type { Readable } from 'node:stream';
 
 import { buildRandomJsonResponse } from '../contracts/randomResponse';
-import { incrementRandomSuccessTotal } from '../metrics/randomMetrics';
+import { incrementRandomFailTotal, incrementRandomSuccessTotal } from '../metrics/randomMetrics';
 import { getImageContentTypeFromFilename } from '../utils/contentType';
 import { pickRandomImageRecord, pickRandomImageStream } from '../services/randomService';
 import { IMAGE_STATUS_BROKEN, markFail } from '../repositories/imagesRepo';
@@ -426,6 +426,8 @@ router.get('/', (req, res, next) => {
         status: IMAGE_STATUS_BROKEN,
       });
 
+      incrementRandomFailTotal();
+
       if (!res.headersSent) {
         res.status(502).end();
       } else {
@@ -440,7 +442,10 @@ router.get('/', (req, res, next) => {
     });
 
     sourceStream.pipe(res);
-  })().catch(next);
+  })().catch((err) => {
+    incrementRandomFailTotal();
+    next(err);
+  });
 });
 
 export default router;

@@ -1,10 +1,12 @@
 import client from 'prom-client';
 
 const SUCCESS_METRIC_NAME = 'random_success_total';
+const FAIL_METRIC_NAME = 'random_fail_total';
 
 type RandomMetricsState = {
   initialized: boolean;
   randomSuccessTotal: client.Counter | null;
+  randomFailTotal: client.Counter | null;
 };
 
 function ensureRandomMetricsState(): RandomMetricsState {
@@ -12,6 +14,7 @@ function ensureRandomMetricsState(): RandomMetricsState {
   (globalThis as any).__pixivcatRandomMetrics ??= {
     initialized: false,
     randomSuccessTotal: null,
+    randomFailTotal: null,
   } satisfies RandomMetricsState;
 
   // eslint-disable-next-line no-underscore-dangle
@@ -31,10 +34,21 @@ export function getRandomSuccessTotalCounter(): client.Counter {
       help: 'Total number of successful /random responses.',
       registers: [registry],
     });
+    state.randomFailTotal = new client.Counter({
+      name: FAIL_METRIC_NAME,
+      help: 'Total number of failed /random responses.',
+      registers: [registry],
+    });
     state.initialized = true;
   }
 
   return state.randomSuccessTotal!;
+}
+
+export function getRandomFailTotalCounter(): client.Counter {
+  const state = ensureRandomMetricsState();
+  if (!state.initialized) void getRandomSuccessTotalCounter();
+  return state.randomFailTotal!;
 }
 
 export function ensureRandomMetricsInitialized(): void {
@@ -45,10 +59,16 @@ export function incrementRandomSuccessTotal(): void {
   getRandomSuccessTotalCounter().inc();
 }
 
+export function incrementRandomFailTotal(): void {
+  getRandomFailTotalCounter().inc();
+}
+
 export default {
   SUCCESS_METRIC_NAME,
+  FAIL_METRIC_NAME,
   ensureRandomMetricsInitialized,
   getRandomSuccessTotalCounter,
+  getRandomFailTotalCounter,
   incrementRandomSuccessTotal,
+  incrementRandomFailTotal,
 };
-
