@@ -392,6 +392,15 @@ components:
         type: string
         enum: [image, json]
         default: image
+      description: |
+        输出格式：默认 `image`（返回图片流）。
+        - `json`：返回 JSON
+        非法值将返回 400（code=BAD_REQUEST, message=Invalid format.）。
+      examples:
+        image:
+          value: image
+        json:
+          value: json
     RandomRedirect:
       name: redirect
       in: query
