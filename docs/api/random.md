@@ -72,3 +72,20 @@ curl -i "http://127.0.0.1:3000/random?attempts=10"
 ### 常见坑
 
 - `attempts` 越大，对数据库/上游压力越大；除非需要更强的“命中保证”，否则保持默认即可。
+
+## `seed`
+
+`seed` 用于固定随机序列（可复现同一批结果，便于调试/缓存）：
+
+- 不传：使用真正随机（`Math.random()`）
+- 传入：相同 `seed` 在同一版本下会得到可复现的结果序列
+
+### 示例
+
+```bash
+curl -i "http://127.0.0.1:3000/random?seed=demo"
+```
+
+### 常见坑
+
+- `seed` 不能是空字符串/纯空白，否则会返回 400（`code=BAD_REQUEST`, `message=Invalid seed.`）。
