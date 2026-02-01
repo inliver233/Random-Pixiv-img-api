@@ -447,6 +447,15 @@ components:
       schema:
         type: string
         minLength: 1
+      description: |
+        伪随机种子。相同的 `seed` 会得到可复现的随机序列（便于调试/缓存）。
+        - 省略：使用 `Math.random()`
+        - 传入空字符串/纯空白：返回 400（code=BAD_REQUEST, message=Invalid seed.）
+      examples:
+        simple:
+          value: demo
+        date:
+          value: 2026-02-02
 
     FilterR18:
       name: r18
