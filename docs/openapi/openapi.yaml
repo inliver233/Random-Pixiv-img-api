@@ -486,6 +486,22 @@ components:
         type: string
         enum: [portrait, landscape, square, any]
         default: any
+      description: |
+        图片方向筛选：
+        - `any`（默认）：不筛选
+        - `portrait`：竖图
+        - `landscape`：横图
+        - `square`：正方形
+        空值或其他值返回 400（code=BAD_REQUEST, message=Invalid orientation.）。
+      examples:
+        any:
+          value: any
+        portrait:
+          value: portrait
+        landscape:
+          value: landscape
+        square:
+          value: square
     FilterMinWidth:
       name: min_width
       in: query
