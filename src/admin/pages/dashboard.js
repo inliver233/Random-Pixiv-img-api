@@ -23,7 +23,6 @@ function formatPercent(value) {
 function renderKeyValueRows(obj) {
   if (!obj || typeof obj !== 'object') return null;
   return Object.entries(obj).map(([key, value]) => (
-    // eslint-disable-next-line react/no-array-index-key
     <tr key={key}>
       <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee', fontWeight: 600 }}>{key}</td>
       <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee' }}>{String(value)}</td>
@@ -211,4 +210,3 @@ export default function Dashboard() {
     </div>
   );
 }
-

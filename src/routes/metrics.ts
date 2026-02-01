@@ -45,7 +45,7 @@ router.get('/', async (req, res) => {
   }
 
   if (needsBasicAuth() && !checkBasicAuth(req)) {
-    res.setHeader('WWW-Authenticate', 'Basic realm=\"metrics\"');
+    res.setHeader('WWW-Authenticate', 'Basic realm="metrics"');
     res.status(401).json({ error: 'unauthorized' });
     return;
   }

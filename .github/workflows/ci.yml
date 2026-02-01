@@ -1,0 +1,40 @@
+name: ci
+
+on:
+  push:
+    branches:
+      - main
+      - test
+      - "test/**"
+  pull_request:
+    branches:
+      - main
+      - test
+
+jobs:
+  lint_and_test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      # Prisma v6 loads prisma.config.ts during generate and requires DATABASE_URL.
+      # Tests in this repo mock Prisma I/O and don't require a live DB.
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/pixivcat?schema=public
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: ".node-version"
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Test
+        run: npm test
+

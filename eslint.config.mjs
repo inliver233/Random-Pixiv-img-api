@@ -6,7 +6,7 @@ import tsParser from "@typescript-eslint/parser";
 import globals from "globals";
 
 export default [
-  { ignores: ["dist/**"] },
+  { ignores: ["dist/**", ".adminjs/**"] },
   js.configs.recommended,
 
   {
@@ -23,6 +23,7 @@ export default [
     },
     rules: {
       "no-console": "warn",
+      "no-unused-vars": "warn",
       "import/order": [
         "warn",
         {
@@ -35,9 +36,21 @@ export default [
   },
 
   {
+    files: ["**/*.cjs"],
+    languageOptions: {
+      sourceType: "commonjs",
+    },
+  },
+
+  {
     files: ["**/*.js"],
-    languageOptions: { 
-      sourceType: "commonjs" 
+    languageOptions: {
+      sourceType: "module",
+      parserOptions: {
+        ecmaFeatures: {
+          jsx: true,
+        },
+      },
     },
   },
 
@@ -54,6 +67,7 @@ export default [
       "@typescript-eslint": tsPlugin,
     },
     rules: {
+      "no-unused-vars": "off",
       "@typescript-eslint/no-unused-vars": ["warn", { "argsIgnorePattern": "^_", "varsIgnorePattern": "^_" }],
     },
   },
