@@ -11,11 +11,16 @@ import imageByIdRoute from '../src/routes/imageById.ts';
 import { readableFromBuffer } from './helpers/mockStream';
 
 const mockAxiosGet = vi.hoisted(() => vi.fn());
+const mockEnqueueHealUrl = vi.hoisted(() => vi.fn());
 
 vi.mock('axios', () => ({
   default: {
     get: mockAxiosGet,
   },
+}));
+
+vi.mock('../src/jobs/healUrl', () => ({
+  enqueueHealUrl: mockEnqueueHealUrl,
 }));
 
 function createApp() {
@@ -41,6 +46,8 @@ describe('GET /i/:id.:ext', () => {
     prisma.image.findUnique.mockReset();
     prisma.image.update.mockReset();
     mockAxiosGet.mockReset();
+    mockEnqueueHealUrl.mockReset();
+    mockEnqueueHealUrl.mockResolvedValue('job_1');
   });
 
   afterEach(() => {
@@ -49,7 +56,7 @@ describe('GET /i/:id.:ext', () => {
 
   it('streams image with long-cache headers when record exists', async () => {
     const originUrl = 'https://i.pximg.net/img-original/img/2026/02/01/00/00/00/123_p0.jpg';
-    prisma.image.findUnique.mockResolvedValueOnce({ id: 1n, ext: 'jpg', originalUrl: originUrl });
+    prisma.image.findUnique.mockResolvedValueOnce({ id: 1n, illustId: 123n, ext: 'jpg', originalUrl: originUrl });
 
     mockAxiosGet.mockResolvedValueOnce({ data: readableFromBuffer(Buffer.from('hello')) } as any);
 
@@ -69,7 +76,7 @@ describe('GET /i/:id.:ext', () => {
 
   it('streams webp with image/webp content-type', async () => {
     const originUrl = 'https://i.pximg.net/img-original/img/2026/02/01/00/00/00/123_p0.webp';
-    prisma.image.findUnique.mockResolvedValueOnce({ id: 1n, ext: 'webp', originalUrl: originUrl });
+    prisma.image.findUnique.mockResolvedValueOnce({ id: 1n, illustId: 123n, ext: 'webp', originalUrl: originUrl });
 
     mockAxiosGet.mockResolvedValueOnce({ data: readableFromBuffer(Buffer.from('webp')) } as any);
 
@@ -108,7 +115,7 @@ describe('GET /i/:id.:ext', () => {
 
   it('marks fail_count when upstream returns 404', async () => {
     const originUrl = 'https://i.pximg.net/img-original/img/2026/02/01/00/00/00/123_p0.jpg';
-    prisma.image.findUnique.mockResolvedValueOnce({ id: 1n, ext: 'jpg', originalUrl: originUrl });
+    prisma.image.findUnique.mockResolvedValueOnce({ id: 1n, illustId: 123n, ext: 'jpg', originalUrl: originUrl });
 
     mockAxiosGet.mockRejectedValueOnce({ response: { status: 404 } });
     prisma.image.update.mockResolvedValueOnce({ id: 1n });
@@ -118,6 +125,7 @@ describe('GET /i/:id.:ext', () => {
     const res = await request(app).get('/i/1.jpg').expect(404);
 
     expect(res.text).toContain('404');
+    expect(mockEnqueueHealUrl).toHaveBeenCalledWith(123n);
     expect(prisma.image.update).toHaveBeenCalledWith({
       where: { id: 1n },
       data: {

@@ -3,6 +3,7 @@ import type { Request, Response } from 'express';
 import type { Readable } from 'node:stream';
 
 import { fetchPixivImageStream } from '../http/pixivImageHttp';
+import { enqueueHealUrl } from '../jobs/healUrl';
 import { IMAGE_STATUS_BROKEN, getById, markFail } from '../repositories/imagesRepo';
 import { getImageContentTypeFromExt, isAllowedImageExt, normalizeImageExtension } from '../utils/contentType';
 
@@ -131,6 +132,10 @@ async function getImageById(req: Request, res: Response) {
       message: upstream.message,
       status: markBroken ? IMAGE_STATUS_BROKEN : undefined,
     });
+
+    if (markBroken) {
+      void enqueueHealUrl(image.illustId).catch(() => undefined);
+    }
 
     if (res.headersSent) {
       res.end();

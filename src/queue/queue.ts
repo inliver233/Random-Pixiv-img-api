@@ -84,7 +84,7 @@ export async function stopQueue(): Promise<void> {
   }
 }
 
-export async function enqueue<T = any>(queueName: string, data?: T): Promise<string> {
+export async function enqueue<T = any>(queueName: string, data?: T, options?: any): Promise<string> {
   const boss = await startQueue();
   if (!boss) {
     const err = new Error('Queue is disabled (DATABASE_URL not set).');
@@ -93,7 +93,7 @@ export async function enqueue<T = any>(queueName: string, data?: T): Promise<str
   }
 
   await boss.createQueue(queueName);
-  const id = await boss.send(queueName, data ?? {});
+  const id = await boss.send(queueName, data ?? {}, options);
   if (!id) {
     const err = new Error('Failed to enqueue job.');
     (err as any).code = 'ENQUEUE_FAILED';

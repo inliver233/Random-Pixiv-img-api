@@ -163,6 +163,42 @@ export async function markOk(input: MarkOkInput) {
   });
 }
 
+export type HealOriginalUrlsPage = {
+  pageIndex: number;
+  ext: string;
+  originalUrl: string;
+};
+
+export async function healOriginalUrlsForIllust(illustId: bigint, pages: HealOriginalUrlsPage[]): Promise<number> {
+  if (pages.length === 0) return 0;
+
+  const prisma = getPrismaClient();
+
+  let updated = 0;
+
+  await prisma.$transaction(async (tx) => {
+    for (const page of pages) {
+      const res = await tx.image.updateMany({
+        where: {
+          illustId,
+          pageIndex: page.pageIndex,
+          status: {
+            not: IMAGE_STATUS_DISABLED,
+          },
+        },
+        data: {
+          originalUrl: page.originalUrl,
+          ext: page.ext,
+          status: IMAGE_STATUS_ACTIVE,
+        },
+      });
+      updated += res.count;
+    }
+  });
+
+  return updated;
+}
+
 export type PickRandomFilters = {
   xRestrict?: number | null;
   orientation?: number | null;
