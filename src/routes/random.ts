@@ -90,7 +90,7 @@ function mulberry32(seed: number): () => number {
   };
 }
 
-function parseR18(value: unknown): number | undefined {
+function parseR18(value: unknown): number {
   if (value === undefined || value === null) return 0;
 
   const raw = Array.isArray(value) ? String(value[0] || '') : String(value ?? '');
@@ -101,8 +101,6 @@ function parseR18(value: unknown): number | undefined {
     (err as any).status = 400;
     throw err;
   }
-
-  if (normalized === 'any') return undefined;
 
   if (normalized === '0' || normalized === '1' || normalized === '2') {
     return Number(normalized);

@@ -159,18 +159,27 @@ export const imageResourceOptions = {
       icon: 'BarChart2',
       handler: async (_req: any, _res: any, context: any) => {
         const prisma = getPrismaClient();
-        const [total, active, disabled, broken] = await Promise.all([
+        const [total, active, disabled, broken, x0, x1, x2, xUnknown] = await Promise.all([
           prisma.image.count(),
           prisma.image.count({ where: { status: IMAGE_STATUS_ACTIVE } }),
           prisma.image.count({ where: { status: IMAGE_STATUS_DISABLED } }),
           prisma.image.count({ where: { status: IMAGE_STATUS_BROKEN } }),
+          prisma.image.count({ where: { xRestrict: 0 } }),
+          prisma.image.count({ where: { xRestrict: 1 } }),
+          prisma.image.count({ where: { xRestrict: 2 } }),
+          prisma.image.count({ where: { xRestrict: null } }),
         ]);
 
+        const r18Total = x1 + x2;
+        const r18Ratio = total > 0 ? r18Total / total : 0;
+
         return {
-          meta: { total, active, disabled, broken },
+          meta: { total, active, disabled, broken, xRestrict: { x0, x1, x2, unknown: xUnknown, r18Total, r18Ratio } },
           notice: {
             type: 'success',
-            message: `total:${total} active:${active} disabled:${disabled} broken:${broken}`,
+            message:
+              `total:${total} active:${active} disabled:${disabled} broken:${broken} `
+              + `x_restrict(all:${x0} r18:${x1} r18g:${x2} unknown:${xUnknown} r18_ratio:${(r18Ratio * 100).toFixed(1)}%)`,
           },
           redirectUrl: context.h.resourceUrl({ resourceId: context.resource.id() }),
         };
@@ -183,6 +192,13 @@ export const imageResourceOptions = {
         { value: String(IMAGE_STATUS_ACTIVE), label: 'active' },
         { value: String(IMAGE_STATUS_DISABLED), label: 'disabled' },
         { value: String(IMAGE_STATUS_BROKEN), label: 'broken' },
+      ],
+    },
+    xRestrict: {
+      availableValues: [
+        { value: '0', label: 'all-ages' },
+        { value: '1', label: 'R18' },
+        { value: '2', label: 'R18G' },
       ],
     },
     minWidth: {

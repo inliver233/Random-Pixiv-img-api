@@ -59,16 +59,21 @@ describe('GET /random (filter r18)', () => {
     expect(filters).toEqual({ xRestrict: 1 });
   });
 
-  it('treats r18=any as no xRestrict filter', async () => {
+  it('returns 400 for r18=any (compliance)', async () => {
     const app = await createApp();
 
-    await request(app)
+    const res = await request(app)
       .get('/random?r18=any')
       .set('accept', 'application/json')
-      .expect(404);
+      .set('x-request-id', 'req-random-r18-any')
+      .expect(400);
 
-    const filters = pickRandomImageStream.mock.calls[0]?.[0];
-    expect(filters).toEqual({});
+    expect(res.body).toEqual({
+      code: 'BAD_REQUEST',
+      message: 'Invalid r18.',
+      request_id: 'req-random-r18-any',
+    });
+    expect(pickRandomImageStream).not.toHaveBeenCalled();
   });
 
   it('combines r18 and orientation filters', async () => {
