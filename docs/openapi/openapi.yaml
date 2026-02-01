@@ -183,9 +183,52 @@ paths:
       responses:
         '200':
           description: Prometheus text format
+          headers:
+            X-Request-Id:
+              schema: { type: string }
           content:
             text/plain:
               schema: { type: string }
+        '401':
+          description: Unauthorized (Basic auth)
+          headers:
+            WWW-Authenticate:
+              schema: { type: string }
+              description: Basic realm challenge
+            X-Request-Id:
+              schema: { type: string }
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [error]
+                properties:
+                  error:
+                    type: string
+                    examples: [unauthorized]
+        '404':
+          description: Metrics disabled
+          headers:
+            X-Request-Id:
+              schema: { type: string }
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [error]
+                properties:
+                  error:
+                    type: string
+                    examples: [metrics_disabled]
+        '500':
+          description: Internal Server Error
+          headers:
+            X-Request-Id:
+              schema: { type: string }
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
 
   /admin:
     get:
