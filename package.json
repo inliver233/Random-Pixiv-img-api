@@ -33,6 +33,7 @@
     "express-rate-limit": "^8.2.1",
     "express-session": "^1.18.2",
     "memcached": "^2.2.2",
+    "opossum": "^8.5.0",
     "pg": "^8.18.0",
     "pg-boss": "^12.8.0",
     "pino": "^10.3.0",

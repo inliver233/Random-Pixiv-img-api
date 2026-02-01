@@ -1,4 +1,5 @@
 import { pixivApiGet } from '../http/axiosClient';
+import { isCircuitOpenError, pixivApiCircuitFire } from '../resilience/circuit';
 
 import { getAccessToken, maskHeader } from './pixivAuthService';
 import memcachedService from './memcachedService';
@@ -16,17 +17,23 @@ const getPixivIllustIdData = async (illustId: string | number, cache = true) => 
 
   try {
     console.log('Fetching Pixiv API data for illust ID:', illustId);
-    const response = await pixivApiGet(`${PIXIV_BASE_URL}/illust/detail?illust_id=${illustId}`, {
+    const response = await pixivApiCircuitFire(async () => pixivApiGet(`${PIXIV_BASE_URL}/illust/detail?illust_id=${illustId}`, {
       headers: {
         Accept: 'application/json',
         Authorization: `Bearer ${await getAccessToken()}`,
         ...maskHeader,
       },
       validateStatus: (status) => (status >= 200 && status < 300) || status === 404,
-    });
+    }));
     if (cache) memcachedService.set(String(illustId), response.data);
     return response.data;
   } catch (error: any) {
+    if (isCircuitOpenError(error)) {
+      const err: any = new Error('Pixiv API circuit breaker is open.');
+      err.code = 'circuit_open';
+      throw err;
+    }
+
     const response = error?.response;
 
     if (response?.status === 403 && response?.data?.error?.message === 'Rate Limit') {
