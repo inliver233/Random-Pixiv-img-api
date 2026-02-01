@@ -1,7 +1,9 @@
 import type { Router } from 'express';
+import path from 'node:path';
 
 import { getPrismaClient } from '../db/prismaClient';
 import * as PrismaModule from '@prisma/client';
+import { Prisma } from '@prisma/client';
 
 import { imageResourceOptions } from './resources/images';
 import { importResourceOptions } from './resources/imports';
@@ -299,8 +301,117 @@ export async function getAdminJsRouter(): Promise<Router> {
 
     const prisma = getPrismaClient();
 
+    const ComponentLoader = (adminJSImport as any).ComponentLoader as new () => any;
+    const componentLoader = new ComponentLoader();
+    const Dashboard = componentLoader.add('Dashboard', path.join(__dirname, 'pages', 'dashboard'));
+
     const admin = new AdminJS({
       rootPath: '/admin',
+      componentLoader,
+      dashboard: {
+        component: Dashboard,
+        handler: async () => {
+          let imagesTotal = 0;
+          let imagesActive = 0;
+          let imagesDisabled = 0;
+          let imagesBroken = 0;
+          let topErrors: { code: string; count: number }[] = [];
+
+          let importsTotal = 0;
+          let importsLast24h = 0;
+          let lastImportAt: string | null = null;
+
+          let dbError: string | null = null;
+
+          try {
+            const [total, active, disabled, broken] = await Promise.all([
+              prisma.image.count(),
+              prisma.image.count({ where: { status: 1 } }),
+              prisma.image.count({ where: { status: 2 } }),
+              prisma.image.count({ where: { status: 3 } }),
+            ]);
+
+            imagesTotal = total;
+            imagesActive = active;
+            imagesDisabled = disabled;
+            imagesBroken = broken;
+
+            const topErrorsRows = await prisma.$queryRaw<{ last_error_code: string; count: bigint | string }[]>(
+              Prisma.sql`
+                SELECT last_error_code, COUNT(*)::bigint AS count
+                FROM images
+                WHERE last_error_code IS NOT NULL AND last_error_code <> ''
+                GROUP BY last_error_code
+                ORDER BY count DESC
+                LIMIT 10
+              `,
+            );
+
+            topErrors = topErrorsRows.map((row) => ({
+              code: row.last_error_code,
+              count: typeof row.count === 'bigint' ? Number(row.count) : Number(BigInt(row.count)),
+            }));
+
+            const last24hCutoff = new Date(Date.now() - 24 * 60 * 60 * 1000);
+            const [impTotal, impLast24h, lastImport] = await Promise.all([
+              prisma.import.count(),
+              prisma.import.count({ where: { createdAt: { gte: last24hCutoff } } }),
+              prisma.import.findFirst({ orderBy: { createdAt: 'desc' }, select: { createdAt: true } }),
+            ]);
+
+            importsTotal = impTotal;
+            importsLast24h = impLast24h;
+            lastImportAt = lastImport?.createdAt ? lastImport.createdAt.toISOString() : null;
+          } catch (err: unknown) {
+            dbError = err instanceof Error ? err.message : String(err);
+          }
+
+          const brokenRatio = imagesTotal > 0 ? imagesBroken / imagesTotal : 0;
+
+          // eslint-disable-next-line @typescript-eslint/no-var-requires
+          const { getEnv } = require('../config/env') as { getEnv: () => { METRICS_ENABLED: boolean } };
+          // eslint-disable-next-line @typescript-eslint/no-var-requires
+          const { getMetricsRegistry } = require('../metrics/registry') as { getMetricsRegistry: () => { getMetricsAsJSON: () => any[] } };
+
+          const env = getEnv();
+          const registry = getMetricsRegistry();
+          const metricNames = registry.getMetricsAsJSON().map((metric) => metric.name).sort();
+
+          const mem = process.memoryUsage();
+
+          return {
+            generated_at: new Date().toISOString(),
+            images: {
+              total: imagesTotal,
+              active: imagesActive,
+              disabled: imagesDisabled,
+              broken: imagesBroken,
+              broken_ratio: brokenRatio,
+            },
+            top_errors: topErrors,
+            imports: {
+              total: importsTotal,
+              last_24h: importsLast24h,
+              last_at: lastImportAt,
+            },
+            process: {
+              uptime_s: process.uptime(),
+              rss_bytes: mem.rss,
+              heap_used_bytes: mem.heapUsed,
+              heap_total_bytes: mem.heapTotal,
+              external_bytes: mem.external,
+              array_buffers_bytes: (mem as any).arrayBuffers ?? 0,
+            },
+            metrics: {
+              enabled: env.METRICS_ENABLED,
+              metric_names: metricNames,
+            },
+            errors: {
+              db: dbError,
+            },
+          };
+        },
+      },
       resources: [
         {
           resource: { model: getModelByName('Image', prismaClientModule), client: prisma, clientModule: prismaClientModule },
