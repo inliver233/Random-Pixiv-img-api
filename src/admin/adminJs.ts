@@ -4,6 +4,7 @@ import { getPrismaClient } from '../db/prismaClient';
 import * as PrismaModule from '@prisma/client';
 
 import { imageResourceOptions } from './resources/images';
+import { importResourceOptions } from './resources/imports';
 
 let cachedRouter: Router | null = null;
 let cachedPromise: Promise<Router> | null = null;
@@ -311,7 +312,7 @@ export async function getAdminJsRouter(): Promise<Router> {
         },
         {
           resource: { model: getModelByName('Import', prismaClientModule), client: prisma, clientModule: prismaClientModule },
-          options: {},
+          options: importResourceOptions,
         },
       ],
     });
