@@ -428,6 +428,18 @@ components:
         minimum: 1
         maximum: 10
         default: 3
+      description: |
+        随机挑选失败时的重试次数。
+        - 默认 `3`
+        - 仅接受整数；非整数将返回 400（code=BAD_REQUEST, message=Invalid attempts.）
+        - 超出范围会被夹到 `[1, 10]`（不会报错）
+      examples:
+        min:
+          value: 1
+        default:
+          value: 3
+        max:
+          value: 10
     RandomSeed:
       name: seed
       in: query
