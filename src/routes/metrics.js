@@ -3,6 +3,7 @@ const { getEnv } = require('../config/env');
 const { getMetricsRegistry } = require('../metrics/registry');
 const { ensureHttpMetricsInitialized } = require('../metrics/httpMetrics');
 const { ensureRandomMetricsInitialized } = require('../metrics/randomMetrics');
+const { ensureUpstreamMetricsInitialized } = require('../metrics/upstreamMetrics');
 
 const router = express.Router();
 
@@ -42,6 +43,7 @@ router.get('/', async (req, res) => {
 
   ensureHttpMetricsInitialized();
   ensureRandomMetricsInitialized();
+  ensureUpstreamMetricsInitialized();
 
   const registry = getMetricsRegistry();
   res.setHeader('Content-Type', registry.contentType);

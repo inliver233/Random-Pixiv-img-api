@@ -3,6 +3,7 @@ import type { Readable } from 'node:stream';
 import { generateRandomKey } from '../domain/randomKey';
 import { getByIdWithTags, IMAGE_STATUS_BROKEN, markFail, pickRandom, type PickRandomDebug, type PickRandomFilters } from '../repositories/imagesRepo';
 import { fetchPixivImageStream } from '../http/pixivImageHttp';
+import { incrementUpstreamError } from '../metrics/upstreamMetrics';
 
 export type RandomStreamResult = {
   image: any;
@@ -65,6 +66,12 @@ export async function pickRandomImageStream(
       if (anyErr?.code === 'ERR_CANCELED') return null;
 
       const status = Number(anyErr?.response?.status);
+      if (Number.isFinite(status) && status === 429) incrementUpstreamError('rate_limit');
+      else if (Number.isFinite(status) && status === 403) incrementUpstreamError('403');
+      else if (Number.isFinite(status) && status === 404) incrementUpstreamError('404');
+      else if (Number.isFinite(status) && status >= 500) incrementUpstreamError('5xx');
+      else incrementUpstreamError('network');
+
       const code =
         Number.isFinite(status) && status > 0
           ? `upstream_${status}`

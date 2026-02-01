@@ -58,6 +58,7 @@ describe('GET /metrics', () => {
     expect(res.text).toContain('random_success_total');
     expect(res.text).toContain('random_fail_total');
     expect(res.text).toContain('random_attempts_histogram');
+    expect(res.text).toContain('upstream_errors_total');
   });
 
   it('returns 404 when metrics are disabled', async () => {

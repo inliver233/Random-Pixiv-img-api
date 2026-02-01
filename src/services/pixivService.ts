@@ -1,5 +1,6 @@
 import { pixivApiGet } from '../http/axiosClient';
 import { isCircuitOpenError, pixivApiCircuitFire } from '../resilience/circuit';
+import { incrementUpstreamError } from '../metrics/upstreamMetrics';
 
 import { getAccessToken, maskHeader } from './pixivAuthService';
 import memcachedService from './memcachedService';
@@ -38,6 +39,7 @@ const getPixivIllustIdData = async (illustId: string | number, cache = true) => 
 
     if (response?.status === 403 && response?.data?.error?.message === 'Rate Limit') {
       // API Rate limit exceeded
+      incrementUpstreamError('rate_limit');
       const err: any = new Error('Pixiv API rate limit exceeded.');
       err.code = 'rate_limit';
       throw err;
@@ -45,10 +47,16 @@ const getPixivIllustIdData = async (illustId: string | number, cache = true) => 
 
     if (!response) {
       // Network / no-response errors
+      incrementUpstreamError('network');
       const err: any = new Error('Pixiv API network error');
       err.code = 'network';
       throw err;
     }
+
+    const status = Number(response?.status);
+    if (Number.isFinite(status) && status === 403) incrementUpstreamError('403');
+    else if (Number.isFinite(status) && status === 404) incrementUpstreamError('404');
+    else if (Number.isFinite(status) && status >= 500) incrementUpstreamError('5xx');
 
     // Other upstream errors
     console.error('Pixiv service error:', error);
