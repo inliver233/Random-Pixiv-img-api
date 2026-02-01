@@ -1,4 +1,5 @@
 import { getPrismaClient } from '../db/prismaClient';
+import type { Prisma } from '@prisma/client';
 
 export type CreateImportInput = {
   total: number;
@@ -6,7 +7,7 @@ export type CreateImportInput = {
   source?: string | null;
   success?: number;
   failed?: number;
-  detail?: unknown;
+  detail?: Prisma.InputJsonValue | Prisma.NullableJsonNullValueInput;
 };
 
 export async function createImport(input: CreateImportInput) {
@@ -30,7 +31,7 @@ export type UpdateImportInput = {
   source?: string | null;
   success?: number;
   failed?: number;
-  detail?: unknown;
+  detail?: Prisma.InputJsonValue | Prisma.NullableJsonNullValueInput;
 };
 
 export async function updateImport(input: UpdateImportInput) {
@@ -55,4 +56,3 @@ export async function getById(id: bigint) {
   const prisma = getPrismaClient();
   return prisma.import.findUnique({ where: { id } });
 }
-

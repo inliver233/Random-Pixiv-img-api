@@ -1,4 +1,5 @@
 import { getPrismaClient } from '../db/prismaClient';
+import { Prisma } from '@prisma/client';
 
 export type UpsertTagInput = {
   name: string;
@@ -72,7 +73,7 @@ export async function syncImageTags(imageId: bigint, tags: UpsertTagInput[]) {
     return { added: 0, removed: 0 };
   }
 
-  const ops: Promise<unknown>[] = [];
+  const ops: Prisma.PrismaPromise<unknown>[] = [];
   if (tagIdsToAdd.length > 0) {
     ops.push(
       prisma.imageTag.createMany({
@@ -97,4 +98,3 @@ export async function syncImageTags(imageId: bigint, tags: UpsertTagInput[]) {
 
   return { added: tagIdsToAdd.length, removed: tagIdsToRemove.length };
 }
-

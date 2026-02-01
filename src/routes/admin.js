@@ -1,15 +1,26 @@
 const express = require('express');
 
-const adminAuth = require('../middlewares/adminAuth');
+let delegated = false;
+try {
+  // eslint-disable-next-line import/no-unresolved, global-require
+  const built = require('../../dist/src/routes/admin');
+  module.exports = built.default || built;
+  delegated = true;
+} catch {
+  delegated = false;
+}
 
 const router = express.Router();
 
-router.use(adminAuth);
+if (!delegated) {
+  const adminAuth = require('../middlewares/adminAuth');
 
-router.get('/', (_req, res) => {
-  res.setHeader('Cache-Control', 'no-store');
-  res.status(200).json({ ok: true });
-});
+  router.use(adminAuth);
 
-module.exports = router;
+  router.get('/', (_req, res) => {
+    res.setHeader('Cache-Control', 'no-store');
+    res.status(200).json({ ok: true });
+  });
 
+  module.exports = router;
+}

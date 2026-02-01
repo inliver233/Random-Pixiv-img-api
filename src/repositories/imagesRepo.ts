@@ -1,6 +1,6 @@
 import { getPrismaClient } from '../db/prismaClient';
 import { getEnv } from '../config/env';
-import { Prisma } from '../generated/prisma/client';
+import { Prisma } from '@prisma/client';
 
 export const IMAGE_STATUS_ACTIVE = 1;
 export const IMAGE_STATUS_DISABLED = 2;
