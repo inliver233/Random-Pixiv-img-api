@@ -89,3 +89,23 @@ curl -i "http://127.0.0.1:3000/random?seed=demo"
 ### 常见坑
 
 - `seed` 不能是空字符串/纯空白，否则会返回 400（`code=BAD_REQUEST`, `message=Invalid seed.`）。
+
+## `r18`
+
+`r18` 用于筛选 Pixiv 的分级（对应 `xRestrict`）：
+
+- `r18=0`（默认）：全年龄
+- `r18=1`：R18
+- `r18=2`：R18G
+
+### 示例
+
+```bash
+curl -i "http://127.0.0.1:3000/random?r18=0"
+curl -i "http://127.0.0.1:3000/random?r18=1"
+```
+
+### 注意事项
+
+- `r18` 仅支持 `0/1/2`；空值或其他值会返回 400（`message=Invalid r18.`）。
+- `r18` 越严格，可用候选越少；若出现频繁 `NO_MATCH`，可考虑减少其他过滤条件或提高 `attempts`。
