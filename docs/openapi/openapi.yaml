@@ -97,7 +97,7 @@ paths:
           headers:
             Cache-Control:
               schema: { type: string }
-              description: Usually `no-store` for JSON APIs
+              description: Always `no-store` for this endpoint
             X-Request-Id:
               schema: { type: string }
           content:
@@ -108,6 +108,14 @@ paths:
           $ref: '#/components/responses/JsonBadRequest'
         '404':
           $ref: '#/components/responses/JsonNotFound'
+        '500':
+          description: Internal Server Error
+          headers:
+            X-Request-Id:
+              schema: { type: string }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
 
   /i/{id}.{ext}:
     get:
