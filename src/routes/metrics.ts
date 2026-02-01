@@ -31,6 +31,8 @@ router.get('/', async (req, res) => {
   const { getMetricsRegistry } = require('../metrics/registry') as { getMetricsRegistry: () => { contentType: string; metrics: () => Promise<string> } };
   // eslint-disable-next-line @typescript-eslint/no-var-requires
   const { ensureHttpMetricsInitialized } = require('../metrics/httpMetrics') as { ensureHttpMetricsInitialized: () => void };
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const { ensureRandomMetricsInitialized } = require('../metrics/randomMetrics') as { ensureRandomMetricsInitialized: () => void };
 
   const env = getEnv();
   if (!env.METRICS_ENABLED) {
@@ -45,6 +47,7 @@ router.get('/', async (req, res) => {
   }
 
   ensureHttpMetricsInitialized();
+  ensureRandomMetricsInitialized();
 
   const registry = getMetricsRegistry();
   res.setHeader('Content-Type', registry.contentType);

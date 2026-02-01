@@ -2,6 +2,7 @@ import { Router } from 'express';
 import type { Readable } from 'node:stream';
 
 import { buildRandomJsonResponse } from '../contracts/randomResponse';
+import { incrementRandomSuccessTotal } from '../metrics/randomMetrics';
 import { getImageContentTypeFromFilename } from '../utils/contentType';
 import { pickRandomImageRecord, pickRandomImageStream } from '../services/randomService';
 import { IMAGE_STATUS_BROKEN, markFail } from '../repositories/imagesRepo';
@@ -353,6 +354,7 @@ router.get('/', (req, res, next) => {
         throw err;
       }
 
+      incrementRandomSuccessTotal();
       res.redirect(302, `/i/${image.id.toString()}.${String(image.ext || 'jpg')}`);
       return;
     }
@@ -374,6 +376,7 @@ router.get('/', (req, res, next) => {
       const proxyUrl = `/i/${image.id.toString()}.${String(image.ext || 'jpg')}`;
       const originUrl = String(image.originalUrl || '');
 
+      incrementRandomSuccessTotal();
       res.json(
         buildRandomJsonResponse({
           image,
@@ -401,6 +404,7 @@ router.get('/', (req, res, next) => {
     const { image, originUrl, stream } = picked;
     const filename = originUrl.substring(originUrl.lastIndexOf('/') + 1) || `${image.id.toString()}.${String(image.ext || 'jpg')}`;
 
+    incrementRandomSuccessTotal();
     res.writeHead(200, {
       'Content-Type': getImageContentTypeFromFilename(filename) || 'application/octet-stream',
       'Content-Disposition': `filename="${filename}"`,

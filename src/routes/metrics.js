@@ -2,6 +2,7 @@ const express = require('express');
 const { getEnv } = require('../config/env');
 const { getMetricsRegistry } = require('../metrics/registry');
 const { ensureHttpMetricsInitialized } = require('../metrics/httpMetrics');
+const { ensureRandomMetricsInitialized } = require('../metrics/randomMetrics');
 
 const router = express.Router();
 
@@ -40,6 +41,7 @@ router.get('/', async (req, res) => {
   }
 
   ensureHttpMetricsInitialized();
+  ensureRandomMetricsInitialized();
 
   const registry = getMetricsRegistry();
   res.setHeader('Content-Type', registry.contentType);
