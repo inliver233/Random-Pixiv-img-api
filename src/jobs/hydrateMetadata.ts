@@ -1,0 +1,107 @@
+import logger from '../logger/logger';
+import pixivService from '../services/pixivService';
+import { parsePixivUrl } from '../utils/parsePixivUrl';
+import { enqueue, work } from '../queue/queue';
+
+export const HYDRATE_METADATA_JOB = 'hydrate_metadata';
+
+export type HydrateMetadataJobData = {
+  illust_id: string;
+};
+
+export type HydrateMetadataPage = {
+  illustId: bigint;
+  pageIndex: number;
+  ext: string;
+  originalUrl: string;
+};
+
+function toBigInt(value: unknown): bigint {
+  if (typeof value === 'bigint') return value;
+  if (typeof value === 'number' && Number.isFinite(value)) return BigInt(Math.trunc(value));
+  if (typeof value === 'string' && value.trim() && /^\\d+$/.test(value.trim())) return BigInt(value.trim());
+  throw new Error('Invalid illust_id');
+}
+
+function normalizeOriginalUrls(pixivDetail: any): string[] {
+  const illust = pixivDetail?.illust;
+  if (!illust || typeof illust !== 'object') {
+    throw new Error('Invalid Pixiv response: missing illust');
+  }
+
+  const pageCount = Number(illust.page_count ?? 0);
+  if (!Number.isFinite(pageCount) || pageCount < 1) {
+    throw new Error('Invalid Pixiv response: page_count');
+  }
+
+  if (pageCount === 1) {
+    const url = illust?.meta_single_page?.original_image_url;
+    if (typeof url !== 'string' || !url.trim()) {
+      throw new Error('Invalid Pixiv response: missing original_image_url');
+    }
+    return [url.trim()];
+  }
+
+  const pages = Array.isArray(illust.meta_pages) ? illust.meta_pages : [];
+  const urls = pages
+    .map((p: any) => p?.image_urls?.original)
+    .filter((u: any) => typeof u === 'string' && u.trim() !== '')
+    .map((u: string) => u.trim());
+
+  if (urls.length !== pageCount) {
+    throw new Error('Invalid Pixiv response: meta_pages length mismatch');
+  }
+
+  return urls;
+}
+
+export async function hydrateMetadata(illustId: bigint): Promise<HydrateMetadataPage[]> {
+  const data = await pixivService.getPixivIllustIdData(illustId.toString(), false);
+  if (data && typeof data === 'object' && 'error' in data) {
+    throw new Error('Pixiv API returned error');
+  }
+
+  const urls = normalizeOriginalUrls(data);
+
+  const pages: HydrateMetadataPage[] = [];
+  for (const url of urls) {
+    const parsed = parsePixivUrl(url);
+    if (!parsed.ok) {
+      throw new Error(`Unsupported Pixiv original url: ${parsed.code}`);
+    }
+    pages.push({
+      illustId: parsed.illustId,
+      pageIndex: parsed.pageIndex,
+      ext: parsed.ext,
+      originalUrl: url,
+    });
+  }
+
+  pages.sort((a, b) => a.pageIndex - b.pageIndex);
+  return pages;
+}
+
+export async function enqueueHydrateMetadata(illustId: bigint): Promise<string> {
+  return enqueue<HydrateMetadataJobData>(HYDRATE_METADATA_JOB, { illust_id: illustId.toString() });
+}
+
+export async function registerHydrateMetadataWorker(): Promise<void> {
+  await work<HydrateMetadataJobData>(HYDRATE_METADATA_JOB, async (jobs) => {
+    for (const job of jobs) {
+      const jobData: any = job?.data ?? {};
+      const illustId = toBigInt(jobData.illust_id ?? jobData.illustId ?? jobData.illust_id);
+
+      const pages = await hydrateMetadata(illustId);
+
+      logger.info(
+        {
+          job: { name: HYDRATE_METADATA_JOB, id: job.id },
+          illust_id: illustId.toString(),
+          pages: pages.length,
+        },
+        'hydrate_metadata done',
+      );
+    }
+  });
+}
+
