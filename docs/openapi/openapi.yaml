@@ -53,6 +53,15 @@ paths:
             Cache-Control:
               schema: { type: string }
               description: Always `no-store` for /random
+            Access-Control-Allow-Origin:
+              schema: { type: string }
+              description: Present for image stream responses (usually `*`)
+            X-Origin-URL:
+              schema: { type: string }
+              description: Present for image stream responses
+            X-Crawl-Date:
+              schema: { type: string }
+              description: Present for image stream responses
             X-Request-Id:
               schema: { type: string }
               description: Correlates logs/metrics
@@ -79,6 +88,20 @@ paths:
           $ref: '#/components/responses/JsonBadRequest'
         '404':
           $ref: '#/components/responses/JsonNotFound'
+        '429':
+          description: Too Many Requests (rate limited)
+          headers:
+            Retry-After:
+              schema: { type: string }
+              description: Seconds to wait before retry
+            RateLimit:
+              schema: { type: string }
+              description: Rate limit status (draft-7)
+            X-Request-Id:
+              schema: { type: string }
+          content:
+            text/plain:
+              schema: { type: string }
         '503':
           $ref: '#/components/responses/JsonServiceUnavailable'
 
