@@ -14,6 +14,8 @@
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "test": "vitest run",
+    "smoke": "vitest run test/smoke.test.ts",
+    "test:all": "npm run lint && npm test && npm run smoke",
     "lint": "eslint ."
   },
   "author": "jongcs",
