@@ -465,7 +465,19 @@ components:
         type: integer
         enum: [0, 1, 2]
         default: 0
-      description: 0=全年龄(默认) 1=R18 2=R18G
+      description: |
+        Pixiv xRestrict 过滤：
+        - `0`：全年龄（默认）
+        - `1`：R18
+        - `2`：R18G
+        仅接受 `0/1/2`；空值或其他值返回 400（code=BAD_REQUEST, message=Invalid r18.）。
+      examples:
+        all_ages:
+          value: 0
+        r18:
+          value: 1
+        r18g:
+          value: 2
     FilterOrientation:
       name: orientation
       in: query
