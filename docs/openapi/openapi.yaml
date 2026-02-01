@@ -159,6 +159,18 @@ paths:
       responses:
         '200':
           description: OK
+          headers:
+            X-Request-Id:
+              schema: { type: string }
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthzResponse'
+        '503':
+          description: Unhealthy
+          headers:
+            X-Request-Id:
+              schema: { type: string }
           content:
             application/json:
               schema:
@@ -404,7 +416,7 @@ components:
 
     HealthzResponse:
       type: object
-      required: [ok]
+      required: [ok, db, memcached, queue]
       properties:
         ok: { type: boolean }
         db:
@@ -417,6 +429,14 @@ components:
           properties:
             ok: { type: boolean }
             message: { type: string, nullable: true }
+        queue:
+          type: object
+          properties:
+            ok: { type: boolean }
+            message: { type: string, nullable: true }
+        error:
+          type: string
+          nullable: true
 
     AdminImportResponse:
       type: object
@@ -432,4 +452,3 @@ components:
             properties:
               line: { type: integer }
               error: { type: string }
-
