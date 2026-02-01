@@ -18,6 +18,11 @@ describe('parsePixivUrl', () => {
     expect(res).toEqual({ ok: true, illustId: 12345678n, pageIndex: 0, ext: 'jpeg' });
   });
 
+  it('parses uppercase extension and ignores query string', () => {
+    const res = parsePixivUrl('https://i.pximg.net/img-original/img/2024/01/01/00/00/00/12345678_p0.JPG?foo=bar');
+    expect(res).toEqual({ ok: true, illustId: 12345678n, pageIndex: 0, ext: 'jpg' });
+  });
+
   it('rejects unsupported host', () => {
     const res = parsePixivUrl('https://example.com/img-original/img/2024/01/01/00/00/00/12345678_p0.jpg');
     expect(res.ok).toBe(false);
@@ -41,5 +46,10 @@ describe('parsePixivUrl', () => {
     expect(res.ok).toBe(false);
     if (!res.ok) expect(res.code).toBe('invalid_url');
   });
-});
 
+  it('rejects urls without _p<index> filename pattern', () => {
+    const res = parsePixivUrl('https://i.pximg.net/img-original/img/2024/01/01/00/00/00/12345678.jpg');
+    expect(res.ok).toBe(false);
+    if (!res.ok) expect(res.code).toBe('unsupported_url');
+  });
+});
