@@ -109,3 +109,24 @@ curl -i "http://127.0.0.1:3000/random?r18=1"
 
 - `r18` 仅支持 `0/1/2`；空值或其他值会返回 400（`message=Invalid r18.`）。
 - `r18` 越严格，可用候选越少；若出现频繁 `NO_MATCH`，可考虑减少其他过滤条件或提高 `attempts`。
+
+## `orientation`
+
+`orientation` 用于筛选图片方向：
+
+- `any`（默认）：不筛选
+- `portrait`：竖图
+- `landscape`：横图
+- `square`：正方形
+
+### 示例
+
+```bash
+curl -i "http://127.0.0.1:3000/random?orientation=portrait"
+curl -i "http://127.0.0.1:3000/random?orientation=landscape"
+```
+
+### 注意事项
+
+- `orientation` 仅支持 `portrait/landscape/square/any`；空值或其他值会返回 400（`message=Invalid orientation.`）。
+- 依赖图片元信息（width/height）已入库；若大量数据未补全元信息，可能出现 `NO_MATCH`。
