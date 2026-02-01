@@ -1,4 +1,5 @@
 const axios = require('axios');
+const axiosRetry = require('axios-retry').default || require('axios-retry');
 const http = require('node:http');
 const https = require('node:https');
 
@@ -40,6 +41,44 @@ const PIXIV_IMAGE_DEFAULTS = {
   maxBodyLength: 50 * MB,
 };
 
+let retryConfigured = false;
+
+function canConfigureRetry() {
+  const request = axios && axios.request;
+  const interceptors = axios && axios.interceptors;
+  const hasInterceptors =
+    interceptors &&
+    interceptors.request &&
+    typeof interceptors.request.use === 'function' &&
+    interceptors.response &&
+    typeof interceptors.response.use === 'function';
+  return typeof request === 'function' && hasInterceptors;
+}
+
+function ensureRetryConfigured() {
+  if (retryConfigured) return;
+  if (!canConfigureRetry()) {
+    retryConfigured = true;
+    return;
+  }
+
+  axiosRetry(axios, {
+    retries: 2,
+    retryDelay: axiosRetry.exponentialDelay,
+    shouldResetTimeout: true,
+    retryCondition: (err) => {
+      const responseType = err && err.config ? err.config.responseType : undefined;
+      if (responseType === 'stream') return false;
+      if (err && err.code === 'ECONNABORTED') return true;
+      return axiosRetry.isNetworkOrIdempotentRequestError(err);
+    },
+  });
+
+  retryConfigured = true;
+}
+
+ensureRetryConfigured();
+
 async function pixivApiGet(url, config) {
   return axios.get(url, mergeConfig(PIXIV_API_DEFAULTS, config));
 }
@@ -59,4 +98,3 @@ module.exports = {
 };
 
 module.exports.default = module.exports;
-

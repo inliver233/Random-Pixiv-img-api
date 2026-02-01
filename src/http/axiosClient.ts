@@ -1,4 +1,5 @@
 import axios, { type AxiosRequestConfig, type AxiosResponse, type RawAxiosRequestHeaders } from 'axios';
+import axiosRetry from 'axios-retry';
 import http from 'node:http';
 import https from 'node:https';
 
@@ -43,6 +44,45 @@ const PIXIV_IMAGE_DEFAULTS: AxiosRequestConfig = {
   maxBodyLength: 50 * MB,
 };
 
+let retryConfigured = false;
+
+function canConfigureRetry(): boolean {
+  const anyAxios: any = axios as any;
+  const request = anyAxios?.request;
+  const interceptors = anyAxios?.interceptors;
+  const hasInterceptors =
+    interceptors &&
+    interceptors.request &&
+    typeof interceptors.request.use === 'function' &&
+    interceptors.response &&
+    typeof interceptors.response.use === 'function';
+  return typeof request === 'function' && hasInterceptors;
+}
+
+function ensureRetryConfigured(): void {
+  if (retryConfigured) return;
+  if (!canConfigureRetry()) {
+    retryConfigured = true;
+    return;
+  }
+
+  axiosRetry(axios, {
+    retries: 2,
+    retryDelay: axiosRetry.exponentialDelay,
+    shouldResetTimeout: true,
+    retryCondition: (err: any) => {
+      const responseType = err?.config?.responseType;
+      if (responseType === 'stream') return false;
+      if (err?.code === 'ECONNABORTED') return true; // axios timeout
+      return axiosRetry.isNetworkOrIdempotentRequestError(err);
+    },
+  });
+
+  retryConfigured = true;
+}
+
+ensureRetryConfigured();
+
 export async function pixivApiGet<T = any>(url: string, config?: AxiosRequestConfig): Promise<AxiosResponse<T>> {
   return axios.get<T>(url, mergeConfig(PIXIV_API_DEFAULTS, config));
 }
@@ -54,4 +94,3 @@ export async function pixivApiRequest<T = any>(config: AxiosRequestConfig): Prom
 export async function pixivImageGet<T = any>(url: string, config?: AxiosRequestConfig): Promise<AxiosResponse<T>> {
   return axios.get<T>(url, mergeConfig(PIXIV_IMAGE_DEFAULTS, config));
 }
-
