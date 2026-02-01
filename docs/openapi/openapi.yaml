@@ -304,15 +304,18 @@ paths:
       security:
         - AdminTokenAuth: []
       requestBody:
-        required: true
+        required: false
         content:
           multipart/form-data:
             schema:
               type: object
               properties:
+                urls:
+                  type: string
+                  description: 'URL list (one per line). Also accepts field names: text/textarea/input.'
                 text:
                   type: string
-                  description: URL list (one per line)
+                  description: Alias of `urls` (deprecated; kept for compatibility)
                 file:
                   type: string
                   format: binary
@@ -320,14 +323,35 @@ paths:
       responses:
         '200':
           description: Import result summary
+          headers:
+            Cache-Control:
+              schema: { type: string }
+              description: Always `no-store` for admin APIs
+            X-Request-Id:
+              schema: { type: string }
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/AdminImportResponse'
         '401':
-          $ref: '#/components/responses/JsonUnauthorized'
-        '400':
-          $ref: '#/components/responses/JsonBadRequest'
+          description: Unauthorized
+          headers:
+            Cache-Control:
+              schema: { type: string }
+              description: Always `no-store` for admin APIs
+            X-Request-Id:
+              schema: { type: string }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '500':
+          description: Internal Server Error
+          headers:
+            X-Request-Id:
+              schema: { type: string }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
 
 components:
   securitySchemes:
@@ -535,15 +559,52 @@ components:
 
     AdminImportResponse:
       type: object
-      required: [total, success, failed]
+      required: [ok, import_id, total_lines, unique_images, deduped, success, failed, enqueued, results, errors]
       properties:
-        total: { type: integer }
+        ok:
+          type: boolean
+          examples: [true]
+        import_id:
+          type: string
+          description: Import record id (bigint as string)
+        total_lines: { type: integer }
+        unique_images: { type: integer }
+        deduped: { type: integer }
         success: { type: integer }
         failed: { type: integer }
+        enqueued:
+          type: object
+          required: [hydrate_metadata, note]
+          properties:
+            hydrate_metadata: { type: integer }
+            note: { type: string }
+        results:
+          type: array
+          items:
+            type: object
+            required: [ok, illust_id, page_index, image_id, ext, original_url, proxy_path]
+            properties:
+              ok:
+                type: boolean
+                examples: [true]
+              illust_id: { type: string }
+              page_index: { type: integer, minimum: 0 }
+              image_id: { type: string }
+              ext:
+                type: string
+                enum: [jpg, jpeg, png, gif]
+              original_url: { type: string }
+              proxy_path: { type: string }
         errors:
           type: array
           items:
             type: object
+            required: [ok, line, url, code, message]
             properties:
-              line: { type: integer }
-              error: { type: string }
+              ok:
+                type: boolean
+                examples: [false]
+              line: { type: integer, minimum: 1 }
+              url: { type: string }
+              code: { type: string }
+              message: { type: string }
