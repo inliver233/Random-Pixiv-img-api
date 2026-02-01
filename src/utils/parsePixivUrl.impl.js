@@ -66,4 +66,3 @@ function parsePixivUrl(inputUrl) {
 module.exports = {
   parsePixivUrl,
 };
-

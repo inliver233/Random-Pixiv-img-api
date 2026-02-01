@@ -19,7 +19,6 @@ type ParsePixivUrlModule = {
 
 // Use the JS implementation so app.js (CJS) and app.ts (TS build) share behavior.
 // eslint-disable-next-line @typescript-eslint/no-var-requires
-const mod = require('./parsePixivUrl.js') as ParsePixivUrlModule;
+const mod = require('./parsePixivUrl.impl.js') as ParsePixivUrlModule;
 
 export const parsePixivUrl = mod.parsePixivUrl;
-

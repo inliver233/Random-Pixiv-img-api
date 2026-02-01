@@ -1,10 +1,12 @@
 import { Router } from 'express';
 
 import adminAuth from '../middlewares/adminAuth';
+import adminImportRouter from './adminImport';
 
 const router = Router();
 
 router.use(adminAuth);
+router.use(adminImportRouter);
 
 if (process.env.NODE_ENV === 'test') {
   router.get('/', (_req, res) => {
