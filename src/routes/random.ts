@@ -2,7 +2,7 @@ import { Router } from 'express';
 import type { Readable } from 'node:stream';
 
 import { buildRandomJsonResponse } from '../contracts/randomResponse';
-import { incrementRandomFailTotal, incrementRandomSuccessTotal } from '../metrics/randomMetrics';
+import { incrementRandomFailTotal, incrementRandomSuccessTotal, observeRandomAttemptsHistogram } from '../metrics/randomMetrics';
 import { getImageContentTypeFromFilename } from '../utils/contentType';
 import { pickRandomImageRecord, pickRandomImageStream } from '../services/randomService';
 import { IMAGE_STATUS_BROKEN, markFail } from '../repositories/imagesRepo';
@@ -401,9 +401,10 @@ router.get('/', (req, res, next) => {
       throw err;
     }
 
-    const { image, originUrl, stream } = picked;
+    const { image, originUrl, stream, attemptsUsed } = picked;
     const filename = originUrl.substring(originUrl.lastIndexOf('/') + 1) || `${image.id.toString()}.${String(image.ext || 'jpg')}`;
 
+    observeRandomAttemptsHistogram(attemptsUsed);
     incrementRandomSuccessTotal();
     res.writeHead(200, {
       'Content-Type': getImageContentTypeFromFilename(filename) || 'application/octet-stream',
