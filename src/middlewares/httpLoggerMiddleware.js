@@ -1,5 +1,5 @@
 const logger = require('../logger/logger');
-const { incrementHttpRequestsTotal } = require('../metrics/httpMetrics');
+const { incrementHttpRequestsTotal, observeRequestDurationSeconds } = require('../metrics/httpMetrics');
 
 function getRouteLabel(req) {
   if (req.route && req.route.path) return `${req.baseUrl || ''}${req.route.path}`;
@@ -29,6 +29,7 @@ function httpLoggerMiddleware(req, res, next) {
 
     try {
       incrementHttpRequestsTotal(req, res);
+      observeRequestDurationSeconds(req, res, durationMs / 1000);
     } catch (err) {
       logger.warn({ err: { message: err?.message } }, 'metrics http_requests_total failed');
     }

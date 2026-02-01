@@ -1,7 +1,7 @@
 import type { NextFunction, Request, Response } from 'express';
 
 import logger from '../logger/logger';
-import { incrementHttpRequestsTotal } from '../metrics/httpMetrics';
+import { incrementHttpRequestsTotal, observeRequestDurationSeconds } from '../metrics/httpMetrics';
 
 function getRouteLabel(req: Request): string {
   const maybeRoute = (req as any).route;
@@ -32,6 +32,7 @@ export default function httpLoggerMiddleware(req: Request, res: Response, next: 
 
     try {
       incrementHttpRequestsTotal(req, res);
+      observeRequestDurationSeconds(req, res, durationMs / 1000);
     } catch (err: unknown) {
       logger.warn({ err: { message: err instanceof Error ? err.message : String(err) } }, 'metrics http_requests_total failed');
     }
