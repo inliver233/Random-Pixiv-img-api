@@ -190,6 +190,40 @@ describe('POST /admin/images/import', () => {
     expect(prisma.import.create).not.toHaveBeenCalled();
   });
 
+  it('supports preview=1 (dedupe + parse) without writing DB', async () => {
+    const app = createApp();
+
+    const res = await request(app)
+      .post('/admin/images/import')
+      .field('urls', `${VALID_URL}\n${VALID_URL}`)
+      .field('preview', '1')
+      .expect(200);
+
+    expect(res.body).toMatchObject({
+      ok: true,
+      dry_run: true,
+      import_id: null,
+      total_lines: 2,
+      unique_images: 1,
+      deduped: 1,
+      success: 1,
+      failed: 0,
+    });
+
+    expect(res.body.preview).toEqual([
+      {
+        illust_id: '12345678',
+        page_index: 0,
+        ext: 'jpg',
+        original_url: VALID_URL,
+      },
+    ]);
+
+    expect(prisma.image.upsert).not.toHaveBeenCalled();
+    expect(prisma.image.update).not.toHaveBeenCalled();
+    expect(prisma.import.create).not.toHaveBeenCalled();
+  });
+
   it('dedupes repeated lines by (illustId,pageIndex)', async () => {
     prisma.image.upsert.mockResolvedValue({ id: 3n, ext: 'jpg', proxyPath: '/i/pending.jpg' });
     prisma.image.update.mockResolvedValue({ id: 3n, proxyPath: '/i/3.jpg' });

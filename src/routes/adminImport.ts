@@ -93,6 +93,7 @@ type ImportResponse = {
   ok: true;
   import_id: string | null;
   dry_run: boolean;
+  preview?: Array<Pick<ImportOkRow, 'illust_id' | 'page_index' | 'ext' | 'original_url'>>;
   total_lines: number;
   unique_images: number;
   deduped: number;
@@ -155,7 +156,9 @@ router.post(
     (async () => {
       const fields = (req as any).fields || {};
       const files = (req as any).files || {};
-      const dryRun = parseBooleanFlag(fields.dry_run ?? fields.dryRun ?? (req.query as any)?.dry_run ?? (req.query as any)?.dryRun);
+      const preview = parseBooleanFlag(fields.preview ?? fields.Preview ?? (req.query as any)?.preview ?? (req.query as any)?.Preview);
+      const dryRun = preview
+        || parseBooleanFlag(fields.dry_run ?? fields.dryRun ?? (req.query as any)?.dry_run ?? (req.query as any)?.dryRun);
 
       const textarea =
         normalizeText(fields.urls)
@@ -288,6 +291,14 @@ router.post(
         ok: true,
         import_id: importRecord ? importRecord.id.toString() : null,
         dry_run: dryRun,
+        preview: preview
+          ? results.map((row) => ({
+            illust_id: row.illust_id,
+            page_index: row.page_index,
+            ext: row.ext,
+            original_url: row.original_url,
+          }))
+          : undefined,
         total_lines: totalLines,
         unique_images: dedup.size,
         deduped,
