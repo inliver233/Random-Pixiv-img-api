@@ -5,6 +5,7 @@ const { ensureHttpMetricsInitialized } = require('../metrics/httpMetrics');
 const { ensureRandomMetricsInitialized } = require('../metrics/randomMetrics');
 const { ensureUpstreamMetricsInitialized } = require('../metrics/upstreamMetrics');
 const { ensureDbMetricsInitialized } = require('../metrics/dbMetrics');
+const { ensureJobMetricsInitialized } = require('../metrics/jobMetrics');
 
 const router = express.Router();
 
@@ -46,6 +47,7 @@ router.get('/', async (req, res) => {
   ensureRandomMetricsInitialized();
   ensureUpstreamMetricsInitialized();
   ensureDbMetricsInitialized();
+  ensureJobMetricsInitialized();
 
   const registry = getMetricsRegistry();
   res.setHeader('Content-Type', registry.contentType);

@@ -1,6 +1,7 @@
 import logger from '../logger/logger';
 import { getPrismaClient } from '../db/prismaClient';
 import pixivService from '../services/pixivService';
+import { recordJobFail, recordJobSuccess } from '../metrics/jobMetrics';
 import { computeGeometryFromWidthHeight, normalizePositiveInt } from '../domain/imageGeometry';
 import { parsePixivUrl } from '../utils/parsePixivUrl';
 import { enqueue, work } from '../queue/queue';
@@ -295,18 +296,37 @@ export async function registerHydrateMetadataWorker(): Promise<void> {
       const jobData: any = job?.data ?? {};
       const illustId = toBigInt(jobData.illust_id ?? jobData.illustId ?? jobData.illust_id);
 
-      const pages = await hydrateMetadata(illustId);
-      const updated = await persistHydratedMetadata(illustId, pages);
+      const startedAt = process.hrtime.bigint();
+      try {
+        const pages = await hydrateMetadata(illustId);
+        const updated = await persistHydratedMetadata(illustId, pages);
+        const durationSeconds = Number(process.hrtime.bigint() - startedAt) / 1e9;
+        recordJobSuccess({ job: HYDRATE_METADATA_JOB, illustId: illustId.toString(), durationSeconds });
 
-      logger.info(
-        {
-          job: { name: HYDRATE_METADATA_JOB, id: job.id },
-          illust_id: illustId.toString(),
-          pages: pages.length,
-          updated,
-        },
-        'hydrate_metadata done',
-      );
+        logger.info(
+          {
+            job: { name: HYDRATE_METADATA_JOB, id: job.id },
+            illust_id: illustId.toString(),
+            pages: pages.length,
+            updated,
+            duration_seconds: durationSeconds,
+          },
+          'hydrate_metadata done',
+        );
+      } catch (err: unknown) {
+        const durationSeconds = Number(process.hrtime.bigint() - startedAt) / 1e9;
+        recordJobFail({ job: HYDRATE_METADATA_JOB, illustId: illustId.toString(), durationSeconds });
+        logger.warn(
+          {
+            job: { name: HYDRATE_METADATA_JOB, id: job.id },
+            illust_id: illustId.toString(),
+            duration_seconds: durationSeconds,
+            err,
+          },
+          'hydrate_metadata failed',
+        );
+        throw err;
+      }
     }
   });
 }

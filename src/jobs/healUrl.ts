@@ -1,5 +1,6 @@
 import logger from '../logger/logger';
 import { getEnv } from '../config/env';
+import { recordJobFail, recordJobSuccess } from '../metrics/jobMetrics';
 import { enqueue, ensureQueue, work } from '../queue/queue';
 import { healOriginalUrlsForIllust } from '../repositories/imagesRepo';
 import { hydrateMetadata, type HydrateMetadataPage } from './hydrateMetadata';
@@ -74,17 +75,31 @@ export async function registerHealUrlWorker(): Promise<void> {
       const jobData: any = job?.data ?? {};
       const illustId = toBigInt(jobData.illust_id ?? jobData.illustId ?? jobData.illust_id);
 
-      const result = await healUrl(illustId);
+      const startedAt = process.hrtime.bigint();
+      try {
+        const result = await healUrl(illustId);
+        const durationSeconds = Number(process.hrtime.bigint() - startedAt) / 1e9;
+        recordJobSuccess({ job: HEAL_URL_JOB, illustId: illustId.toString(), durationSeconds });
 
-      logger.info(
-        {
-          job: { name: HEAL_URL_JOB, id: job.id },
-          illust_id: illustId.toString(),
-          pages: result.pages,
-          updated: result.updated,
-        },
-        'heal_url done',
-      );
+        logger.info(
+          {
+            job: { name: HEAL_URL_JOB, id: job.id },
+            illust_id: illustId.toString(),
+            pages: result.pages,
+            updated: result.updated,
+            duration_seconds: durationSeconds,
+          },
+          'heal_url done',
+        );
+      } catch (err: unknown) {
+        const durationSeconds = Number(process.hrtime.bigint() - startedAt) / 1e9;
+        recordJobFail({ job: HEAL_URL_JOB, illustId: illustId.toString(), durationSeconds });
+        logger.warn(
+          { job: { name: HEAL_URL_JOB, id: job.id }, illust_id: illustId.toString(), duration_seconds: durationSeconds, err },
+          'heal_url failed',
+        );
+        throw err;
+      }
     }
   });
 }

@@ -53,6 +53,16 @@
 - 用 pg-boss API：`boss.getQueueStats('<dlq_name>')`
 - 或直接查询 DB（schema `pgboss`）
 
+## Job metrics（/metrics）
+当 job worker 执行时，会记录以下 Prometheus 指标（由 `src/metrics/jobMetrics.*` 提供）：
+- `job_success_total{job="..."}`：job 成功次数
+- `job_fail_total{job="..."}`：job 失败次数（handler 抛错）
+- `job_duration_seconds{job="...", outcome="success|fail"}`：job 执行耗时直方图
+- `job_last_illust_id{job="...", outcome="success|fail"}`：最近一次处理的 `illust_id`（数值）
+
+说明：
+- `illust_id` 不作为 label（避免高基数）；通过日志字段 `illust_id` + 指标 `job_last_illust_id` 关联排障。
+
 ## /healthz
 `GET /healthz` 返回 `queue` 字段：
 - `disabled`：未设置 `DATABASE_URL`
