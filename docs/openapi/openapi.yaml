@@ -551,7 +551,16 @@ components:
       required: false
       schema:
         type: string
-      description: 'Tag list. Default parsing (MVP): `tag1|tag2|tag3`.'
+      description: |
+        包含标签过滤（AND 语义）。
+        - 传入格式：`tag1|tag2|tag3`（`|` 分隔；会 trim；重复会去重）
+        - 语义：必须同时包含所有给定标签（AND）
+        空值或解析后为空将返回 400（code=BAD_REQUEST, message=Invalid included_tags.）。
+      examples:
+        single:
+          value: cat
+        and_semantics:
+          value: cat|dog
     FilterExcludedTags:
       name: excluded_tags
       in: query
