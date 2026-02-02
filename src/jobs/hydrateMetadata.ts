@@ -219,7 +219,10 @@ export async function persistHydratedMetadata(illustId: bigint, pages: HydrateMe
 
   await prisma.$transaction(async (tx) => {
     for (const page of pages) {
-      const data: any = {};
+      const data: any = {
+        originalUrl: page.originalUrl,
+        ext: page.ext,
+      };
 
       if (page.width !== null && page.height !== null) {
         data.width = page.width;
@@ -247,8 +250,6 @@ export async function persistHydratedMetadata(illustId: bigint, pages: HydrateMe
       if (page.createdAtPixiv !== null) {
         data.createdAtPixiv = page.createdAtPixiv;
       }
-
-      if (Object.keys(data).length === 0) continue;
 
       const res = await tx.image.updateMany({
         where: { illustId, pageIndex: page.pageIndex },

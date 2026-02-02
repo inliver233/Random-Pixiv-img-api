@@ -54,7 +54,7 @@ describe('hydrate_metadata fields: x_restrict', () => {
 
     expect(prisma.image.updateMany).toHaveBeenCalledWith({
       where: { illustId: ILLUST_ID, pageIndex: 0 },
-      data: { xRestrict: 2 },
+      data: { originalUrl: url, ext: 'jpg', xRestrict: 2 },
     });
   });
 
@@ -81,11 +81,11 @@ describe('hydrate_metadata fields: x_restrict', () => {
 
     expect(prisma.image.updateMany).toHaveBeenCalledWith({
       where: { illustId: ILLUST_ID, pageIndex: 0 },
-      data: { xRestrict: 0 },
+      data: { originalUrl: url, ext: 'jpg', xRestrict: 0 },
     });
   });
 
-  it('treats invalid x_restrict as null and skips DB writes', async () => {
+  it('treats invalid x_restrict as null and skips writing the field', async () => {
     const url = originalUrl(ILLUST_ID, 0);
 
     vi.spyOn(pixivService, 'getPixivIllustIdData').mockResolvedValueOnce({
@@ -102,12 +102,17 @@ describe('hydrate_metadata fields: x_restrict', () => {
     const pages = await hydrateMetadata(ILLUST_ID);
     expect(pages[0]).toMatchObject({ xRestrict: null });
 
+    prisma.image.updateMany.mockResolvedValueOnce({ count: 1 });
+
     const updated = await persistHydratedMetadata(ILLUST_ID, pages);
-    expect(updated).toBe(0);
-    expect(prisma.image.updateMany).not.toHaveBeenCalled();
+    expect(updated).toBe(1);
+    expect(prisma.image.updateMany).toHaveBeenCalledWith({
+      where: { illustId: ILLUST_ID, pageIndex: 0 },
+      data: { originalUrl: url, ext: 'jpg' },
+    });
   });
 
-  it('treats non-integer x_restrict as invalid and skips DB writes', async () => {
+  it('treats non-integer x_restrict as invalid and skips writing the field', async () => {
     const url = originalUrl(ILLUST_ID, 0);
 
     vi.spyOn(pixivService, 'getPixivIllustIdData').mockResolvedValueOnce({
@@ -124,9 +129,13 @@ describe('hydrate_metadata fields: x_restrict', () => {
     const pages = await hydrateMetadata(ILLUST_ID);
     expect(pages[0]).toMatchObject({ xRestrict: null });
 
+    prisma.image.updateMany.mockResolvedValueOnce({ count: 1 });
+
     const updated = await persistHydratedMetadata(ILLUST_ID, pages);
-    expect(updated).toBe(0);
-    expect(prisma.image.updateMany).not.toHaveBeenCalled();
+    expect(updated).toBe(1);
+    expect(prisma.image.updateMany).toHaveBeenCalledWith({
+      where: { illustId: ILLUST_ID, pageIndex: 0 },
+      data: { originalUrl: url, ext: 'jpg' },
+    });
   });
 });
-

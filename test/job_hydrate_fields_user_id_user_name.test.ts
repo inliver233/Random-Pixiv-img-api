@@ -54,7 +54,7 @@ describe('hydrate_metadata fields: user_id/user_name', () => {
 
     expect(prisma.image.updateMany).toHaveBeenCalledWith({
       where: { illustId: ILLUST_ID, pageIndex: 0 },
-      data: { userId: 987654n, userName: 'unit-test-user' },
+      data: { originalUrl: url, ext: 'jpg', userId: 987654n, userName: 'unit-test-user' },
     });
   });
 
@@ -81,11 +81,11 @@ describe('hydrate_metadata fields: user_id/user_name', () => {
 
     expect(prisma.image.updateMany).toHaveBeenCalledWith({
       where: { illustId: ILLUST_ID, pageIndex: 0 },
-      data: { userId: 12n },
+      data: { originalUrl: url, ext: 'jpg', userId: 12n },
     });
   });
 
-  it('skips DB writes when user payload is missing', async () => {
+  it('skips user fields when user payload is missing', async () => {
     const url = originalUrl(ILLUST_ID, 0);
 
     vi.spyOn(pixivService, 'getPixivIllustIdData').mockResolvedValueOnce({
@@ -101,9 +101,13 @@ describe('hydrate_metadata fields: user_id/user_name', () => {
     const pages = await hydrateMetadata(ILLUST_ID);
     expect(pages[0]).toMatchObject({ userId: null, userName: null });
 
+    prisma.image.updateMany.mockResolvedValueOnce({ count: 1 });
+
     const updated = await persistHydratedMetadata(ILLUST_ID, pages);
-    expect(updated).toBe(0);
-    expect(prisma.image.updateMany).not.toHaveBeenCalled();
+    expect(updated).toBe(1);
+    expect(prisma.image.updateMany).toHaveBeenCalledWith({
+      where: { illustId: ILLUST_ID, pageIndex: 0 },
+      data: { originalUrl: url, ext: 'jpg' },
+    });
   });
 });
-

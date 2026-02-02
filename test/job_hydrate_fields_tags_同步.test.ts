@@ -63,11 +63,22 @@ describe('hydrate_metadata fields: tags sync', () => {
       { id: 100n, pageIndex: 0 },
       { id: 101n, pageIndex: 1 },
     ]);
+    prisma.image.updateMany.mockResolvedValueOnce({ count: 1 }).mockResolvedValueOnce({ count: 1 });
 
     const syncSpy = vi.spyOn(tagsRepo, 'syncImageTags').mockResolvedValue({ added: 2, removed: 0 } as any);
 
     const updated = await persistHydratedMetadata(ILLUST_ID, pages);
-    expect(updated).toBe(0);
+    expect(updated).toBe(2);
+
+    expect(prisma.image.updateMany).toHaveBeenCalledTimes(2);
+    expect(prisma.image.updateMany).toHaveBeenNthCalledWith(1, {
+      where: { illustId: ILLUST_ID, pageIndex: 0 },
+      data: { originalUrl: urls[0], ext: 'jpg' },
+    });
+    expect(prisma.image.updateMany).toHaveBeenNthCalledWith(2, {
+      where: { illustId: ILLUST_ID, pageIndex: 1 },
+      data: { originalUrl: urls[1], ext: 'jpg' },
+    });
 
     expect(prisma.image.findMany).toHaveBeenCalledWith({
       where: { illustId: ILLUST_ID, pageIndex: { in: [0, 1] } },
@@ -101,12 +112,13 @@ describe('hydrate_metadata fields: tags sync', () => {
     const pages = await hydrateMetadata(ILLUST_ID);
     expect(pages[0].tags).toEqual([]);
 
+    prisma.image.updateMany.mockResolvedValueOnce({ count: 1 });
+
     const syncSpy = vi.spyOn(tagsRepo, 'syncImageTags').mockResolvedValue({ added: 0, removed: 0 } as any);
     const updated = await persistHydratedMetadata(ILLUST_ID, pages);
 
-    expect(updated).toBe(0);
+    expect(updated).toBe(1);
     expect(prisma.image.findMany).not.toHaveBeenCalled();
     expect(syncSpy).not.toHaveBeenCalled();
   });
 });
-

@@ -56,7 +56,7 @@ describe('hydrate_metadata fields: title/created_at_pixiv', () => {
 
     expect(prisma.image.updateMany).toHaveBeenCalledWith({
       where: { illustId: ILLUST_ID, pageIndex: 0 },
-      data: { title: 'unit-test-title', createdAtPixiv: expect.any(Date) },
+      data: { originalUrl: url, ext: 'jpg', title: 'unit-test-title', createdAtPixiv: expect.any(Date) },
     });
   });
 
@@ -84,7 +84,7 @@ describe('hydrate_metadata fields: title/created_at_pixiv', () => {
 
     expect(prisma.image.updateMany).toHaveBeenCalledWith({
       where: { illustId: ILLUST_ID, pageIndex: 0 },
-      data: { title: 'unit-test-title' },
+      data: { originalUrl: url, ext: 'jpg', title: 'unit-test-title' },
     });
   });
 
@@ -113,8 +113,7 @@ describe('hydrate_metadata fields: title/created_at_pixiv', () => {
 
     expect(prisma.image.updateMany).toHaveBeenCalledWith({
       where: { illustId: ILLUST_ID, pageIndex: 0 },
-      data: { createdAtPixiv: expect.any(Date) },
+      data: { originalUrl: url, ext: 'jpg', createdAtPixiv: expect.any(Date) },
     });
   });
 });
-

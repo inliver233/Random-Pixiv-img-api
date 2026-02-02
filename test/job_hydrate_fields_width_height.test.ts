@@ -67,6 +67,8 @@ describe('hydrate_metadata fields: width/height', () => {
     expect(prisma.image.updateMany).toHaveBeenCalledWith({
       where: { illustId: ILLUST_ID, pageIndex: 0 },
       data: {
+        originalUrl: url,
+        ext: 'jpg',
         width: 1000,
         height: 500,
         orientation: 2,
@@ -131,11 +133,11 @@ describe('hydrate_metadata fields: width/height', () => {
     expect(prisma.image.updateMany).toHaveBeenCalledTimes(2);
     expect(prisma.image.updateMany).toHaveBeenNthCalledWith(1, {
       where: { illustId: ILLUST_ID, pageIndex: 0 },
-      data: { width: 600, height: 900, orientation: 1, aspectRatio: expect.any(Number) },
+      data: { originalUrl: url0, ext: 'jpg', width: 600, height: 900, orientation: 1, aspectRatio: expect.any(Number) },
     });
     expect(prisma.image.updateMany).toHaveBeenNthCalledWith(2, {
       where: { illustId: ILLUST_ID, pageIndex: 1 },
-      data: { width: 600, height: 900, orientation: 1, aspectRatio: expect.any(Number) },
+      data: { originalUrl: url1, ext: 'jpg', width: 600, height: 900, orientation: 1, aspectRatio: expect.any(Number) },
     });
   });
 
@@ -157,9 +159,14 @@ describe('hydrate_metadata fields: width/height', () => {
     const pages = await hydrateMetadata(ILLUST_ID);
     expect(pages[0]).toMatchObject({ width: null, height: null, orientation: null, aspectRatio: null });
 
+    prisma.image.updateMany.mockResolvedValueOnce({ count: 1 });
+
     const updated = await persistHydratedMetadata(ILLUST_ID, pages);
-    expect(updated).toBe(0);
-    expect(prisma.image.updateMany).not.toHaveBeenCalled();
+    expect(updated).toBe(1);
+    expect(prisma.image.updateMany).toHaveBeenCalledWith({
+      where: { illustId: ILLUST_ID, pageIndex: 0 },
+      data: { originalUrl: url, ext: 'jpg' },
+    });
   });
 
   it('treats non-integer width/height as invalid and skips DB writes', async () => {
@@ -180,8 +187,13 @@ describe('hydrate_metadata fields: width/height', () => {
     const pages = await hydrateMetadata(ILLUST_ID);
     expect(pages[0]).toMatchObject({ width: null, height: null, orientation: null, aspectRatio: null });
 
+    prisma.image.updateMany.mockResolvedValueOnce({ count: 1 });
+
     const updated = await persistHydratedMetadata(ILLUST_ID, pages);
-    expect(updated).toBe(0);
-    expect(prisma.image.updateMany).not.toHaveBeenCalled();
+    expect(updated).toBe(1);
+    expect(prisma.image.updateMany).toHaveBeenCalledWith({
+      where: { illustId: ILLUST_ID, pageIndex: 0 },
+      data: { originalUrl: url, ext: 'jpg' },
+    });
   });
 });
