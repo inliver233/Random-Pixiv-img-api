@@ -94,6 +94,13 @@ type ImportResponse = {
   import_id: string | null;
   dry_run: boolean;
   preview?: Array<Pick<ImportOkRow, 'illust_id' | 'page_index' | 'ext' | 'original_url'>>;
+  error_export?: {
+    total_errors: number;
+    exported_errors: number;
+    truncated: boolean;
+    urls_text: string;
+    urls_with_comments_text: string;
+  };
   total_lines: number;
   unique_images: number;
   deduped: number;
@@ -265,6 +272,18 @@ router.post(
       const success = results.length;
       const failed = errors.length;
 
+      const maxExportErrors = 1000;
+      const exportErrors = errors.slice(0, maxExportErrors);
+      const errorExport = {
+        total_errors: errors.length,
+        exported_errors: exportErrors.length,
+        truncated: errors.length > maxExportErrors,
+        urls_text: exportErrors.map((row) => row.url).join('\n'),
+        urls_with_comments_text: exportErrors
+          .map((row) => `# line ${row.line} code=${row.code}\n${row.url}`)
+          .join('\n'),
+      };
+
       const importRecord = dryRun
         ? null
         : await createImport({
@@ -276,6 +295,11 @@ router.post(
             deduped,
             unique: dedup.size,
             errors: errors.slice(0, 50),
+            error_export: {
+              total_errors: errorExport.total_errors,
+              exported_errors: errorExport.exported_errors,
+              truncated: errorExport.truncated,
+            },
           },
         });
 
@@ -310,6 +334,7 @@ router.post(
             original_url: row.original_url,
           }))
           : undefined,
+        error_export: errorExport,
         total_lines: totalLines,
         unique_images: dedup.size,
         deduped,

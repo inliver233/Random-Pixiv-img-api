@@ -155,6 +155,14 @@ describe('POST /admin/images/import', () => {
       url: 'not-a-url',
       code: 'invalid_url',
     });
+
+    expect(res.body.error_export).toMatchObject({
+      total_errors: 1,
+      exported_errors: 1,
+      truncated: false,
+    });
+    expect(res.body.error_export.urls_text).toBe('not-a-url');
+    expect(res.body.error_export.urls_with_comments_text).toContain('not-a-url');
   });
 
   it('supports dry_run=1 without writing DB', async () => {
