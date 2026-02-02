@@ -22,6 +22,7 @@ export type HydrateMetadataPage = {
   orientation: number | null;
   aspectRatio: number | null;
   xRestrict: number | null;
+  aiType: number | null;
   userId: bigint | null;
   userName: string | null;
   title: string | null;
@@ -78,6 +79,15 @@ function normalizeXRestrict(value: unknown): number | null {
   if (!Number.isFinite(n)) return null;
   if (!Number.isSafeInteger(n)) return null;
   if (n < 0 || n > 2) return null;
+  return n;
+}
+
+function normalizeAiType(value: unknown): number | null {
+  if (value === undefined || value === null) return null;
+  const n = typeof value === 'number' ? value : Number(value);
+  if (!Number.isFinite(n)) return null;
+  if (!Number.isSafeInteger(n)) return null;
+  if (n !== 0 && n !== 1) return null;
   return n;
 }
 
@@ -168,6 +178,7 @@ export async function hydrateMetadata(illustId: bigint, options: HydrateMetadata
     normalizePositiveInt((illust as any).height),
   );
   const xRestrict = normalizeXRestrict((illust as any).x_restrict ?? (illust as any).xRestrict);
+  const aiType = normalizeAiType((illust as any).ai_type ?? (illust as any).aiType);
   const userId = normalizePositiveBigInt((illust as any)?.user?.id ?? (illust as any)?.userId);
   const userName = normalizeNonEmptyText((illust as any)?.user?.name ?? (illust as any)?.userName);
   const title = normalizeNonEmptyText((illust as any).title);
@@ -190,6 +201,7 @@ export async function hydrateMetadata(illustId: bigint, options: HydrateMetadata
       orientation: geometry.orientation,
       aspectRatio: geometry.aspectRatio,
       xRestrict,
+      aiType,
       userId,
       userName,
       title,
@@ -233,6 +245,10 @@ export async function persistHydratedMetadata(illustId: bigint, pages: HydrateMe
 
       if (page.xRestrict !== null) {
         data.xRestrict = page.xRestrict;
+      }
+
+      if (page.aiType !== null) {
+        data.aiType = page.aiType;
       }
 
       if (page.userId !== null) {
