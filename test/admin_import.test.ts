@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { resetEnvForTest } from '../src/config/env';
 import { setPrismaClientForTest } from '../src/db/prismaClient';
 import * as hydrateMetadataJob from '../src/jobs/hydrateMetadata';
+import * as queue from '../src/queue/queue';
 import adminImportRoute from '../src/routes/adminImport';
 
 // eslint-disable-next-line @typescript-eslint/no-var-requires
@@ -27,6 +28,7 @@ describe('POST /admin/images/import', () => {
     },
     import: {
       create: vi.fn(),
+      findUnique: vi.fn(),
     },
   } as any;
 
@@ -34,6 +36,7 @@ describe('POST /admin/images/import', () => {
     prisma.image.upsert.mockReset();
     prisma.image.update.mockReset();
     prisma.import.create.mockReset();
+    prisma.import.findUnique.mockReset();
 
     delete process.env.ADMIN_IMPORT_MAX_LINES;
     delete process.env.ADMIN_IMPORT_MAX_FILE_BYTES;
@@ -104,6 +107,63 @@ describe('POST /admin/images/import', () => {
         }),
       }),
     );
+  });
+
+  it('GET /admin/imports/:id returns progress details', async () => {
+    prisma.import.findUnique.mockResolvedValue({
+      id: 99n,
+      createdAt: new Date('2020-01-01T00:00:00Z'),
+      source: 'admin_api',
+      total: 10,
+      success: 3,
+      failed: 2,
+      detail: { foo: 'bar' },
+    });
+
+    vi.spyOn(queue, 'getQueueHealth').mockResolvedValue({ ok: true, message: 'disabled' });
+
+    const app = createApp();
+
+    const res = await request(app)
+      .get('/admin/imports/99')
+      .expect(200);
+
+    expect(res.body).toMatchObject({
+      ok: true,
+      import: {
+        id: '99',
+        created_at: '2020-01-01T00:00:00.000Z',
+        source: 'admin_api',
+        total: 10,
+        success: 3,
+        failed: 2,
+        detail: { foo: 'bar' },
+      },
+      progress: { total: 10, processed: 5, remaining: 5, done: false },
+      queue: { ok: true, message: 'disabled' },
+    });
+  });
+
+  it('GET /admin/imports/:id returns 404 when missing', async () => {
+    prisma.import.findUnique.mockResolvedValue(null);
+
+    const app = createApp();
+
+    const res = await request(app)
+      .get('/admin/imports/123')
+      .expect(404);
+
+    expect(res.body).toMatchObject({ code: 'IMPORT_NOT_FOUND' });
+  });
+
+  it('GET /admin/imports/:id returns 400 on invalid id', async () => {
+    const app = createApp();
+
+    const res = await request(app)
+      .get('/admin/imports/not-a-number')
+      .expect(400);
+
+    expect(res.body).toMatchObject({ code: 'BAD_REQUEST' });
   });
 
   it('imports from file upload', async () => {

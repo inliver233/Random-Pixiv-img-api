@@ -4,9 +4,10 @@ import fs from 'node:fs/promises';
 import { getEnv } from '../config/env';
 import { getPrismaClient } from '../db/prismaClient';
 import { enqueueHydrateMetadata } from '../jobs/hydrateMetadata';
+import { getQueueHealth } from '../queue/queue';
 import { parsePixivUrl } from '../utils/parsePixivUrl';
 import { upsertImageForImport } from '../services/import/imageWriteService';
-import { createImport } from '../repositories/importsRepo';
+import { createImport, getById as getImportById } from '../repositories/importsRepo';
 import { auditAdminEvent } from '../audit/adminAudit';
 
 // eslint-disable-next-line @typescript-eslint/no-var-requires
@@ -157,6 +158,66 @@ function buildStableProxyPath(id: bigint, ext: string): string {
 
 const router = Router();
 
+function parsePositiveBigInt(value: unknown): bigint | null {
+  const raw = typeof value === 'string' ? value : String(value ?? '');
+  if (!/^[1-9][0-9]*$/.test(raw)) return null;
+  try {
+    return BigInt(raw);
+  } catch {
+    return null;
+  }
+}
+
+router.get('/imports/:id', (req, res, next) => {
+  (async () => {
+    res.setHeader('Cache-Control', 'no-store');
+
+    const id = parsePositiveBigInt((req.params as any).id);
+    if (!id) {
+      const err = new Error('Invalid import id.');
+      (err as any).status = 400;
+      throw err;
+    }
+
+    const record = await getImportById(id);
+    if (!record) {
+      const err = new Error('Import not found.');
+      (err as any).status = 404;
+      (err as any).code = 'IMPORT_NOT_FOUND';
+      throw err;
+    }
+
+    const total = Number(record.total ?? 0);
+    const success = Number(record.success ?? 0);
+    const failed = Number(record.failed ?? 0);
+    const processed = success + failed;
+    const remaining = Math.max(0, total - processed);
+    const done = total > 0 ? processed >= total : false;
+
+    const queue = await getQueueHealth();
+
+    res.status(200).json({
+      ok: true,
+      import: {
+        id: record.id.toString(),
+        created_at: record.createdAt ? record.createdAt.toISOString() : null,
+        source: record.source ?? null,
+        total,
+        success,
+        failed,
+        detail: record.detail ?? null,
+      },
+      progress: {
+        total,
+        processed,
+        remaining,
+        done,
+      },
+      queue,
+    });
+  })().catch(next);
+});
+
 router.post(
   '/images/import',
   adminImportUploadMiddleware,
@@ -288,6 +349,22 @@ router.post(
           .join('\n'),
       };
 
+      let enqueuedHydrateMetadata = 0;
+      let enqueueNote = dryRun ? 'dry_run: queue not enqueued' : 'ok';
+
+      if (!dryRun && illustIdsToHydrate.size > 0) {
+        try {
+          for (const rawIllustId of illustIdsToHydrate) {
+            await enqueueHydrateMetadata(BigInt(rawIllustId));
+            enqueuedHydrateMetadata += 1;
+          }
+        } catch (err: unknown) {
+          const code = typeof (err as any)?.code === 'string' ? (err as any).code : '';
+          const message = err instanceof Error ? err.message : String(err);
+          enqueueNote = code ? `enqueue_failed:${code}:${message}` : `enqueue_failed:${message}`;
+        }
+      }
+
       const importRecord = dryRun
         ? null
         : await createImport({
@@ -303,6 +380,11 @@ router.post(
               total_errors: errorExport.total_errors,
               exported_errors: errorExport.exported_errors,
               truncated: errorExport.truncated,
+            },
+            enqueued: {
+              hydrate_metadata: enqueuedHydrateMetadata,
+              note: enqueueNote,
+              unique_illusts: illustIdsToHydrate.size,
             },
           },
         });
@@ -322,24 +404,13 @@ router.post(
             deduped,
             success,
             failed,
+            enqueued: {
+              hydrate_metadata: enqueuedHydrateMetadata,
+              note: enqueueNote,
+              unique_illusts: illustIdsToHydrate.size,
+            },
           },
         });
-      }
-
-      let enqueuedHydrateMetadata = 0;
-      let enqueueNote = dryRun ? 'dry_run: queue not enqueued' : 'ok';
-
-      if (!dryRun && illustIdsToHydrate.size > 0) {
-        try {
-          for (const rawIllustId of illustIdsToHydrate) {
-            await enqueueHydrateMetadata(BigInt(rawIllustId));
-            enqueuedHydrateMetadata += 1;
-          }
-        } catch (err: unknown) {
-          const code = typeof (err as any)?.code === 'string' ? (err as any).code : '';
-          const message = err instanceof Error ? err.message : String(err);
-          enqueueNote = code ? `enqueue_failed:${code}:${message}` : `enqueue_failed:${message}`;
-        }
       }
 
       const response: ImportResponse = {
