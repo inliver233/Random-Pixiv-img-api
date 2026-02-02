@@ -185,3 +185,22 @@ curl -i "http://127.0.0.1:3000/random?min_pixels=2073600"
 
 - `min_pixels` 必须是非负整数；空值或非法值返回 400（`message=Invalid min_pixels.`）。
 - 依赖图片宽高元信息已入库；若大量数据未补全宽高，可能更容易出现 `NO_MATCH`。
+
+## `included_tags`
+
+`included_tags` 用于筛选“必须包含”的标签（AND 语义）：
+
+- 传入格式：`tag1|tag2|tag3`（`|` 分隔）
+- 语义：图片必须同时包含所有给定标签
+
+### 示例
+
+```bash
+curl -i "http://127.0.0.1:3000/random?included_tags=cat"
+curl -i "http://127.0.0.1:3000/random?included_tags=cat|dog"
+```
+
+### 注意事项
+
+- 空值或解析后为空会返回 400（`message=Invalid included_tags.`）。
+- 条件越多越严格；与 `excluded_tags`、尺寸过滤叠加时更容易 `NO_MATCH`，必要时可提高 `attempts`。
