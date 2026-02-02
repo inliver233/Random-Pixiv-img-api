@@ -387,6 +387,7 @@ export async function getAdminJsRouter(): Promise<Router> {
             fetched_at: null,
             requests_24h: { value: null, error: null },
             top_errors_24h: { rows: [], error: null },
+            latency_p50_p90_p95: { p50_s: null, p90_s: null, p95_s: null, error: null },
           };
 
           if (env.PROMETHEUS_URL) {
@@ -422,6 +423,28 @@ export async function getAdminJsRouter(): Promise<Router> {
             } else {
               prometheus.top_errors_24h.error = errorsRes.error;
             }
+
+            const q50 = await queryPrometheusInstant(
+              'histogram_quantile(0.5, sum(rate(request_duration_seconds_bucket[24h])) by (le))',
+              { baseUrl: env.PROMETHEUS_URL },
+            );
+            const q90 = await queryPrometheusInstant(
+              'histogram_quantile(0.9, sum(rate(request_duration_seconds_bucket[24h])) by (le))',
+              { baseUrl: env.PROMETHEUS_URL },
+            );
+            const q95 = await queryPrometheusInstant(
+              'histogram_quantile(0.95, sum(rate(request_duration_seconds_bucket[24h])) by (le))',
+              { baseUrl: env.PROMETHEUS_URL },
+            );
+
+            if (q50.ok) prometheus.latency_p50_p90_p95.p50_s = extractFirstSampleValue(q50);
+            else prometheus.latency_p50_p90_p95.error = q50.error;
+
+            if (q90.ok) prometheus.latency_p50_p90_p95.p90_s = extractFirstSampleValue(q90);
+            else prometheus.latency_p50_p90_p95.error ??= q90.error;
+
+            if (q95.ok) prometheus.latency_p50_p90_p95.p95_s = extractFirstSampleValue(q95);
+            else prometheus.latency_p50_p90_p95.error ??= q95.error;
           }
 
           const mem = process.memoryUsage();

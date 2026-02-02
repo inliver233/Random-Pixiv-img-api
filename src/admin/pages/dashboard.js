@@ -258,6 +258,42 @@ export default function Dashboard() {
               </tbody>
             </table>
           )}
+
+          <h4 style={{ marginBottom: 8, marginTop: 16 }}>latency_p50_p90_p95</h4>
+          {!data.prometheus?.configured ? (
+            <p style={{ marginTop: 0, color: '#666' }}>N/A</p>
+          ) : data.prometheus?.latency_p50_p90_p95?.error ? (
+            <p style={{ marginTop: 0, color: '#b91c1c' }}>prometheus_error: {String(data.prometheus.latency_p50_p90_p95.error)}</p>
+          ) : (
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <tbody>
+                <tr>
+                  <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee', fontWeight: 600 }}>p50</td>
+                  <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee', textAlign: 'right' }}>
+                    {Number.isFinite(data.prometheus?.latency_p50_p90_p95?.p50_s)
+                      ? `${Math.round(data.prometheus.latency_p50_p90_p95.p50_s * 1000)} ms`
+                      : 'N/A'}
+                  </td>
+                </tr>
+                <tr>
+                  <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee', fontWeight: 600 }}>p90</td>
+                  <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee', textAlign: 'right' }}>
+                    {Number.isFinite(data.prometheus?.latency_p50_p90_p95?.p90_s)
+                      ? `${Math.round(data.prometheus.latency_p50_p90_p95.p90_s * 1000)} ms`
+                      : 'N/A'}
+                  </td>
+                </tr>
+                <tr>
+                  <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee', fontWeight: 600 }}>p95</td>
+                  <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee', textAlign: 'right' }}>
+                    {Number.isFinite(data.prometheus?.latency_p50_p90_p95?.p95_s)
+                      ? `${Math.round(data.prometheus.latency_p50_p90_p95.p95_s * 1000)} ms`
+                      : 'N/A'}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          )}
         </div>
       </div>
     </div>
