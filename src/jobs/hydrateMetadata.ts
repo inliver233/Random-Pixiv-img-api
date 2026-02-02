@@ -20,6 +20,7 @@ export type HydrateMetadataPage = {
   height: number | null;
   orientation: number | null;
   aspectRatio: number | null;
+  xRestrict: number | null;
 };
 
 export type HydrateMetadataOptions = {
@@ -65,6 +66,15 @@ function normalizeOriginalUrls(pixivDetail: any): string[] {
   return urls;
 }
 
+function normalizeXRestrict(value: unknown): number | null {
+  if (value === undefined || value === null) return null;
+  const n = typeof value === 'number' ? value : Number(value);
+  if (!Number.isFinite(n)) return null;
+  if (!Number.isSafeInteger(n)) return null;
+  if (n < 0 || n > 2) return null;
+  return n;
+}
+
 export async function hydrateMetadata(illustId: bigint, options: HydrateMetadataOptions = {}): Promise<HydrateMetadataPage[]> {
   const cache = options.cache ?? true;
   const data = await pixivService.getPixivIllustIdData(illustId.toString(), cache);
@@ -78,6 +88,7 @@ export async function hydrateMetadata(illustId: bigint, options: HydrateMetadata
     normalizePositiveInt((illust as any).width),
     normalizePositiveInt((illust as any).height),
   );
+  const xRestrict = normalizeXRestrict((illust as any).x_restrict ?? (illust as any).xRestrict);
 
   const pages: HydrateMetadataPage[] = [];
   for (const url of urls) {
@@ -94,6 +105,7 @@ export async function hydrateMetadata(illustId: bigint, options: HydrateMetadata
       height: geometry.height,
       orientation: geometry.orientation,
       aspectRatio: geometry.aspectRatio,
+      xRestrict,
     });
   }
 
@@ -116,6 +128,10 @@ export async function persistHydratedMetadata(illustId: bigint, pages: HydrateMe
         data.height = page.height;
         data.orientation = page.orientation;
         data.aspectRatio = page.aspectRatio;
+      }
+
+      if (page.xRestrict !== null) {
+        data.xRestrict = page.xRestrict;
       }
 
       if (Object.keys(data).length === 0) continue;
