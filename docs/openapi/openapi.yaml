@@ -507,6 +507,15 @@ components:
       in: query
       required: false
       schema: { type: integer, minimum: 0 }
+      description: |
+        最小宽度过滤（像素）。
+        - 省略：不筛选
+        - 仅接受非负整数；空值或非法值返回 400（code=BAD_REQUEST, message=Invalid min_width.）
+      examples:
+        none:
+          value: 0
+        hd:
+          value: 1280
     FilterMinHeight:
       name: min_height
       in: query
