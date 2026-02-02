@@ -596,7 +596,17 @@ components:
       name: illust_id
       in: query
       required: false
-      schema: { type: integer, minimum: 1 }
+      schema:
+        type: integer
+        format: int64
+        minimum: 1
+      description: |
+        Pixiv 作品 ID 过滤（精确匹配）。
+        - 省略：不筛选
+        - 仅接受正整数；空值或非法值返回 400（code=BAD_REQUEST, message=Invalid illust_id.）
+      examples:
+        example:
+          value: 123456789
 
   schemas:
     ErrorResponse:
