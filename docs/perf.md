@@ -56,3 +56,65 @@ What to look for:
 - No `Sort Method: quicksort` over a large row count for random selection.
 - Index usage for the random_key queries (`Index Scan` on filter idx when applicable).
 
+## Tags filters (included/excluded)
+
+Tags filters add a join/subquery on `image_tags` + `tags`. The expected helpful indexes:
+- `tags.name` unique index (fast tag lookup by name)
+- `image_tags_tag(tag_id,image_id)` (fast join / existence checks)
+
+### Example: included_tags (AND semantics)
+
+This matches “image must contain all N tags”:
+
+```sql
+EXPLAIN (ANALYZE, BUFFERS)
+SELECT id
+FROM images
+WHERE status = 1
+  AND id IN (
+    SELECT it.image_id
+    FROM image_tags it
+    JOIN tags t ON t.id = it.tag_id
+    WHERE t.name IN ('cat', 'dog')
+    GROUP BY it.image_id
+    HAVING COUNT(DISTINCT t.name) = 2
+  )
+  AND random_key >= 0.5
+ORDER BY random_key
+LIMIT 1;
+```
+
+What to look for:
+- `Index Scan` / `Bitmap Index Scan` touching `image_tags_tag`.
+- Avoid large `Seq Scan` on `image_tags` when tag set is selective.
+- `HashAggregate` / `GroupAggregate` cost should scale with matched rows, not full table.
+
+### Example: excluded_tags (NOT semantics)
+
+This matches “image must not contain any of these tags”:
+
+```sql
+EXPLAIN (ANALYZE, BUFFERS)
+SELECT id
+FROM images
+WHERE status = 1
+  AND id NOT IN (
+    SELECT it.image_id
+    FROM image_tags it
+    JOIN tags t ON t.id = it.tag_id
+    WHERE t.name IN ('gore', 'r18g')
+  )
+  AND random_key >= 0.5
+ORDER BY random_key
+LIMIT 1;
+```
+
+What to look for:
+- For large tag sets or non-selective tags, `NOT IN` may be expensive; confirm buffers/rows.
+- Consider rewriting to `NOT EXISTS` if the plan is consistently bad (future work).
+
+### When to enable TABLESAMPLE downgrade
+
+Enable TABLESAMPLE (or raise sample %) when:
+- `EXPLAIN` shows a large scan for strict filters (high `Buffers`, high `Rows Removed by Filter`).
+- `random_key` plan stops using the intended index paths under combined filters.
