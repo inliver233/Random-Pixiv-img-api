@@ -2,7 +2,7 @@ import type { Router } from 'express';
 import path from 'node:path';
 
 import { getPrismaClient } from '../db/prismaClient';
-import { queryPrometheusInstant } from '../metrics/prometheusQueryClient';
+import { extractFirstSampleValue, queryPrometheusInstant } from '../metrics/prometheusQueryClient';
 import * as PrismaModule from '@prisma/client';
 import { Prisma } from '@prisma/client';
 
@@ -385,6 +385,7 @@ export async function getAdminJsRouter(): Promise<Router> {
             error: null,
             cached: false,
             fetched_at: null,
+            requests_24h: { value: null, error: null },
           };
 
           if (env.PROMETHEUS_URL) {
@@ -396,6 +397,18 @@ export async function getAdminJsRouter(): Promise<Router> {
             } else {
               prometheus.ok = false;
               prometheus.error = res.error;
+            }
+
+            const requestsRes = await queryPrometheusInstant(
+              'sum(increase(http_requests_total[24h]))',
+              { baseUrl: env.PROMETHEUS_URL },
+            );
+            if (requestsRes.ok) {
+              const value = extractFirstSampleValue(requestsRes);
+              prometheus.requests_24h.value = value;
+              if (value === null) prometheus.requests_24h.error = 'no_data';
+            } else {
+              prometheus.requests_24h.error = requestsRes.error;
             }
           }
 

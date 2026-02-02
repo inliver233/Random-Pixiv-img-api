@@ -215,6 +215,24 @@ export default function Dashboard() {
             <pre style={{ whiteSpace: 'pre-wrap' }}>{data.metrics.metric_names.join('\n')}</pre>
           </details>
         </div>
+
+        <div style={{ border: '1px solid #e5e7eb', borderRadius: 12, padding: 12 }}>
+          <h3 style={{ marginTop: 0 }}>Prometheus (24h)</h3>
+          <p style={{ marginTop: 0, color: '#666' }}>
+            Data source: Prometheus HTTP API (optional). Configure PROMETHEUS_URL to enable.
+          </p>
+          <p style={{ marginTop: 0 }}>
+            requests_24h:{' '}
+            <b>
+              {data.prometheus?.configured
+                ? (Number.isFinite(data.prometheus?.requests_24h?.value) ? String(Math.round(data.prometheus.requests_24h.value)) : 'N/A')
+                : 'N/A'}
+            </b>
+          </p>
+          {data.prometheus?.configured && data.prometheus?.requests_24h?.error ? (
+            <p style={{ marginTop: 0, color: '#b91c1c' }}>prometheus_error: {String(data.prometheus.requests_24h.error)}</p>
+          ) : null}
+        </div>
       </div>
     </div>
   );
