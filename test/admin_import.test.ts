@@ -34,6 +34,7 @@ describe('POST /admin/images/import', () => {
     prisma.image.update.mockReset();
     prisma.import.create.mockReset();
 
+    delete process.env.ADMIN_IMPORT_MAX_LINES;
     delete process.env.ADMIN_IMPORT_MAX_FILE_BYTES;
     delete process.env.ADMIN_IMPORT_ALLOWED_MIME_TYPES;
     resetEnvForTest();
@@ -45,6 +46,7 @@ describe('POST /admin/images/import', () => {
     setPrismaClientForTest(undefined);
     vi.restoreAllMocks();
 
+    delete process.env.ADMIN_IMPORT_MAX_LINES;
     delete process.env.ADMIN_IMPORT_MAX_FILE_BYTES;
     delete process.env.ADMIN_IMPORT_ALLOWED_MIME_TYPES;
     resetEnvForTest();
@@ -259,6 +261,20 @@ describe('POST /admin/images/import', () => {
       .expect(413);
 
     expect(res.body).toMatchObject({ code: 'PAYLOAD_TOO_LARGE' });
+  });
+
+  it('returns 400 when total lines exceeds the configured max_lines_limit', async () => {
+    process.env.ADMIN_IMPORT_MAX_LINES = '1';
+    resetEnvForTest();
+
+    const app = createApp();
+
+    const res = await request(app)
+      .post('/admin/images/import')
+      .field('urls', `${VALID_URL}\n${VALID_URL}`)
+      .expect(400);
+
+    expect(res.body).toMatchObject({ code: 'MAX_LINES_EXCEEDED' });
   });
 
   it('returns 400 when upload content-type is not allowed', async () => {

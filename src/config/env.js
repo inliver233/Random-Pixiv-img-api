@@ -73,6 +73,7 @@ const envSchema = z
 
     JSON_BODY_LIMIT: z.string().optional().default('256kb'),
 
+    ADMIN_IMPORT_MAX_LINES: z.coerce.number().int().min(0).optional().default(0),
     ADMIN_IMPORT_MAX_FILE_BYTES: z.coerce.number().int().positive().optional().default(1024 * 1024),
     ADMIN_IMPORT_ALLOWED_MIME_TYPES: z.string().optional().default('text/plain,application/octet-stream'),
 

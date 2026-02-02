@@ -156,6 +156,7 @@ router.post(
     (async () => {
       const fields = (req as any).fields || {};
       const files = (req as any).files || {};
+      const env = getEnv();
       const preview = parseBooleanFlag(fields.preview ?? fields.Preview ?? (req.query as any)?.preview ?? (req.query as any)?.Preview);
       const dryRun = preview
         || parseBooleanFlag(fields.dry_run ?? fields.dryRun ?? (req.query as any)?.dry_run ?? (req.query as any)?.dryRun);
@@ -172,6 +173,16 @@ router.post(
 
       const combined = [textarea, fileText].filter((v) => v && v.trim()).join('\n');
       const lines = readLines(combined);
+
+      if (env.ADMIN_IMPORT_MAX_LINES > 0 && lines.length > env.ADMIN_IMPORT_MAX_LINES) {
+        const err = new Error(
+          `Too many lines: ${lines.length}. Max is ${env.ADMIN_IMPORT_MAX_LINES}. `
+          + `Please split the input into multiple requests (<= ${env.ADMIN_IMPORT_MAX_LINES} lines each).`,
+        );
+        (err as any).status = 400;
+        (err as any).code = 'MAX_LINES_EXCEEDED';
+        throw err;
+      }
 
       const errors: ImportErrorRow[] = [];
       const results: ImportOkRow[] = [];
