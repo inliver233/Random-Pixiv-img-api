@@ -22,6 +22,7 @@ describe('hydrate_metadata (job skeleton)', () => {
         id: Number(ILLUST_ID),
         page_count: 1,
         x_restrict: 1,
+        user: { id: 42, name: 'unit-test-user' },
         image_urls: { square_medium: 'https://example.invalid/square.jpg' },
         meta_single_page: { original_image_url: url },
         meta_pages: [],
@@ -38,6 +39,8 @@ describe('hydrate_metadata (job skeleton)', () => {
         ext: 'jpg',
         originalUrl: url,
         xRestrict: 1,
+        userId: 42n,
+        userName: 'unit-test-user',
       },
     ]);
   });

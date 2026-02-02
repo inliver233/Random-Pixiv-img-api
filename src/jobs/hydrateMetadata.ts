@@ -21,6 +21,8 @@ export type HydrateMetadataPage = {
   orientation: number | null;
   aspectRatio: number | null;
   xRestrict: number | null;
+  userId: bigint | null;
+  userName: string | null;
 };
 
 export type HydrateMetadataOptions = {
@@ -75,6 +77,38 @@ function normalizeXRestrict(value: unknown): number | null {
   return n;
 }
 
+function normalizePositiveBigInt(value: unknown): bigint | null {
+  if (value === undefined || value === null) return null;
+
+  if (typeof value === 'bigint') {
+    return value > 0n ? value : null;
+  }
+
+  if (typeof value === 'number') {
+    if (!Number.isFinite(value)) return null;
+    if (!Number.isSafeInteger(value)) return null;
+    if (value <= 0) return null;
+    return BigInt(value);
+  }
+
+  const raw = typeof value === 'string' ? value.trim() : '';
+  if (!raw) return null;
+  if (!/^\d+$/.test(raw)) return null;
+
+  try {
+    const n = BigInt(raw);
+    return n > 0n ? n : null;
+  } catch {
+    return null;
+  }
+}
+
+function normalizeNonEmptyText(value: unknown): string | null {
+  const raw = typeof value === 'string' ? value : String(value ?? '');
+  const text = raw.trim();
+  return text ? text : null;
+}
+
 export async function hydrateMetadata(illustId: bigint, options: HydrateMetadataOptions = {}): Promise<HydrateMetadataPage[]> {
   const cache = options.cache ?? true;
   const data = await pixivService.getPixivIllustIdData(illustId.toString(), cache);
@@ -89,6 +123,8 @@ export async function hydrateMetadata(illustId: bigint, options: HydrateMetadata
     normalizePositiveInt((illust as any).height),
   );
   const xRestrict = normalizeXRestrict((illust as any).x_restrict ?? (illust as any).xRestrict);
+  const userId = normalizePositiveBigInt((illust as any)?.user?.id ?? (illust as any)?.userId);
+  const userName = normalizeNonEmptyText((illust as any)?.user?.name ?? (illust as any)?.userName);
 
   const pages: HydrateMetadataPage[] = [];
   for (const url of urls) {
@@ -106,6 +142,8 @@ export async function hydrateMetadata(illustId: bigint, options: HydrateMetadata
       orientation: geometry.orientation,
       aspectRatio: geometry.aspectRatio,
       xRestrict,
+      userId,
+      userName,
     });
   }
 
@@ -132,6 +170,14 @@ export async function persistHydratedMetadata(illustId: bigint, pages: HydrateMe
 
       if (page.xRestrict !== null) {
         data.xRestrict = page.xRestrict;
+      }
+
+      if (page.userId !== null) {
+        data.userId = page.userId;
+      }
+
+      if (page.userName !== null) {
+        data.userName = page.userName;
       }
 
       if (Object.keys(data).length === 0) continue;
