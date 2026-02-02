@@ -21,6 +21,10 @@
 - `HEAL_TRIGGER_STATUSES`：触发自愈的上游 HTTP 状态码列表（逗号分隔），默认：`403,404`（设置为空可禁用触发）。
 - `HEAL_TRIGGER_SKIP_IF_RETRY_AFTER`：当上游错误响应包含 `Retry-After` 时跳过自愈，默认：`true`。
 - `HEAL_DEBOUNCE_SECONDS`：同一 `illust_id` 的自愈触发去抖窗口（秒），默认：`600`（10 分钟）。设置为 `0` 可禁用去抖；启用时重复触发会被 pg-boss throttle 掉（返回 `null` job id）。
+- `HEAL_RETRY_LIMIT`：失败重试次数上限（pg-boss `retryLimit`），默认：`5`。
+- `HEAL_RETRY_DELAY_SECONDS`：重试初始延迟（秒，pg-boss `retryDelay`），默认：`60`。
+- `HEAL_RETRY_DELAY_MAX_SECONDS`：重试延迟最大值（秒，pg-boss `retryDelayMax`），默认：`3600`。
+- `HEAL_RETRY_BACKOFF`：是否启用指数退避（pg-boss `retryBackoff`），默认：`true`。
 
 ## /healthz
 `GET /healthz` 返回 `queue` 字段：

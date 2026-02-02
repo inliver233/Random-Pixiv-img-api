@@ -91,6 +91,10 @@ const envSchema = z
     HEAL_TRIGGER_STATUSES: z.string().optional().default('403,404'),
     HEAL_TRIGGER_SKIP_IF_RETRY_AFTER: booleanSchema.optional().default(true),
     HEAL_DEBOUNCE_SECONDS: z.coerce.number().int().min(0).optional().default(600),
+    HEAL_RETRY_LIMIT: z.coerce.number().int().min(0).optional().default(5),
+    HEAL_RETRY_DELAY_SECONDS: z.coerce.number().int().min(0).optional().default(60),
+    HEAL_RETRY_DELAY_MAX_SECONDS: z.coerce.number().int().min(0).optional().default(3600),
+    HEAL_RETRY_BACKOFF: booleanSchema.optional().default(true),
 
     RANDOM_FAIL_COOLDOWN_MS: z.coerce.number().int().min(0).optional().default(600_000),
 

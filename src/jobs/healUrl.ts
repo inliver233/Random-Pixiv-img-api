@@ -43,14 +43,14 @@ export async function healUrl(illustId: bigint): Promise<{ updated: number; page
 }
 
 export async function enqueueHealUrl(illustId: bigint): Promise<string | null> {
+  const env = getEnv();
   const options = {
-    retryLimit: 5,
-    retryDelay: 60,
-    retryBackoff: true,
-    retryDelayMax: 3600,
+    retryLimit: env.HEAL_RETRY_LIMIT,
+    retryDelay: env.HEAL_RETRY_DELAY_SECONDS,
+    retryBackoff: env.HEAL_RETRY_BACKOFF,
+    retryDelayMax: env.HEAL_RETRY_DELAY_MAX_SECONDS,
   };
 
-  const env = getEnv();
   const debounceSeconds = Math.max(0, Math.trunc(env.HEAL_DEBOUNCE_SECONDS));
   if (debounceSeconds === 0) {
     return enqueue<HealUrlJobData>(HEAL_URL_JOB, { illust_id: illustId.toString() }, options);
