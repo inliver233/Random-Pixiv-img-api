@@ -422,7 +422,6 @@ router.get('/', (req, res, next) => {
     res.writeHead(200, {
       'Content-Type': getImageContentTypeFromFilename(filename) || 'application/octet-stream',
       'Content-Disposition': `filename="${filename}"`,
-      'Access-Control-Allow-Origin': '*',
       'Cache-Control': 'no-store',
       'X-Origin-URL': originUrl,
       'X-Crawl-Date': new Date().toUTCString(),

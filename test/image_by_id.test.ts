@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { setPrismaClientForTest } from '../src/db/prismaClient';
 import imageByIdController from '../src/controllers/imageByIdController';
 import imageByIdRoute from '../src/routes/imageById.ts';
+import corsMiddleware from '../src/middlewares/cors.ts';
 
 import { readableFromBuffer } from './helpers/mockStream';
 
@@ -29,6 +30,7 @@ function createApp() {
   app.set('view engine', 'ejs');
   app.set('views', path.join(process.cwd(), 'views'));
 
+  app.use(corsMiddleware);
   app.use('/i', imageByIdRoute);
   return app;
 }

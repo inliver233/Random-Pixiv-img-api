@@ -6,6 +6,7 @@ import request from 'supertest';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { pixivDetailMulti, pixivDetailSingle } from './helpers/pixivFixtures';
+import corsMiddleware from '../src/middlewares/cors.ts';
 
 const require = createRequire(import.meta.url);
 
@@ -56,6 +57,7 @@ function createLegacyApp() {
   app.set('view engine', 'ejs');
   app.set('views', path.join(process.cwd(), 'views'));
 
+  app.use(corsMiddleware);
   app.use('/', showVersion, pixivRoutes);
   return app;
 }

@@ -68,6 +68,9 @@ const envSchema = z
     ADMIN_TOKEN: z.string().min(1).optional(),
     ADMIN_IP_ALLOWLIST: z.string().min(1).optional(),
 
+    CORS_ALLOWED_ORIGINS: z.string().optional().default('*'),
+    CORS_ADMIN_ALLOWED_ORIGINS: z.string().optional().default('*'),
+
     RATE_LIMIT_ENABLED: booleanSchema.optional().default(false),
     RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().optional().default(60_000),
     RATE_LIMIT_MAX: z.coerce.number().int().positive().optional().default(60),

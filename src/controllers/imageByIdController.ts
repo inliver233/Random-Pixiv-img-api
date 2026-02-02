@@ -8,7 +8,6 @@ import { IMAGE_STATUS_BROKEN, getById, markFail } from '../repositories/imagesRe
 import { getImageContentTypeFromExt, isAllowedImageExt, normalizeImageExtension } from '../utils/contentType';
 
 const responseHeaders = {
-  'Access-Control-Allow-Origin': '*',
   'Cache-Control': 'max-age=31536000, public',
 };
 

@@ -9,7 +9,6 @@ const imageHeaders = {
 };
 
 const responseHeaders = {
-  'Access-Control-Allow-Origin': '*',
   'Cache-Control': 'max-age=31536000, public',
 };
 
