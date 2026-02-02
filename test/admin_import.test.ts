@@ -155,6 +155,41 @@ describe('POST /admin/images/import', () => {
     });
   });
 
+  it('supports dry_run=1 without writing DB', async () => {
+    const app = createApp();
+
+    const res = await request(app)
+      .post('/admin/images/import')
+      .field('urls', VALID_URL)
+      .field('dry_run', '1')
+      .expect(200);
+
+    expect(res.body).toMatchObject({
+      ok: true,
+      dry_run: true,
+      import_id: null,
+      total_lines: 1,
+      unique_images: 1,
+      deduped: 0,
+      success: 1,
+      failed: 0,
+      enqueued: { hydrate_metadata: 0 },
+    });
+
+    expect(res.body.results[0]).toMatchObject({
+      illust_id: '12345678',
+      page_index: 0,
+      image_id: null,
+      ext: 'jpg',
+      original_url: VALID_URL,
+      proxy_path: null,
+    });
+
+    expect(prisma.image.upsert).not.toHaveBeenCalled();
+    expect(prisma.image.update).not.toHaveBeenCalled();
+    expect(prisma.import.create).not.toHaveBeenCalled();
+  });
+
   it('dedupes repeated lines by (illustId,pageIndex)', async () => {
     prisma.image.upsert.mockResolvedValue({ id: 3n, ext: 'jpg', proxyPath: '/i/pending.jpg' });
     prisma.image.update.mockResolvedValue({ id: 3n, proxyPath: '/i/3.jpg' });

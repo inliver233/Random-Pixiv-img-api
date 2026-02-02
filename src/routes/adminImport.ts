@@ -75,10 +75,10 @@ type ImportOkRow = {
   ok: true;
   illust_id: string;
   page_index: number;
-  image_id: string;
+  image_id: string | null;
   ext: string;
   original_url: string;
-  proxy_path: string;
+  proxy_path: string | null;
 };
 
 type ImportErrorRow = {
@@ -91,7 +91,8 @@ type ImportErrorRow = {
 
 type ImportResponse = {
   ok: true;
-  import_id: string;
+  import_id: string | null;
+  dry_run: boolean;
   total_lines: number;
   unique_images: number;
   deduped: number;
@@ -109,6 +110,17 @@ function normalizeText(value: unknown): string {
   if (value === undefined || value === null) return '';
   if (Array.isArray(value)) return String(value[0] ?? '');
   return String(value);
+}
+
+function parseBooleanFlag(value: unknown): boolean {
+  if (value === undefined || value === null) return false;
+  if (typeof value === 'boolean') return value;
+
+  const raw = Array.isArray(value) ? String(value[0] ?? '') : String(value ?? '');
+  const normalized = raw.trim().toLowerCase();
+  if (!normalized) return false;
+
+  return ['1', 'true', 'yes', 'y', 'on'].includes(normalized);
 }
 
 function readLines(text: string): Array<{ line: number; url: string }> {
@@ -143,6 +155,7 @@ router.post(
     (async () => {
       const fields = (req as any).fields || {};
       const files = (req as any).files || {};
+      const dryRun = parseBooleanFlag(fields.dry_run ?? fields.dryRun ?? (req.query as any)?.dry_run ?? (req.query as any)?.dryRun);
 
       const textarea =
         normalizeText(fields.urls)
@@ -163,7 +176,7 @@ router.post(
       const dedup = new Set<string>();
       let deduped = 0;
 
-      const prisma = getPrismaClient();
+      const prisma = dryRun ? null : getPrismaClient();
 
       for (const item of lines) {
         const parsed = parsePixivUrl(item.url);
@@ -188,27 +201,40 @@ router.post(
         const provisionalProxyPath = `/i/pending.${parsed.ext}`;
 
         try {
-          const image = await upsertImageForImport({
-            illustId: parsed.illustId,
-            pageIndex: parsed.pageIndex,
-            ext: parsed.ext,
-            originalUrl: item.url,
-            proxyPath: provisionalProxyPath,
-          });
+          if (!dryRun) {
+            const image = await upsertImageForImport({
+              illustId: parsed.illustId,
+              pageIndex: parsed.pageIndex,
+              ext: parsed.ext,
+              originalUrl: item.url,
+              proxyPath: provisionalProxyPath,
+            });
 
-          const stableProxyPath = buildStableProxyPath(image.id, parsed.ext);
-          if (image.proxyPath !== stableProxyPath) {
-            await prisma.image.update({ where: { id: image.id }, data: { proxyPath: stableProxyPath } });
+            const stableProxyPath = buildStableProxyPath(image.id, parsed.ext);
+            if (image.proxyPath !== stableProxyPath && prisma) {
+              await prisma.image.update({ where: { id: image.id }, data: { proxyPath: stableProxyPath } });
+            }
+
+            results.push({
+              ok: true,
+              illust_id: parsed.illustId.toString(),
+              page_index: parsed.pageIndex,
+              image_id: image.id.toString(),
+              ext: parsed.ext,
+              original_url: item.url,
+              proxy_path: stableProxyPath,
+            });
+            continue;
           }
 
           results.push({
             ok: true,
             illust_id: parsed.illustId.toString(),
             page_index: parsed.pageIndex,
-            image_id: image.id.toString(),
+            image_id: null,
             ext: parsed.ext,
             original_url: item.url,
-            proxy_path: stableProxyPath,
+            proxy_path: null,
           });
         } catch (err: unknown) {
           errors.push({
@@ -225,38 +251,43 @@ router.post(
       const success = results.length;
       const failed = errors.length;
 
-      const importRecord = await createImport({
-        total: totalLines,
-        source: 'admin_api',
-        success,
-        failed,
-        detail: {
-          deduped,
-          unique: dedup.size,
-          errors: errors.slice(0, 50),
-        },
-      });
-
-      void auditAdminEvent({
-        actor: 'admin_token',
-        action: 'images_import',
-        resource: 'Import',
-        record_id: importRecord.id.toString(),
-        request_id: (req as any)?.request_id,
-        ip: (req as any)?.ip,
-        user_agent: (req as any)?.headers?.['user-agent'],
-        detail: {
-          total_lines: totalLines,
-          unique_images: dedup.size,
-          deduped,
+      const importRecord = dryRun
+        ? null
+        : await createImport({
+          total: totalLines,
+          source: 'admin_api',
           success,
           failed,
-        },
-      });
+          detail: {
+            deduped,
+            unique: dedup.size,
+            errors: errors.slice(0, 50),
+          },
+        });
+
+      if (!dryRun && importRecord) {
+        void auditAdminEvent({
+          actor: 'admin_token',
+          action: 'images_import',
+          resource: 'Import',
+          record_id: importRecord.id.toString(),
+          request_id: (req as any)?.request_id,
+          ip: (req as any)?.ip,
+          user_agent: (req as any)?.headers?.['user-agent'],
+          detail: {
+            total_lines: totalLines,
+            unique_images: dedup.size,
+            deduped,
+            success,
+            failed,
+          },
+        });
+      }
 
       const response: ImportResponse = {
         ok: true,
-        import_id: importRecord.id.toString(),
+        import_id: importRecord ? importRecord.id.toString() : null,
+        dry_run: dryRun,
         total_lines: totalLines,
         unique_images: dedup.size,
         deduped,
@@ -264,7 +295,7 @@ router.post(
         failed,
         enqueued: {
           hydrate_metadata: 0,
-          note: 'not_implemented_yet (will be handled by pg-boss issues)',
+          note: dryRun ? 'dry_run: queue not enqueued' : 'not_implemented_yet (will be handled by pg-boss issues)',
         },
         results,
         errors,
