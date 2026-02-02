@@ -2,6 +2,7 @@ import type { Router } from 'express';
 import path from 'node:path';
 
 import { getPrismaClient } from '../db/prismaClient';
+import { queryPrometheusInstant } from '../metrics/prometheusQueryClient';
 import * as PrismaModule from '@prisma/client';
 import { Prisma } from '@prisma/client';
 
@@ -370,13 +371,33 @@ export async function getAdminJsRouter(): Promise<Router> {
           const brokenRatio = imagesTotal > 0 ? imagesBroken / imagesTotal : 0;
 
           // eslint-disable-next-line @typescript-eslint/no-var-requires
-          const { getEnv } = require('../config/env') as { getEnv: () => { METRICS_ENABLED: boolean } };
+          const { getEnv } = require('../config/env') as { getEnv: () => { METRICS_ENABLED: boolean; PROMETHEUS_URL?: string } };
           // eslint-disable-next-line @typescript-eslint/no-var-requires
           const { getMetricsRegistry } = require('../metrics/registry') as { getMetricsRegistry: () => { getMetricsAsJSON: () => any[] } };
 
           const env = getEnv();
           const registry = getMetricsRegistry();
           const metricNames = registry.getMetricsAsJSON().map((metric) => metric.name).sort();
+
+          const prometheus: any = {
+            configured: Boolean(env.PROMETHEUS_URL),
+            ok: false,
+            error: null,
+            cached: false,
+            fetched_at: null,
+          };
+
+          if (env.PROMETHEUS_URL) {
+            const res = await queryPrometheusInstant('1', { baseUrl: env.PROMETHEUS_URL });
+            prometheus.cached = res.cached;
+            prometheus.fetched_at = res.fetchedAt;
+            if (res.ok) {
+              prometheus.ok = true;
+            } else {
+              prometheus.ok = false;
+              prometheus.error = res.error;
+            }
+          }
 
           const mem = process.memoryUsage();
 
@@ -407,6 +428,7 @@ export async function getAdminJsRouter(): Promise<Router> {
               enabled: env.METRICS_ENABLED,
               metric_names: metricNames,
             },
+            prometheus,
             errors: {
               db: dbError,
             },

@@ -201,6 +201,15 @@ export default function Dashboard() {
           <p style={{ marginTop: 0 }}>
             enabled: <b>{String(data.metrics.enabled)}</b> · metrics_count: <b>{data.metrics.metric_names.length}</b>
           </p>
+          <p style={{ marginTop: 0 }}>
+            prometheus_query: <b>{data.prometheus?.configured ? (data.prometheus.ok ? 'OK' : 'ERROR') : 'N/A'}</b>
+            {data.prometheus?.configured && data.prometheus?.fetched_at ? (
+              <span style={{ color: '#666' }}> · fetched_at: {data.prometheus.fetched_at}</span>
+            ) : null}
+          </p>
+          {data.prometheus?.configured && !data.prometheus?.ok && data.prometheus?.error ? (
+            <p style={{ marginTop: 0, color: '#b91c1c' }}>prometheus_error: {String(data.prometheus.error)}</p>
+          ) : null}
           <details>
             <summary>metric names</summary>
             <pre style={{ whiteSpace: 'pre-wrap' }}>{data.metrics.metric_names.join('\n')}</pre>

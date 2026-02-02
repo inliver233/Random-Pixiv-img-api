@@ -85,6 +85,8 @@ const envSchema = z.object({
   METRICS_ENABLED: booleanSchema.optional().default(true),
   METRICS_ROUTE: z.string().min(1).optional().default('/metrics'),
 
+  PROMETHEUS_URL: z.string().url().optional(),
+
   RANDOM_FAIL_COOLDOWN_MS: z.coerce.number().int().min(0).optional().default(600_000),
 
   IMGPROXY_URL: z.string().url().optional(),
