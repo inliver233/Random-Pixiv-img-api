@@ -95,6 +95,11 @@ const envSchema = z.object({
   HEAL_RETRY_DELAY_MAX_SECONDS: z.coerce.number().int().min(0).optional().default(3600),
   HEAL_RETRY_BACKOFF: booleanSchema.optional().default(true),
 
+  HYDRATE_MAX_IN_FLIGHT: z.coerce.number().int().min(0).optional().default(1),
+  HYDRATE_MAX_IN_FLIGHT_PER_TOKEN: z.coerce.number().int().min(0).optional().default(1),
+  HYDRATE_RATE_LIMIT_GLOBAL_MS: z.coerce.number().int().min(0).optional().default(200),
+  HYDRATE_RATE_LIMIT_PER_TOKEN_MS: z.coerce.number().int().min(0).optional().default(1000),
+
   RANDOM_FAIL_COOLDOWN_MS: z.coerce.number().int().min(0).optional().default(600_000),
 
   IMGPROXY_URL: z.string().url().optional(),

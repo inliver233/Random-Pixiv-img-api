@@ -42,7 +42,7 @@ describe('pixivService circuit-open classification (ts)', () => {
   });
 
   it('throws circuit_open when breaker is open', async () => {
-    const pixivService = (await import('../src/services/pixivService')).default;
+    const pixivService = (await import('../src/services/pixivService.ts')).default;
 
     mockPixivApiGet.mockRejectedValueOnce(new Error('ECONNRESET'));
 

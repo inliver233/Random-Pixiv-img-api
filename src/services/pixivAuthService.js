@@ -44,6 +44,41 @@ const selectTokenIndex = (strategy, tokenCount, prevIndex) => {
   return (prevIndex + 1) % tokenCount;
 };
 
+const ensureAccessTokenReady = async (auth, tokenIndex) => {
+  if (auth[tokenIndex].expireTimestamp >= Date.now()) {
+    return;
+  }
+
+  if (!auth[tokenIndex].refreshing) {
+    auth[tokenIndex].refreshing = true;
+    try {
+      const refreshRes = await refreshAccessToken(auth[tokenIndex].refreshToken);
+      auth[tokenIndex].accessToken = refreshRes.access_token;
+      auth[tokenIndex].refreshToken = refreshRes.refresh_token;
+      auth[tokenIndex].expireTimestamp = Date.now() + (refreshRes.expires_in * 0.9) * 1000;
+      logger.info({ token_index: tokenIndex }, 'Pixiv access token refreshed');
+    } catch (err) {
+      logger.warn(
+        { token_index: tokenIndex, err: { message: err?.message, code: err?.code, status: err?.response?.status } },
+        'Pixiv refresh token failed',
+      );
+    } finally {
+      auth[tokenIndex].refreshing = false;
+    }
+
+    return;
+  }
+
+  await new Promise((resolve) => {
+    const interval = setInterval(() => {
+      if (!auth[tokenIndex].refreshing) {
+        clearInterval(interval);
+        resolve();
+      }
+    }, 100);
+  });
+};
+
 const ensurePixivAuthInitialized = () => {
   if (pixivAuth) return pixivAuth;
 
@@ -70,44 +105,19 @@ const getAccessToken = async () => {
   const auth = ensurePixivAuthInitialized();
   const tokenIndex = getAccessTokenIndex();
 
-  if (auth[tokenIndex].expireTimestamp < Date.now()) {
-    if (!auth[tokenIndex].refreshing) {
-      // Set the refreshing flag to indicate that a refresh is in progress
-      auth[tokenIndex].refreshing = true;
-
-      try {
-        const refreshRes = await refreshAccessToken(auth[tokenIndex].refreshToken);
-        auth[tokenIndex].accessToken = refreshRes.access_token;
-        auth[tokenIndex].refreshToken = refreshRes.refresh_token;
-        auth[tokenIndex].expireTimestamp = Date.now() + (refreshRes.expires_in * 0.9) * 1000;
-        logger.info({ token_index: tokenIndex }, 'Pixiv access token refreshed');
-      } catch (err) {
-        logger.warn(
-          { token_index: tokenIndex, err: { message: err?.message, code: err?.code, status: err?.response?.status } },
-          'Pixiv refresh token failed',
-        );
-      } finally {
-        // Reset the refreshing flag when the refresh is completed (whether successful or not)
-        auth[tokenIndex].refreshing = false;
-      }
-    } else {
-      // If another refresh is already in progress, wait for its completion
-      await new Promise((resolve) => {
-        const interval = setInterval(() => {
-          if (!auth[tokenIndex].refreshing) {
-            clearInterval(interval);
-            resolve();
-          }
-        }, 100);
-      });
-    }
-  }
+  await ensureAccessTokenReady(auth, tokenIndex);
 
   return auth[tokenIndex].accessToken;
 };
 
 module.exports = {
   getAccessToken,
+  getAccessTokenWithMeta: async () => {
+    const auth = ensurePixivAuthInitialized();
+    const tokenIndex = getAccessTokenIndex();
+    await ensureAccessTokenReady(auth, tokenIndex);
+    return { accessToken: auth[tokenIndex].accessToken, tokenIndex };
+  },
   maskHeader,
   selectTokenIndex,
 };

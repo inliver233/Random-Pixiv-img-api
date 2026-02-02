@@ -2,12 +2,95 @@ const { pixivApiGet } = require('../http/axiosClient.cjs');
 const { isCircuitOpenError, pixivApiCircuitFire } = require('../resilience/circuit.cjs');
 const { incrementUpstreamError } = require('../metrics/upstreamMetrics');
 const { getEnv } = require('../config/env');
-const { getAccessToken, maskHeader } = require('./pixivAuthService');
+const { getAccessToken, getAccessTokenWithMeta, maskHeader } = require('./pixivAuthService');
 const memcachedService = require('./memcachedService');
 
 const PIXIV_BASE_URL = 'https://app-api.pixiv.net/v1';
 
-const getPixivIllustIdData = async (illustId, cache = true) => {
+function getHydrateRateLimiterState() {
+  globalThis.__pixivcatPixivHydrateRateLimiter ??= {
+    global: { inFlight: 0, waiters: [], nextAt: 0 },
+    perToken: new Map(),
+  };
+  return globalThis.__pixivcatPixivHydrateRateLimiter;
+}
+
+function normalizeMaxInFlight(value) {
+  const n = typeof value === 'number' && Number.isFinite(value) ? Math.trunc(value) : Number(value);
+  if (!Number.isFinite(n)) return 1;
+  if (n <= 0) return Number.POSITIVE_INFINITY;
+  return n;
+}
+
+function normalizeIntervalMs(value) {
+  const n = typeof value === 'number' && Number.isFinite(value) ? Math.trunc(value) : Number(value);
+  if (!Number.isFinite(n) || n <= 0) return 0;
+  return n;
+}
+
+function sleep(ms) {
+  if (ms <= 0) return Promise.resolve();
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function acquire(entry, maxInFlight) {
+  if (entry.inFlight < maxInFlight) {
+    entry.inFlight += 1;
+    return () => release(entry);
+  }
+
+  await new Promise((resolve) => entry.waiters.push(resolve));
+  entry.inFlight += 1;
+  return () => release(entry);
+}
+
+function release(entry) {
+  entry.inFlight = Math.max(0, entry.inFlight - 1);
+  const next = entry.waiters.shift();
+  if (next) next();
+}
+
+function getTokenLimiterEntry(state, tokenIndex) {
+  const existing = state.perToken.get(tokenIndex);
+  if (existing) return existing;
+  const created = { inFlight: 0, waiters: [], nextAt: 0 };
+  state.perToken.set(tokenIndex, created);
+  return created;
+}
+
+async function withHydrateRateLimit(tokenIndex, fn) {
+  const env = getEnv();
+  const state = getHydrateRateLimiterState();
+
+  const globalMaxInFlight = normalizeMaxInFlight(env.HYDRATE_MAX_IN_FLIGHT);
+  const tokenMaxInFlight = normalizeMaxInFlight(env.HYDRATE_MAX_IN_FLIGHT_PER_TOKEN);
+  const globalMinIntervalMs = normalizeIntervalMs(env.HYDRATE_RATE_LIMIT_GLOBAL_MS);
+  const tokenMinIntervalMs = normalizeIntervalMs(env.HYDRATE_RATE_LIMIT_PER_TOKEN_MS);
+
+  const tokenEntry = getTokenLimiterEntry(state, tokenIndex);
+
+  const releaseGlobal = await acquire(state.global, globalMaxInFlight);
+  const releaseToken = await acquire(tokenEntry, tokenMaxInFlight);
+
+  try {
+    const now = Date.now();
+    const waitMs = Math.max(state.global.nextAt - now, tokenEntry.nextAt - now);
+    if (waitMs > 0) {
+      await sleep(waitMs);
+    }
+
+    const startedAt = Date.now();
+    state.global.nextAt = startedAt + globalMinIntervalMs;
+    tokenEntry.nextAt = startedAt + tokenMinIntervalMs;
+
+    return await fn();
+  } finally {
+    releaseToken();
+    releaseGlobal();
+  }
+}
+
+const getPixivIllustIdData = async (illustId, cache = true, options = {}) => {
   const env = getEnv();
   const cacheEnabled = Boolean(cache && env.PIXIV_DETAIL_CACHE_ENABLED);
   const cacheTtlSeconds = env.PIXIV_DETAIL_CACHE_TTL_SECONDS;
@@ -28,14 +111,21 @@ const getPixivIllustIdData = async (illustId, cache = true) => {
 
   try {
     console.log('Fetching Pixiv API data for illust ID:', illustId);
-    const response = await pixivApiCircuitFire(async () => pixivApiGet(`${PIXIV_BASE_URL}/illust/detail?illust_id=${illustId}`, {
+    const fetch = async (accessToken) => pixivApiCircuitFire(async () => pixivApiGet(`${PIXIV_BASE_URL}/illust/detail?illust_id=${illustId}`, {
       headers: {
         Accept: 'application/json',
-        Authorization: `Bearer ${await getAccessToken()}`,
+        Authorization: `Bearer ${accessToken}`,
         ...maskHeader,
       },
       validateStatus: (status) => (status >= 200 && status < 300) || status === 404,
     }));
+
+    const response = options.rateLimit
+      ? await (async () => {
+        const meta = await getAccessTokenWithMeta();
+        return withHydrateRateLimit(meta.tokenIndex, () => fetch(meta.accessToken));
+      })()
+      : await fetch(await getAccessToken());
 
     const status = Number(response?.status);
     const ok = Number.isFinite(status) ? status >= 200 && status < 300 : false;

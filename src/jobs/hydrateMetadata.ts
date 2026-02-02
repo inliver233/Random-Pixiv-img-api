@@ -166,7 +166,7 @@ function normalizePixivTags(value: unknown): Array<{ name: string; translatedNam
 
 export async function hydrateMetadata(illustId: bigint, options: HydrateMetadataOptions = {}): Promise<HydrateMetadataPage[]> {
   const cache = options.cache ?? true;
-  const data = await pixivService.getPixivIllustIdData(illustId.toString(), cache);
+  const data = await pixivService.getPixivIllustIdData(illustId.toString(), cache, { rateLimit: true });
   if (data && typeof data === 'object' && 'error' in data) {
     throw new Error('Pixiv API returned error');
   }

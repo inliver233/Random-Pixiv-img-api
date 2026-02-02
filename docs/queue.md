@@ -26,6 +26,15 @@
 - `HEAL_RETRY_DELAY_MAX_SECONDS`：重试延迟最大值（秒，pg-boss `retryDelayMax`），默认：`3600`。
 - `HEAL_RETRY_BACKOFF`：是否启用指数退避（pg-boss `retryBackoff`），默认：`true`。
 
+## hydrate_metadata：元信息补全任务
+`hydrate_metadata`/`heal_url` 会走冷路径调用 Pixiv detail。为避免触发 Pixiv 限流，内置了“按 token + 全局”的并发与速率限制（仅影响 job 冷路径，不影响 legacy 兼容路由的直接请求路径）。
+
+可用环境变量（同时维护于 `src/config/env.ts` 与 `src/config/env.js`）：
+- `HYDRATE_MAX_IN_FLIGHT`：全局最大并发（0 表示不限制），默认：`1`。
+- `HYDRATE_MAX_IN_FLIGHT_PER_TOKEN`：每个 token 的最大并发（0 表示不限制），默认：`1`。
+- `HYDRATE_RATE_LIMIT_GLOBAL_MS`：全局最小间隔（毫秒，0 表示不限制），默认：`200`。
+- `HYDRATE_RATE_LIMIT_PER_TOKEN_MS`：每个 token 的最小间隔（毫秒，0 表示不限制），默认：`1000`。
+
 ## /healthz
 `GET /healthz` 返回 `queue` 字段：
 - `disabled`：未设置 `DATABASE_URL`
