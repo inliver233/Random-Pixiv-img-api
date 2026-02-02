@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { resetEnvForTest } from '../src/config/env';
 import { setPrismaClientForTest } from '../src/db/prismaClient';
+import * as hydrateMetadataJob from '../src/jobs/hydrateMetadata';
 import adminImportRoute from '../src/routes/adminImport';
 
 // eslint-disable-next-line @typescript-eslint/no-var-requires
@@ -255,6 +256,37 @@ describe('POST /admin/images/import', () => {
     });
 
     expect(prisma.image.upsert).toHaveBeenCalledTimes(1);
+  });
+
+  it('dedupes hydrate_metadata enqueue by illust_id', async () => {
+    const urlP1 = VALID_URL.replace('_p0.', '_p1.');
+
+    prisma.image.upsert
+      .mockResolvedValueOnce({ id: 20n, ext: 'jpg', proxyPath: '/i/pending.jpg' })
+      .mockResolvedValueOnce({ id: 21n, ext: 'jpg', proxyPath: '/i/pending.jpg' });
+    prisma.image.update.mockResolvedValue({});
+    prisma.import.create.mockResolvedValue({ id: 20n });
+
+    const enqueueSpy = vi.spyOn(hydrateMetadataJob, 'enqueueHydrateMetadata').mockResolvedValue('job-1');
+
+    const app = createApp();
+
+    const res = await request(app)
+      .post('/admin/images/import')
+      .field('urls', `${VALID_URL}\n${urlP1}`)
+      .expect(200);
+
+    expect(res.body).toMatchObject({
+      ok: true,
+      total_lines: 2,
+      unique_images: 2,
+      success: 2,
+      failed: 0,
+      enqueued: { hydrate_metadata: 1 },
+    });
+
+    expect(enqueueSpy).toHaveBeenCalledTimes(1);
+    expect(enqueueSpy).toHaveBeenCalledWith(12345678n);
   });
 
   it('returns 413 when uploaded file exceeds the configured limit', async () => {

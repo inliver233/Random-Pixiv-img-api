@@ -3,6 +3,7 @@ import fs from 'node:fs/promises';
 
 import { getEnv } from '../config/env';
 import { getPrismaClient } from '../db/prismaClient';
+import { enqueueHydrateMetadata } from '../jobs/hydrateMetadata';
 import { parsePixivUrl } from '../utils/parsePixivUrl';
 import { upsertImageForImport } from '../services/import/imageWriteService';
 import { createImport } from '../repositories/importsRepo';
@@ -196,6 +197,7 @@ router.post(
 
       const dedup = new Set<string>();
       let deduped = 0;
+      const illustIdsToHydrate = new Set<string>();
 
       const prisma = dryRun ? null : getPrismaClient();
 
@@ -245,6 +247,8 @@ router.post(
               original_url: item.url,
               proxy_path: stableProxyPath,
             });
+
+            illustIdsToHydrate.add(parsed.illustId.toString());
             continue;
           }
 
@@ -322,6 +326,22 @@ router.post(
         });
       }
 
+      let enqueuedHydrateMetadata = 0;
+      let enqueueNote = dryRun ? 'dry_run: queue not enqueued' : 'ok';
+
+      if (!dryRun && illustIdsToHydrate.size > 0) {
+        try {
+          for (const rawIllustId of illustIdsToHydrate) {
+            await enqueueHydrateMetadata(BigInt(rawIllustId));
+            enqueuedHydrateMetadata += 1;
+          }
+        } catch (err: unknown) {
+          const code = typeof (err as any)?.code === 'string' ? (err as any).code : '';
+          const message = err instanceof Error ? err.message : String(err);
+          enqueueNote = code ? `enqueue_failed:${code}:${message}` : `enqueue_failed:${message}`;
+        }
+      }
+
       const response: ImportResponse = {
         ok: true,
         import_id: importRecord ? importRecord.id.toString() : null,
@@ -341,8 +361,8 @@ router.post(
         success,
         failed,
         enqueued: {
-          hydrate_metadata: 0,
-          note: dryRun ? 'dry_run: queue not enqueued' : 'not_implemented_yet (will be handled by pg-boss issues)',
+          hydrate_metadata: enqueuedHydrateMetadata,
+          note: enqueueNote,
         },
         results,
         errors,
