@@ -535,6 +535,16 @@ components:
       in: query
       required: false
       schema: { type: integer, minimum: 0 }
+      description: |
+        最小像素数过滤：`width * height >= min_pixels`。
+        - 省略：不筛选
+        - 仅接受非负整数；空值或非法值返回 400（code=BAD_REQUEST, message=Invalid min_pixels.）
+        - 需要图片已补全宽高元信息；否则可能被过滤掉
+      examples:
+        none:
+          value: 0
+        fullhd:
+          value: 2073600
     FilterIncludedTags:
       name: included_tags
       in: query
