@@ -20,6 +20,7 @@
 可用环境变量（同时维护于 `src/config/env.ts` 与 `src/config/env.js`）：
 - `HEAL_TRIGGER_STATUSES`：触发自愈的上游 HTTP 状态码列表（逗号分隔），默认：`403,404`（设置为空可禁用触发）。
 - `HEAL_TRIGGER_SKIP_IF_RETRY_AFTER`：当上游错误响应包含 `Retry-After` 时跳过自愈，默认：`true`。
+- `HEAL_DEBOUNCE_SECONDS`：同一 `illust_id` 的自愈触发去抖窗口（秒），默认：`600`（10 分钟）。设置为 `0` 可禁用去抖；启用时重复触发会被 pg-boss throttle 掉（返回 `null` job id）。
 
 ## /healthz
 `GET /healthz` 返回 `queue` 字段：

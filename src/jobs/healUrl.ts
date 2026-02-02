@@ -1,5 +1,6 @@
 import logger from '../logger/logger';
-import { enqueue, work } from '../queue/queue';
+import { getEnv } from '../config/env';
+import { enqueue, startQueue, work } from '../queue/queue';
 import { healOriginalUrlsForIllust } from '../repositories/imagesRepo';
 import { hydrateMetadata, type HydrateMetadataPage } from './hydrateMetadata';
 
@@ -41,17 +42,37 @@ export async function healUrl(illustId: bigint): Promise<{ updated: number; page
   return { updated, pages: normalized.length };
 }
 
-export async function enqueueHealUrl(illustId: bigint): Promise<string> {
-  return enqueue<HealUrlJobData>(
+export async function enqueueHealUrl(illustId: bigint): Promise<string | null> {
+  const options = {
+    retryLimit: 5,
+    retryDelay: 60,
+    retryBackoff: true,
+    retryDelayMax: 3600,
+  };
+
+  const env = getEnv();
+  const debounceSeconds = Math.max(0, Math.trunc(env.HEAL_DEBOUNCE_SECONDS));
+  if (debounceSeconds === 0) {
+    return enqueue<HealUrlJobData>(HEAL_URL_JOB, { illust_id: illustId.toString() }, options);
+  }
+
+  const boss = await startQueue();
+  if (!boss) {
+    const err = new Error('Queue is disabled (DATABASE_URL not set).');
+    (err as any).code = 'QUEUE_DISABLED';
+    throw err;
+  }
+
+  await boss.createQueue(HEAL_URL_JOB);
+  const jobId = await boss.sendThrottled(
     HEAL_URL_JOB,
     { illust_id: illustId.toString() },
-    {
-      retryLimit: 5,
-      retryDelay: 60,
-      retryBackoff: true,
-      retryDelayMax: 3600,
-    },
+    options,
+    debounceSeconds,
+    illustId.toString(),
   );
+
+  return jobId ?? null;
 }
 
 export async function registerHealUrlWorker(): Promise<void> {
@@ -74,4 +95,3 @@ export async function registerHealUrlWorker(): Promise<void> {
     }
   });
 }
-
