@@ -11,6 +11,7 @@ const requestIdMiddleware = require('../src/middlewares/requestIdMiddleware.js')
 
 function createApp() {
   const app = express();
+  app.use(express.urlencoded({ extended: false }));
   app.use(requestIdMiddleware);
   app.use('/admin', adminRoute);
   return app;
@@ -19,10 +20,18 @@ function createApp() {
 describe('Admin auth (/admin)', () => {
   const prevAdminToken = process.env.ADMIN_TOKEN;
   const prevAdminIpAllowlist = process.env.ADMIN_IP_ALLOWLIST;
+  const prevAdminSessionEnabled = process.env.ADMIN_SESSION_AUTH_ENABLED;
+  const prevAdminSessionUser = process.env.ADMIN_SESSION_USER;
+  const prevAdminSessionPass = process.env.ADMIN_SESSION_PASS;
+  const prevAdminSessionSecret = process.env.ADMIN_SESSION_SECRET;
 
   beforeEach(() => {
     process.env.ADMIN_TOKEN = 'test_admin_token';
     delete process.env.ADMIN_IP_ALLOWLIST;
+    delete process.env.ADMIN_SESSION_AUTH_ENABLED;
+    delete process.env.ADMIN_SESSION_USER;
+    delete process.env.ADMIN_SESSION_PASS;
+    delete process.env.ADMIN_SESSION_SECRET;
   });
 
   afterEach(() => {
@@ -37,6 +46,18 @@ describe('Admin auth (/admin)', () => {
     } else {
       process.env.ADMIN_IP_ALLOWLIST = prevAdminIpAllowlist;
     }
+
+    if (prevAdminSessionEnabled === undefined) delete process.env.ADMIN_SESSION_AUTH_ENABLED;
+    else process.env.ADMIN_SESSION_AUTH_ENABLED = prevAdminSessionEnabled;
+
+    if (prevAdminSessionUser === undefined) delete process.env.ADMIN_SESSION_USER;
+    else process.env.ADMIN_SESSION_USER = prevAdminSessionUser;
+
+    if (prevAdminSessionPass === undefined) delete process.env.ADMIN_SESSION_PASS;
+    else process.env.ADMIN_SESSION_PASS = prevAdminSessionPass;
+
+    if (prevAdminSessionSecret === undefined) delete process.env.ADMIN_SESSION_SECRET;
+    else process.env.ADMIN_SESSION_SECRET = prevAdminSessionSecret;
   });
 
   it('returns 401 when token is missing', async () => {
@@ -108,6 +129,38 @@ describe('Admin auth (/admin)', () => {
       .get('/admin')
       .set('authorization', 'Bearer test_admin_token')
       .set('x-request-id', 'req-admin-ip-ok')
+      .expect(200);
+
+    expect(res.body).toEqual({ ok: true });
+  });
+
+  it('supports optional session login when enabled', async () => {
+    process.env.ADMIN_SESSION_AUTH_ENABLED = 'true';
+    process.env.ADMIN_SESSION_USER = 'admin';
+    process.env.ADMIN_SESSION_PASS = 'pass';
+    process.env.ADMIN_SESSION_SECRET = 'secret_for_tests';
+
+    const app = createApp();
+
+    await request(app)
+      .post('/admin/login')
+      .type('form')
+      .send({ username: 'admin', password: 'wrong' })
+      .expect(401);
+
+    const loginRes = await request(app)
+      .post('/admin/login')
+      .type('form')
+      .send({ username: 'admin', password: 'pass' })
+      .expect(302);
+
+    const cookie = loginRes.headers['set-cookie']?.[0];
+    expect(cookie).toBeTruthy();
+
+    const res = await request(app)
+      .get('/admin')
+      .set('Cookie', cookie)
+      .set('x-request-id', 'req-admin-session-ok')
       .expect(200);
 
     expect(res.body).toEqual({ ok: true });

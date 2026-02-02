@@ -35,6 +35,25 @@ ADMIN_IP_ALLOWLIST=10.0.0.0/8,192.168.0.0/16,172.16.0.0/12
 - 默认使用 Express 的 `req.ip`。
 - 当 Express 启用 `trust proxy` 时，将使用 `req.ips[0]`（来自代理链的第一个 IP）。
 
+## Session 登录（可选）
+可选启用 `ADMIN_SESSION_AUTH_ENABLED`，使用账号+session 登录进入后台（不要求每次请求都带 `ADMIN_TOKEN`）。
+
+### 环境变量
+- `ADMIN_SESSION_AUTH_ENABLED`：启用 session 登录（默认 `false`）
+- `ADMIN_SESSION_SECRET`：session 签名密钥（建议随机长串；可复用 `ADMIN_TOKEN`）
+- `ADMIN_SESSION_USER`：登录用户名
+- `ADMIN_SESSION_PASS`：登录密码
+
+说明：
+- 当前实现使用 `express-session` 默认 MemoryStore，仅适用于单机/开发或低规模场景；生产建议替换为持久化 store。
+
+### 行为
+- 启用后提供：
+  - `GET /admin/login`：登录页
+  - `POST /admin/login`：登录提交（成功后 302 到 `/admin`）
+  - `POST /admin/logout`：退出（302 到 `/admin/login`）
+- Token 登录（`ADMIN_TOKEN`）仍可用作兜底/兼容。
+
 ## 手动验收步骤
 1) 设置：
    - `ADMIN_TOKEN=test_admin_token`
@@ -45,3 +64,9 @@ ADMIN_IP_ALLOWLIST=10.0.0.0/8,192.168.0.0/16,172.16.0.0/12
    - `ADMIN_IP_ALLOWLIST=10.0.0.0/8`
    - 重启服务后：`curl -i -H "Authorization: Bearer test_admin_token" http://127.0.0.1:3000/admin` 返回 403
 
+4) Session 登录（可选验收）：
+   - `ADMIN_SESSION_AUTH_ENABLED=true`
+   - `ADMIN_SESSION_SECRET=any_long_random`
+   - `ADMIN_SESSION_USER=admin`
+   - `ADMIN_SESSION_PASS=pass`
+   - 打开 `http://127.0.0.1:3000/admin/login`，登录后访问 `/admin` 应可进入后台

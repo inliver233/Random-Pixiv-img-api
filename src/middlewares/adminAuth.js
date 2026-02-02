@@ -16,6 +16,22 @@ function ensureAdminIpAllowlistState() {
   return globalThis.__pixivcatAdminIpAllowlist;
 }
 
+function parseBooleanEnv(value, defaultValue) {
+  if (typeof value !== 'string') return defaultValue;
+  const normalized = value.trim().toLowerCase();
+  if (['1', 'true', 'yes', 'y', 'on'].includes(normalized)) return true;
+  if (['0', 'false', 'no', 'n', 'off'].includes(normalized)) return false;
+  return defaultValue;
+}
+
+function isAdminSessionAuthEnabled() {
+  return parseBooleanEnv(process.env.ADMIN_SESSION_AUTH_ENABLED, false);
+}
+
+function isAdminSessionAuthenticated(req) {
+  return Boolean(req && req.session && req.session.admin);
+}
+
 function normalizeIp(raw) {
   if (typeof raw !== 'string') return null;
   const trimmed = raw.trim();
@@ -234,6 +250,20 @@ function adminAuth(req, res, next) {
       request_id: getRequestId(req, res),
     });
     return;
+  }
+
+  const sessionEnabled = isAdminSessionAuthEnabled();
+  if (sessionEnabled) {
+    const path = String(req.path || '');
+    if (path === '/login' || path === '/logout') {
+      next();
+      return;
+    }
+
+    if (isAdminSessionAuthenticated(req)) {
+      next();
+      return;
+    }
   }
 
   const expected = String(process.env.ADMIN_TOKEN || '').trim();

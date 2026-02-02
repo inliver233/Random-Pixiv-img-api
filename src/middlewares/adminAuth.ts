@@ -32,6 +32,22 @@ function ensureAdminIpAllowlistState(): AdminIpAllowlistState {
   return globalThis.__pixivcatAdminIpAllowlist;
 }
 
+function parseBooleanEnv(value: unknown, defaultValue: boolean): boolean {
+  if (typeof value !== 'string') return defaultValue;
+  const normalized = value.trim().toLowerCase();
+  if (['1', 'true', 'yes', 'y', 'on'].includes(normalized)) return true;
+  if (['0', 'false', 'no', 'n', 'off'].includes(normalized)) return false;
+  return defaultValue;
+}
+
+function isAdminSessionAuthEnabled(): boolean {
+  return parseBooleanEnv(process.env.ADMIN_SESSION_AUTH_ENABLED, false);
+}
+
+function isAdminSessionAuthenticated(req: Request): boolean {
+  return Boolean((req as any)?.session?.admin);
+}
+
 function normalizeIp(raw: unknown): string | null {
   if (typeof raw !== 'string') return null;
   const trimmed = raw.trim();
@@ -255,6 +271,20 @@ export default function adminAuth(req: Request, res: Response, next: NextFunctio
       request_id: getRequestId(req, res),
     });
     return;
+  }
+
+  const sessionEnabled = isAdminSessionAuthEnabled();
+  if (sessionEnabled) {
+    const path = String(req.path || '');
+    if (path === '/login' || path === '/logout') {
+      next();
+      return;
+    }
+
+    if (isAdminSessionAuthenticated(req)) {
+      next();
+      return;
+    }
   }
 
   const expected = String(process.env.ADMIN_TOKEN || '').trim();
