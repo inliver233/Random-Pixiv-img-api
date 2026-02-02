@@ -2,6 +2,7 @@ import { Router } from 'express';
 import session from 'express-session';
 
 import adminAuth from '../middlewares/adminAuth';
+import adminCsrf from '../middlewares/adminCsrf';
 import adminImportRouter from './adminImport';
 import adminImagesActionsRouter from './adminImagesActions';
 
@@ -31,6 +32,7 @@ router.use(session({
 }));
 
 router.use(adminAuth);
+router.use(adminCsrf);
 
 router.get('/login', (req, res) => {
   if (!parseBooleanEnv(process.env.ADMIN_SESSION_AUTH_ENABLED, false)) {

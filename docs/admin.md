@@ -54,6 +54,19 @@ ADMIN_IP_ALLOWLIST=10.0.0.0/8,192.168.0.0/16,172.16.0.0/12
   - `POST /admin/logout`：退出（302 到 `/admin/login`）
 - Token 登录（`ADMIN_TOKEN`）仍可用作兜底/兼容。
 
+## CSRF 防护（可选，建议配合 cookie/session）
+当后台采用 cookie/session（`pixivcat_admin_sid` 或 `admin_token` cookie）进行鉴权时，建议启用 CSRF 防护。
+
+当前实现为 **Origin/Referer 同源校验**：
+- 仅对写操作生效（`POST/PUT/PATCH/DELETE`）
+- 校验 `Origin`（优先）或 `Referer` 的 origin 必须与当前请求的 `protocol://host` 一致
+- 适用于 AdminJS 的浏览器请求（无需改前端）；也可用于脚本请求（手动加 `Origin` header）
+
+### 环境变量
+- `ADMIN_CSRF_ENABLED`：启用 CSRF 防护（默认 `false`）
+- `ADMIN_CSRF_ALLOWED_ORIGINS`：可选，显式允许的 origin 列表（分隔符：逗号/空格/`|`）
+  - 用于反代/HTTPS 终止场景：当外部是 `https://example.com` 但应用内部看到 `http://127.0.0.1:3000` 时，建议设置该值
+
 ## 手动验收步骤
 1) 设置：
    - `ADMIN_TOKEN=test_admin_token`
@@ -70,3 +83,12 @@ ADMIN_IP_ALLOWLIST=10.0.0.0/8,192.168.0.0/16,172.16.0.0/12
    - `ADMIN_SESSION_USER=admin`
    - `ADMIN_SESSION_PASS=pass`
    - 打开 `http://127.0.0.1:3000/admin/login`，登录后访问 `/admin` 应可进入后台
+
+5) CSRF 防护（可选验收，建议配合 session/cookie）：
+   - `ADMIN_CSRF_ENABLED=true`
+   - 使用 curl 获取 session cookie：
+     - `curl -i -c cookie.txt -X POST -H "Content-Type: application/x-www-form-urlencoded" -d "username=admin&password=pass" http://127.0.0.1:3000/admin/login`
+   - 不带 Origin/Referer 的写操作应被拒绝（403）：
+     - `curl -i -b cookie.txt -X POST http://127.0.0.1:3000/admin/logout`
+   - 带正确 Origin 的写操作应通过（302）：
+     - `curl -i -b cookie.txt -H "Origin: http://127.0.0.1:3000" -X POST http://127.0.0.1:3000/admin/logout`
