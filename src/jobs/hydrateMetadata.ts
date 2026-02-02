@@ -1,5 +1,7 @@
 import logger from '../logger/logger';
+import { getPrismaClient } from '../db/prismaClient';
 import pixivService from '../services/pixivService';
+import { computeGeometryFromWidthHeight, normalizePositiveInt } from '../domain/imageGeometry';
 import { parsePixivUrl } from '../utils/parsePixivUrl';
 import { enqueue, work } from '../queue/queue';
 
@@ -14,6 +16,10 @@ export type HydrateMetadataPage = {
   pageIndex: number;
   ext: string;
   originalUrl: string;
+  width: number | null;
+  height: number | null;
+  orientation: number | null;
+  aspectRatio: number | null;
 };
 
 export type HydrateMetadataOptions = {
@@ -67,6 +73,11 @@ export async function hydrateMetadata(illustId: bigint, options: HydrateMetadata
   }
 
   const urls = normalizeOriginalUrls(data);
+  const illust = data?.illust ?? {};
+  const geometry = computeGeometryFromWidthHeight(
+    normalizePositiveInt((illust as any).width),
+    normalizePositiveInt((illust as any).height),
+  );
 
   const pages: HydrateMetadataPage[] = [];
   for (const url of urls) {
@@ -79,11 +90,45 @@ export async function hydrateMetadata(illustId: bigint, options: HydrateMetadata
       pageIndex: parsed.pageIndex,
       ext: parsed.ext,
       originalUrl: url,
+      width: geometry.width,
+      height: geometry.height,
+      orientation: geometry.orientation,
+      aspectRatio: geometry.aspectRatio,
     });
   }
 
   pages.sort((a, b) => a.pageIndex - b.pageIndex);
   return pages;
+}
+
+export async function persistHydratedMetadata(illustId: bigint, pages: HydrateMetadataPage[]): Promise<number> {
+  if (pages.length === 0) return 0;
+
+  const prisma = getPrismaClient();
+  let updated = 0;
+
+  await prisma.$transaction(async (tx) => {
+    for (const page of pages) {
+      const data: any = {};
+
+      if (page.width !== null && page.height !== null) {
+        data.width = page.width;
+        data.height = page.height;
+        data.orientation = page.orientation;
+        data.aspectRatio = page.aspectRatio;
+      }
+
+      if (Object.keys(data).length === 0) continue;
+
+      const res = await tx.image.updateMany({
+        where: { illustId, pageIndex: page.pageIndex },
+        data,
+      });
+      updated += res.count;
+    }
+  });
+
+  return updated;
 }
 
 export async function enqueueHydrateMetadata(illustId: bigint): Promise<string> {
@@ -97,12 +142,14 @@ export async function registerHydrateMetadataWorker(): Promise<void> {
       const illustId = toBigInt(jobData.illust_id ?? jobData.illustId ?? jobData.illust_id);
 
       const pages = await hydrateMetadata(illustId);
+      const updated = await persistHydratedMetadata(illustId, pages);
 
       logger.info(
         {
           job: { name: HYDRATE_METADATA_JOB, id: job.id },
           illust_id: illustId.toString(),
           pages: pages.length,
+          updated,
         },
         'hydrate_metadata done',
       );

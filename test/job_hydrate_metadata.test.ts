@@ -30,7 +30,7 @@ describe('hydrate_metadata (job skeleton)', () => {
     const pages = await hydrateMetadata(ILLUST_ID);
 
     expect(spy).toHaveBeenCalledWith(ILLUST_ID.toString(), true);
-    expect(pages).toEqual([
+    expect(pages).toMatchObject([
       {
         illustId: ILLUST_ID,
         pageIndex: 0,
