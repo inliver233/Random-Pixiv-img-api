@@ -67,6 +67,17 @@ ADMIN_IP_ALLOWLIST=10.0.0.0/8,192.168.0.0/16,172.16.0.0/12
 - `ADMIN_CSRF_ALLOWED_ORIGINS`：可选，显式允许的 origin 列表（分隔符：逗号/空格/`|`）
   - 用于反代/HTTPS 终止场景：当外部是 `https://example.com` 但应用内部看到 `http://127.0.0.1:3000` 时，建议设置该值
 
+## 写操作 Rate Limit（可选，建议启用）
+为 `/admin` 的写操作增加更严格的限流，用于防爆破/误操作：
+- 仅对写操作生效（`POST/PUT/PATCH/DELETE`）
+- 维度：按客户端 IP（`req.ip`）
+- 超限时返回 `429`（`code=ADMIN_RATE_LIMITED`），并设置 `Retry-After`
+
+### 环境变量
+- `ADMIN_RATE_LIMIT_ENABLED`：启用（默认 `false`）
+- `ADMIN_RATE_LIMIT_WINDOW_MS`：窗口大小（默认 `60000`）
+- `ADMIN_RATE_LIMIT_MAX`：窗口内最大写请求数（默认 `20`）
+
 ## 手动验收步骤
 1) 设置：
    - `ADMIN_TOKEN=test_admin_token`
@@ -92,3 +103,11 @@ ADMIN_IP_ALLOWLIST=10.0.0.0/8,192.168.0.0/16,172.16.0.0/12
      - `curl -i -b cookie.txt -X POST http://127.0.0.1:3000/admin/logout`
    - 带正确 Origin 的写操作应通过（302）：
      - `curl -i -b cookie.txt -H "Origin: http://127.0.0.1:3000" -X POST http://127.0.0.1:3000/admin/logout`
+
+6) /admin 写操作 rate limit（可选验收）：
+   - `ADMIN_RATE_LIMIT_ENABLED=true`
+   - `ADMIN_RATE_LIMIT_MAX=1`
+   - `ADMIN_RATE_LIMIT_WINDOW_MS=60000`
+   - 连续两次登录请求（第 2 次应返回 429）：
+     - `curl -i -X POST -H "Content-Type: application/x-www-form-urlencoded" -d "username=admin&password=pass" http://127.0.0.1:3000/admin/login`
+     - `curl -i -X POST -H "Content-Type: application/x-www-form-urlencoded" -d "username=admin&password=pass" http://127.0.0.1:3000/admin/login`

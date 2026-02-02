@@ -3,6 +3,7 @@ import session from 'express-session';
 
 import adminAuth from '../middlewares/adminAuth';
 import adminCsrf from '../middlewares/adminCsrf';
+import adminWriteRateLimit from '../middlewares/adminWriteRateLimit';
 import adminImportRouter from './adminImport';
 import adminImagesActionsRouter from './adminImagesActions';
 
@@ -32,6 +33,7 @@ router.use(session({
 }));
 
 router.use(adminAuth);
+router.use(adminWriteRateLimit);
 router.use(adminCsrf);
 
 router.get('/login', (req, res) => {
