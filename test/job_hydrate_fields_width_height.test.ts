@@ -75,6 +75,70 @@ describe('hydrate_metadata fields: width/height', () => {
     });
   });
 
+  it('computes square orientation when width === height', async () => {
+    const url = originalUrl(ILLUST_ID, 0);
+
+    vi.spyOn(pixivService, 'getPixivIllustIdData').mockResolvedValueOnce({
+      illust: {
+        id: Number(ILLUST_ID),
+        page_count: 1,
+        width: 512,
+        height: 512,
+        image_urls: { square_medium: 'https://example.invalid/square.jpg' },
+        meta_single_page: { original_image_url: url },
+        meta_pages: [],
+      },
+    } as any);
+
+    const pages = await hydrateMetadata(ILLUST_ID);
+    expect(pages[0]).toMatchObject({ width: 512, height: 512, orientation: 3 });
+    expect(pages[0].aspectRatio).toBeCloseTo(1, 6);
+
+    prisma.image.updateMany.mockResolvedValueOnce({ count: 1 });
+    const updated = await persistHydratedMetadata(ILLUST_ID, pages);
+    expect(updated).toBe(1);
+  });
+
+  it('persists geometry for multi-page illusts (meta_pages originals)', async () => {
+    const url0 = originalUrl(ILLUST_ID, 0);
+    const url1 = originalUrl(ILLUST_ID, 1);
+
+    vi.spyOn(pixivService, 'getPixivIllustIdData').mockResolvedValueOnce({
+      illust: {
+        id: Number(ILLUST_ID),
+        page_count: 2,
+        width: 600,
+        height: 900,
+        image_urls: { square_medium: 'https://example.invalid/square.jpg' },
+        meta_single_page: {},
+        meta_pages: [
+          { image_urls: { original: url0 } },
+          { image_urls: { original: url1 } },
+        ],
+      },
+    } as any);
+
+    const pages = await hydrateMetadata(ILLUST_ID);
+    expect(pages).toHaveLength(2);
+    expect(pages.map((p) => p.pageIndex)).toEqual([0, 1]);
+    expect(pages[0]).toMatchObject({ width: 600, height: 900, orientation: 1 });
+
+    prisma.image.updateMany.mockResolvedValueOnce({ count: 1 }).mockResolvedValueOnce({ count: 1 });
+
+    const updated = await persistHydratedMetadata(ILLUST_ID, pages);
+    expect(updated).toBe(2);
+
+    expect(prisma.image.updateMany).toHaveBeenCalledTimes(2);
+    expect(prisma.image.updateMany).toHaveBeenNthCalledWith(1, {
+      where: { illustId: ILLUST_ID, pageIndex: 0 },
+      data: { width: 600, height: 900, orientation: 1, aspectRatio: expect.any(Number) },
+    });
+    expect(prisma.image.updateMany).toHaveBeenNthCalledWith(2, {
+      where: { illustId: ILLUST_ID, pageIndex: 1 },
+      data: { width: 600, height: 900, orientation: 1, aspectRatio: expect.any(Number) },
+    });
+  });
+
   it('does not write geometry when Pixiv response width/height is invalid', async () => {
     const url = originalUrl(ILLUST_ID, 0);
 
@@ -97,5 +161,27 @@ describe('hydrate_metadata fields: width/height', () => {
     expect(updated).toBe(0);
     expect(prisma.image.updateMany).not.toHaveBeenCalled();
   });
-});
 
+  it('treats non-integer width/height as invalid and skips DB writes', async () => {
+    const url = originalUrl(ILLUST_ID, 0);
+
+    vi.spyOn(pixivService, 'getPixivIllustIdData').mockResolvedValueOnce({
+      illust: {
+        id: Number(ILLUST_ID),
+        page_count: 1,
+        width: 1000.5,
+        height: 500.1,
+        image_urls: { square_medium: 'https://example.invalid/square.jpg' },
+        meta_single_page: { original_image_url: url },
+        meta_pages: [],
+      },
+    } as any);
+
+    const pages = await hydrateMetadata(ILLUST_ID);
+    expect(pages[0]).toMatchObject({ width: null, height: null, orientation: null, aspectRatio: null });
+
+    const updated = await persistHydratedMetadata(ILLUST_ID, pages);
+    expect(updated).toBe(0);
+    expect(prisma.image.updateMany).not.toHaveBeenCalled();
+  });
+});
