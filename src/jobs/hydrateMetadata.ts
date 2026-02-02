@@ -4,6 +4,7 @@ import pixivService from '../services/pixivService';
 import { computeGeometryFromWidthHeight, normalizePositiveInt } from '../domain/imageGeometry';
 import { parsePixivUrl } from '../utils/parsePixivUrl';
 import { enqueue, work } from '../queue/queue';
+import { syncImageTags } from '../repositories/tagsRepo';
 
 export const HYDRATE_METADATA_JOB = 'hydrate_metadata';
 
@@ -25,6 +26,7 @@ export type HydrateMetadataPage = {
   userName: string | null;
   title: string | null;
   createdAtPixiv: Date | null;
+  tags: Array<{ name: string; translatedName?: string | null }>;
 };
 
 export type HydrateMetadataOptions = {
@@ -121,6 +123,37 @@ function normalizeDate(value: unknown): Date | null {
   return d;
 }
 
+function normalizePixivTags(value: unknown): Array<{ name: string; translatedName?: string | null }> {
+  const raw = Array.isArray(value) ? value : [];
+  const byKey = new Map<string, { name: string; translatedName?: string | null }>();
+
+  for (const item of raw) {
+    const name =
+      typeof item === 'string'
+        ? normalizeNonEmptyText(item)
+        : normalizeNonEmptyText((item as any)?.name ?? (item as any)?.tag ?? (item as any)?.tag_name);
+    if (!name) continue;
+
+    const translatedName =
+      typeof item === 'object' && item !== null
+        ? normalizeNonEmptyText((item as any)?.translated_name ?? (item as any)?.translatedName)
+        : null;
+
+    const key = name.toLowerCase();
+    const existing = byKey.get(key);
+    if (!existing) {
+      byKey.set(key, { name, translatedName: translatedName ?? null });
+      continue;
+    }
+
+    if ((existing.translatedName === null || existing.translatedName === undefined) && translatedName) {
+      byKey.set(key, { name: existing.name, translatedName });
+    }
+  }
+
+  return [...byKey.values()];
+}
+
 export async function hydrateMetadata(illustId: bigint, options: HydrateMetadataOptions = {}): Promise<HydrateMetadataPage[]> {
   const cache = options.cache ?? true;
   const data = await pixivService.getPixivIllustIdData(illustId.toString(), cache);
@@ -139,6 +172,7 @@ export async function hydrateMetadata(illustId: bigint, options: HydrateMetadata
   const userName = normalizeNonEmptyText((illust as any)?.user?.name ?? (illust as any)?.userName);
   const title = normalizeNonEmptyText((illust as any).title);
   const createdAtPixiv = normalizeDate((illust as any).create_date ?? (illust as any).created_at ?? (illust as any).createdAt);
+  const tags = normalizePixivTags((illust as any).tags);
 
   const pages: HydrateMetadataPage[] = [];
   for (const url of urls) {
@@ -160,6 +194,7 @@ export async function hydrateMetadata(illustId: bigint, options: HydrateMetadata
       userName,
       title,
       createdAtPixiv,
+      tags,
     });
   }
 
@@ -172,6 +207,15 @@ export async function persistHydratedMetadata(illustId: bigint, pages: HydrateMe
 
   const prisma = getPrismaClient();
   let updated = 0;
+
+  const pageIndexes = pages.map((page) => page.pageIndex);
+  const images = pages.some((page) => Array.isArray(page.tags) && page.tags.length > 0)
+    ? await prisma.image.findMany({
+      where: { illustId, pageIndex: { in: pageIndexes } },
+      select: { id: true, pageIndex: true },
+    })
+    : [];
+  const imageIdByPageIndex = new Map<number, bigint>(images.map((row: any) => [row.pageIndex as number, row.id as bigint]));
 
   await prisma.$transaction(async (tx) => {
     for (const page of pages) {
@@ -213,6 +257,13 @@ export async function persistHydratedMetadata(illustId: bigint, pages: HydrateMe
       updated += res.count;
     }
   });
+
+  for (const page of pages) {
+    if (!Array.isArray(page.tags) || page.tags.length === 0) continue;
+    const imageId = imageIdByPageIndex.get(page.pageIndex);
+    if (!imageId) continue;
+    await syncImageTags(imageId, page.tags);
+  }
 
   return updated;
 }

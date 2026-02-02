@@ -25,6 +25,11 @@ describe('hydrate_metadata (job skeleton)', () => {
         user: { id: 42, name: 'unit-test-user' },
         title: 'unit-test-title',
         create_date: '2020-01-01T00:00:00Z',
+        tags: [
+          { name: 'Foo', translated_name: 'バー' },
+          { name: 'foo' },
+          { name: ' Bar ' },
+        ],
         image_urls: { square_medium: 'https://example.invalid/square.jpg' },
         meta_single_page: { original_image_url: url },
         meta_pages: [],
@@ -44,6 +49,10 @@ describe('hydrate_metadata (job skeleton)', () => {
         userId: 42n,
         userName: 'unit-test-user',
         title: 'unit-test-title',
+        tags: [
+          { name: 'Foo', translatedName: 'バー' },
+          { name: 'Bar', translatedName: null },
+        ],
       },
     ]);
     expect(pages[0].createdAtPixiv?.toISOString()).toBe('2020-01-01T00:00:00.000Z');

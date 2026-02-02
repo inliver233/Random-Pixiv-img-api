@@ -25,14 +25,24 @@ export async function upsertTag(input: UpsertTagInput) {
     throw new Error('Tag name is required.');
   }
 
-  return prisma.tag.upsert({
-    where: { name },
-    create: { name, translatedName },
-    update: {
-      // Only update translatedName when explicitly provided (avoid wiping existing translations).
-      translatedName,
+  const existing = await prisma.tag.findFirst({
+    where: {
+      name: {
+        equals: name,
+        mode: 'insensitive',
+      },
     },
+    select: { id: true },
   });
+
+  if (existing) {
+    if (translatedName !== undefined) {
+      return prisma.tag.update({ where: { id: existing.id }, data: { translatedName } });
+    }
+    return prisma.tag.findUniqueOrThrow({ where: { id: existing.id } });
+  }
+
+  return prisma.tag.create({ data: { name, translatedName } });
 }
 
 export async function syncImageTags(imageId: bigint, tags: UpsertTagInput[]) {
@@ -43,15 +53,17 @@ export async function syncImageTags(imageId: bigint, tags: UpsertTagInput[]) {
     const name = normalizeTagName(tag.name);
     if (!name) continue;
 
-    const existing = uniqueTagsByName.get(name);
+    const key = name.toLowerCase();
+
+    const existing = uniqueTagsByName.get(key);
     if (!existing) {
-      uniqueTagsByName.set(name, tag);
+      uniqueTagsByName.set(key, tag);
       continue;
     }
 
     // Prefer a tag that includes translatedName.
     if (!existing.translatedName && tag.translatedName) {
-      uniqueTagsByName.set(name, tag);
+      uniqueTagsByName.set(key, tag);
     }
   }
 
