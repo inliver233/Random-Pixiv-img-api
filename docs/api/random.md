@@ -240,3 +240,20 @@ curl -i "http://127.0.0.1:3000/random?user_id=12345678"
 ### 注意事项
 
 - `user_id` 仅接受正整数；空值或非法值返回 400（`message=Invalid user_id.`）。
+
+## `illust_id`
+
+`illust_id` 用于按 Pixiv 作品 ID 精确筛选（便于指定某个作品进行调试/回放）：
+
+- 不传：不筛选
+- 传入正整数：只返回 `illust_id` 匹配的图片
+
+### 示例
+
+```bash
+curl -i "http://127.0.0.1:3000/random?illust_id=123456789"
+```
+
+### 注意事项
+
+- `illust_id` 仅接受正整数；空值或非法值返回 400（`message=Invalid illust_id.`）。
