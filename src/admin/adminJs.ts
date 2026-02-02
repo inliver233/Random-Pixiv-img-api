@@ -2,7 +2,7 @@ import type { Router } from 'express';
 import path from 'node:path';
 
 import { getPrismaClient } from '../db/prismaClient';
-import { extractFirstSampleValue, queryPrometheusInstant } from '../metrics/prometheusQueryClient';
+import { extractFirstSampleValue, extractVectorSamples, queryPrometheusInstant } from '../metrics/prometheusQueryClient';
 import * as PrismaModule from '@prisma/client';
 import { Prisma } from '@prisma/client';
 
@@ -386,6 +386,7 @@ export async function getAdminJsRouter(): Promise<Router> {
             cached: false,
             fetched_at: null,
             requests_24h: { value: null, error: null },
+            top_errors_24h: { rows: [], error: null },
           };
 
           if (env.PROMETHEUS_URL) {
@@ -409,6 +410,17 @@ export async function getAdminJsRouter(): Promise<Router> {
               if (value === null) prometheus.requests_24h.error = 'no_data';
             } else {
               prometheus.requests_24h.error = requestsRes.error;
+            }
+
+            const errorsRes = await queryPrometheusInstant(
+              'topk(10, sum by (status) (increase(http_requests_total{status=~\"4..|5..\"}[24h])))',
+              { baseUrl: env.PROMETHEUS_URL },
+            );
+            if (errorsRes.ok) {
+              prometheus.top_errors_24h.rows = extractVectorSamples(errorsRes)
+                .map((sample) => ({ status: String(sample.metric.status ?? 'unknown'), count: Math.round(sample.value) }));
+            } else {
+              prometheus.top_errors_24h.error = errorsRes.error;
             }
           }
 

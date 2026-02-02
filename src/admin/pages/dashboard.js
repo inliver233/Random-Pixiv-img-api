@@ -232,6 +232,32 @@ export default function Dashboard() {
           {data.prometheus?.configured && data.prometheus?.requests_24h?.error ? (
             <p style={{ marginTop: 0, color: '#b91c1c' }}>prometheus_error: {String(data.prometheus.requests_24h.error)}</p>
           ) : null}
+
+          <h4 style={{ marginBottom: 8 }}>top_errors_24h (HTTP status)</h4>
+          {!data.prometheus?.configured ? (
+            <p style={{ marginTop: 0, color: '#666' }}>N/A</p>
+          ) : data.prometheus?.top_errors_24h?.error ? (
+            <p style={{ marginTop: 0, color: '#b91c1c' }}>prometheus_error: {String(data.prometheus.top_errors_24h.error)}</p>
+          ) : (data.prometheus?.top_errors_24h?.rows || []).length === 0 ? (
+            <p style={{ marginTop: 0, color: '#666' }}>No data.</p>
+          ) : (
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead>
+                <tr>
+                  <th style={{ textAlign: 'left', padding: '4px 8px', borderBottom: '1px solid #eee' }}>status</th>
+                  <th style={{ textAlign: 'right', padding: '4px 8px', borderBottom: '1px solid #eee' }}>count</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.prometheus.top_errors_24h.rows.map((row) => (
+                  <tr key={row.status}>
+                    <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee' }}>{row.status}</td>
+                    <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee', textAlign: 'right' }}>{row.count}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
         </div>
       </div>
     </div>

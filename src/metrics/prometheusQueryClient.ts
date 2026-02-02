@@ -201,3 +201,24 @@ export function extractFirstSampleValue(result: PrometheusInstantQueryResult): n
 
   return null;
 }
+
+export function extractVectorSamples(
+  result: PrometheusInstantQueryResult,
+): Array<{ metric: Record<string, string>; value: number }> {
+  if (!result.ok) return [];
+  if (result.data.resultType !== 'vector') return [];
+
+  const vector = Array.isArray(result.data.result) ? (result.data.result as any[]) : [];
+  const out: Array<{ metric: Record<string, string>; value: number }> = [];
+
+  for (const item of vector) {
+    const metric = item && typeof item.metric === 'object' && item.metric ? item.metric : {};
+    const valueTuple = item && Array.isArray(item.value) ? item.value : null;
+    const valueText = valueTuple ? String(valueTuple[1] ?? '') : '';
+    const value = Number(valueText);
+    if (!Number.isFinite(value)) continue;
+    out.push({ metric: metric as Record<string, string>, value });
+  }
+
+  return out;
+}
