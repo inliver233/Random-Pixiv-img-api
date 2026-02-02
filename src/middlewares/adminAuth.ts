@@ -1,7 +1,154 @@
 import type { NextFunction, Request, Response } from 'express';
+import net from 'node:net';
 
 function getRequestId(req: Request, res: Response): string | undefined {
   return (req as any).request_id || res.locals.request_id;
+}
+
+type AdminIpAllowlist = {
+  raw: string;
+  exact: Set<string>;
+  cidr4: Array<{ network: number; mask: number }>;
+};
+
+type AdminIpAllowlistState = {
+  raw: string | null;
+  parsed: AdminIpAllowlist | null;
+  error: string | null;
+};
+
+declare global {
+  // eslint-disable-next-line no-var
+  var __pixivcatAdminIpAllowlist: AdminIpAllowlistState | undefined;
+}
+
+function ensureAdminIpAllowlistState(): AdminIpAllowlistState {
+  globalThis.__pixivcatAdminIpAllowlist ??= {
+    raw: null,
+    parsed: null,
+    error: null,
+  };
+
+  return globalThis.__pixivcatAdminIpAllowlist;
+}
+
+function normalizeIp(raw: unknown): string | null {
+  if (typeof raw !== 'string') return null;
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
+
+  const withoutZone = trimmed.split('%')[0] ?? trimmed;
+  const lowered = withoutZone.toLowerCase();
+  if (lowered.startsWith('::ffff:')) {
+    const v4 = withoutZone.slice('::ffff:'.length);
+    if (net.isIP(v4) === 4) return v4;
+  }
+
+  return withoutZone;
+}
+
+function toIpv4Int(ip: string): number | null {
+  const parts = ip.split('.');
+  if (parts.length !== 4) return null;
+
+  const nums = parts.map((part) => Number(part));
+  if (nums.some((n) => !Number.isFinite(n) || !Number.isInteger(n) || n < 0 || n > 255)) return null;
+
+  return ((nums[0]! << 24) | (nums[1]! << 16) | (nums[2]! << 8) | nums[3]!) >>> 0;
+}
+
+function parseCidr4(token: string): { network: number; mask: number } | null {
+  const [ip, prefixRaw] = token.split('/');
+  if (!ip || prefixRaw === undefined) return null;
+  if (net.isIP(ip) !== 4) return null;
+
+  const prefix = Number(prefixRaw);
+  if (!Number.isFinite(prefix) || !Number.isInteger(prefix) || prefix < 0 || prefix > 32) return null;
+
+  const network = toIpv4Int(ip);
+  if (network === null) return null;
+
+  const mask = prefix === 0 ? 0 : (0xffffffff << (32 - prefix)) >>> 0;
+  return { network: network & mask, mask };
+}
+
+function parseAdminIpAllowlist(raw: string): { ok: true; allowlist: AdminIpAllowlist } | { ok: false; error: string } {
+  const tokens = raw
+    .split(/[,\s|]+/g)
+    .map((token) => token.trim())
+    .filter((token) => token.length > 0);
+
+  if (tokens.length === 0) {
+    return { ok: false, error: 'ADMIN_IP_ALLOWLIST is set but empty.' };
+  }
+
+  const exact = new Set<string>();
+  const cidr4: Array<{ network: number; mask: number }> = [];
+
+  for (const token of tokens) {
+    if (token.includes('/')) {
+      const parsed = parseCidr4(token);
+      if (!parsed) return { ok: false, error: `Invalid IPv4 CIDR: ${token}` };
+      cidr4.push(parsed);
+      continue;
+    }
+
+    const normalized = normalizeIp(token);
+    if (!normalized) return { ok: false, error: `Invalid IP: ${token}` };
+    const kind = net.isIP(normalized);
+    if (!kind) return { ok: false, error: `Invalid IP: ${token}` };
+    exact.add(normalized);
+  }
+
+  return { ok: true, allowlist: { raw, exact, cidr4 } };
+}
+
+function getClientIp(req: Request): string | null {
+  const ips = (req as any).ips;
+  if (Array.isArray(ips) && ips.length > 0) {
+    return normalizeIp(ips[0]);
+  }
+
+  return normalizeIp(req.ip);
+}
+
+function isAdminIpAllowed(req: Request): { ok: true } | { ok: false; code: 'ADMIN_IP_DENIED' | 'ADMIN_IP_ALLOWLIST_INVALID'; message: string } {
+  const raw = String(process.env.ADMIN_IP_ALLOWLIST || '').trim();
+  if (!raw) return { ok: true };
+
+  const state = ensureAdminIpAllowlistState();
+  if (state.raw !== raw) {
+    const parsed = parseAdminIpAllowlist(raw);
+    state.raw = raw;
+    state.parsed = parsed.ok ? parsed.allowlist : null;
+    state.error = parsed.ok ? null : parsed.error;
+  }
+
+  if (state.error) {
+    return { ok: false, code: 'ADMIN_IP_ALLOWLIST_INVALID', message: state.error };
+  }
+
+  const allowlist = state.parsed;
+  if (!allowlist) return { ok: false, code: 'ADMIN_IP_ALLOWLIST_INVALID', message: 'Invalid ADMIN_IP_ALLOWLIST.' };
+
+  const ip = getClientIp(req);
+  if (!ip) return { ok: false, code: 'ADMIN_IP_DENIED', message: 'Missing client IP.' };
+
+  if (allowlist.exact.has(ip)) return { ok: true };
+  if ((ip === '127.0.0.1' && allowlist.exact.has('::1')) || (ip === '::1' && allowlist.exact.has('127.0.0.1'))) {
+    return { ok: true };
+  }
+
+  if (net.isIP(ip) === 4) {
+    const ipInt = toIpv4Int(ip);
+    if (ipInt === null) return { ok: false, code: 'ADMIN_IP_DENIED', message: 'Invalid client IPv4.' };
+
+    for (const entry of allowlist.cidr4) {
+      if ((ipInt & entry.mask) === entry.network) return { ok: true };
+    }
+  }
+
+  return { ok: false, code: 'ADMIN_IP_DENIED', message: `IP not allowed: ${ip}` };
 }
 
 function parseCookie(header: string, name: string): string | null {
@@ -72,6 +219,44 @@ function extractToken(req: Request): string | null {
 }
 
 export default function adminAuth(req: Request, res: Response, next: NextFunction) {
+  const ipCheck = isAdminIpAllowed(req);
+  if (!ipCheck.ok) {
+    const accept = (req.header('accept') || '').toLowerCase();
+    const wantsHtml = accept.includes('text/html');
+
+    res.setHeader('Cache-Control', 'no-store');
+
+    if (wantsHtml) {
+      res.status(ipCheck.code === 'ADMIN_IP_DENIED' ? 403 : 503).type('html').send(`<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Admin Forbidden</title>
+    <style>
+      body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; margin: 2rem; line-height: 1.4; }
+      code { background: #f4f4f5; padding: 0.1rem 0.3rem; border-radius: 4px; }
+      .box { max-width: 720px; padding: 1rem 1.25rem; border: 1px solid #e4e4e7; border-radius: 10px; }
+    </style>
+  </head>
+  <body>
+    <div class="box">
+      <h1>${ipCheck.code === 'ADMIN_IP_DENIED' ? 'Forbidden' : 'Admin misconfigured'}</h1>
+      <p>${ipCheck.message}</p>
+    </div>
+  </body>
+</html>`);
+      return;
+    }
+
+    res.status(ipCheck.code === 'ADMIN_IP_DENIED' ? 403 : 503).json({
+      code: ipCheck.code,
+      message: ipCheck.message,
+      request_id: getRequestId(req, res),
+    });
+    return;
+  }
+
   const expected = String(process.env.ADMIN_TOKEN || '').trim();
   const provided = extractToken(req);
 

@@ -18,9 +18,11 @@ function createApp() {
 
 describe('Admin auth (/admin)', () => {
   const prevAdminToken = process.env.ADMIN_TOKEN;
+  const prevAdminIpAllowlist = process.env.ADMIN_IP_ALLOWLIST;
 
   beforeEach(() => {
     process.env.ADMIN_TOKEN = 'test_admin_token';
+    delete process.env.ADMIN_IP_ALLOWLIST;
   });
 
   afterEach(() => {
@@ -28,6 +30,12 @@ describe('Admin auth (/admin)', () => {
       delete process.env.ADMIN_TOKEN;
     } else {
       process.env.ADMIN_TOKEN = prevAdminToken;
+    }
+
+    if (prevAdminIpAllowlist === undefined) {
+      delete process.env.ADMIN_IP_ALLOWLIST;
+    } else {
+      process.env.ADMIN_IP_ALLOWLIST = prevAdminIpAllowlist;
     }
   });
 
@@ -74,5 +82,34 @@ describe('Admin auth (/admin)', () => {
     expect(res.headers['cache-control']).toBe('no-store');
     expect(res.body).toEqual({ ok: true });
   });
-});
 
+  it('returns 403 when ADMIN_IP_ALLOWLIST denies the client ip', async () => {
+    process.env.ADMIN_IP_ALLOWLIST = '10.0.0.0/8';
+    const app = createApp();
+
+    const res = await request(app)
+      .get('/admin')
+      .set('authorization', 'Bearer test_admin_token')
+      .set('x-request-id', 'req-admin-ip-denied')
+      .expect(403);
+
+    expect(res.body).toMatchObject({
+      code: 'ADMIN_IP_DENIED',
+      request_id: 'req-admin-ip-denied',
+    });
+    expect(String(res.body.message || '')).toMatch(/ip not allowed/i);
+  });
+
+  it('returns 200 when ADMIN_IP_ALLOWLIST allows the client ip', async () => {
+    process.env.ADMIN_IP_ALLOWLIST = '127.0.0.1';
+    const app = createApp();
+
+    const res = await request(app)
+      .get('/admin')
+      .set('authorization', 'Bearer test_admin_token')
+      .set('x-request-id', 'req-admin-ip-ok')
+      .expect(200);
+
+    expect(res.body).toEqual({ ok: true });
+  });
+});
