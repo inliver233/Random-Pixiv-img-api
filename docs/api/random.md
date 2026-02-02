@@ -148,3 +148,21 @@ curl -i "http://127.0.0.1:3000/random?min_width=800"
 
 - `min_width` 必须是非负整数；空值或非法值返回 400（`message=Invalid min_width.`）。
 - 与 `min_height`、`min_pixels` 同时使用会更严格，可能更容易出现 `NO_MATCH`。
+
+## `min_height`
+
+`min_height` 用于筛选最小高度（像素）：
+
+- 不传：不限制
+- 传入非负整数：只返回高度 `>= min_height` 的图片
+
+### 示例
+
+```bash
+curl -i "http://127.0.0.1:3000/random?min_height=800"
+```
+
+### 注意事项
+
+- `min_height` 必须是非负整数；空值或非法值返回 400（`message=Invalid min_height.`）。
+- 与 `min_width`、`min_pixels` 同时使用会更严格，可能更容易出现 `NO_MATCH`。
