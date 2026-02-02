@@ -18,6 +18,7 @@ const apiRoutes = require('./src/routes/api').default;
 const pixivRoutes = require('./src/routes/pixivRoutes').default;
 const requestIdMiddleware = require('./src/middlewares/requestIdMiddleware').default;
 const httpLoggerMiddleware = require('./src/middlewares/httpLoggerMiddleware').default;
+const securityHeaders = require('./src/middlewares/securityHeaders').default;
 const rateLimitMiddleware = require('./src/middlewares/rateLimit').default;
 const errorHandler = require('./src/middlewares/errorHandler').default;
 
@@ -30,6 +31,7 @@ app.set('views', path.join(__dirname, 'views'));
 
 app.use(requestIdMiddleware);
 app.use(httpLoggerMiddleware);
+app.use(['/random', '/images', '/healthz', '/metrics', '/admin'], securityHeaders);
 
 // Routes
 app.use(['/random', '/i', '/images'], rateLimitMiddleware);

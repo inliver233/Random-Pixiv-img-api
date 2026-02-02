@@ -13,6 +13,7 @@ try {
 
 const requestIdMiddleware = require('./src/middlewares/requestIdMiddleware');
 const httpLoggerMiddleware = require('./src/middlewares/httpLoggerMiddleware');
+const securityHeaders = require('./src/middlewares/securityHeaders');
 const rateLimitMiddleware = require('./src/middlewares/rateLimit');
 const showVersion = require('./src/middlewares/headerMiddleware');
 const errorHandler = require('./src/middlewares/errorHandler');
@@ -28,6 +29,7 @@ app.set('views', path.join(__dirname, 'views'));
 
 app.use(requestIdMiddleware);
 app.use(httpLoggerMiddleware);
+app.use(['/random', '/images', '/healthz', '/metrics', '/admin'], securityHeaders);
 
 // Routes
 app.use(['/random', '/i', '/images'], rateLimitMiddleware);
