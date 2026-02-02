@@ -23,6 +23,8 @@ export type HydrateMetadataPage = {
   xRestrict: number | null;
   userId: bigint | null;
   userName: string | null;
+  title: string | null;
+  createdAtPixiv: Date | null;
 };
 
 export type HydrateMetadataOptions = {
@@ -109,6 +111,16 @@ function normalizeNonEmptyText(value: unknown): string | null {
   return text ? text : null;
 }
 
+function normalizeDate(value: unknown): Date | null {
+  if (value === undefined || value === null) return null;
+  const raw = typeof value === 'string' ? value.trim() : String(value ?? '').trim();
+  if (!raw) return null;
+  const d = new Date(raw);
+  // Invalid Date -> NaN
+  if (Number.isNaN(d.getTime())) return null;
+  return d;
+}
+
 export async function hydrateMetadata(illustId: bigint, options: HydrateMetadataOptions = {}): Promise<HydrateMetadataPage[]> {
   const cache = options.cache ?? true;
   const data = await pixivService.getPixivIllustIdData(illustId.toString(), cache);
@@ -125,6 +137,8 @@ export async function hydrateMetadata(illustId: bigint, options: HydrateMetadata
   const xRestrict = normalizeXRestrict((illust as any).x_restrict ?? (illust as any).xRestrict);
   const userId = normalizePositiveBigInt((illust as any)?.user?.id ?? (illust as any)?.userId);
   const userName = normalizeNonEmptyText((illust as any)?.user?.name ?? (illust as any)?.userName);
+  const title = normalizeNonEmptyText((illust as any).title);
+  const createdAtPixiv = normalizeDate((illust as any).create_date ?? (illust as any).created_at ?? (illust as any).createdAt);
 
   const pages: HydrateMetadataPage[] = [];
   for (const url of urls) {
@@ -144,6 +158,8 @@ export async function hydrateMetadata(illustId: bigint, options: HydrateMetadata
       xRestrict,
       userId,
       userName,
+      title,
+      createdAtPixiv,
     });
   }
 
@@ -178,6 +194,14 @@ export async function persistHydratedMetadata(illustId: bigint, pages: HydrateMe
 
       if (page.userName !== null) {
         data.userName = page.userName;
+      }
+
+      if (page.title !== null) {
+        data.title = page.title;
+      }
+
+      if (page.createdAtPixiv !== null) {
+        data.createdAtPixiv = page.createdAtPixiv;
       }
 
       if (Object.keys(data).length === 0) continue;

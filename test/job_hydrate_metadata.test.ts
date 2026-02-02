@@ -23,6 +23,8 @@ describe('hydrate_metadata (job skeleton)', () => {
         page_count: 1,
         x_restrict: 1,
         user: { id: 42, name: 'unit-test-user' },
+        title: 'unit-test-title',
+        create_date: '2020-01-01T00:00:00Z',
         image_urls: { square_medium: 'https://example.invalid/square.jpg' },
         meta_single_page: { original_image_url: url },
         meta_pages: [],
@@ -41,8 +43,10 @@ describe('hydrate_metadata (job skeleton)', () => {
         xRestrict: 1,
         userId: 42n,
         userName: 'unit-test-user',
+        title: 'unit-test-title',
       },
     ]);
+    expect(pages[0].createdAtPixiv?.toISOString()).toBe('2020-01-01T00:00:00.000Z');
   });
 
   it('enumerates multi page original_url list and sorts by pageIndex', async () => {
