@@ -29,7 +29,7 @@ describe('hydrate_metadata (job skeleton)', () => {
 
     const pages = await hydrateMetadata(ILLUST_ID);
 
-    expect(spy).toHaveBeenCalledWith(ILLUST_ID.toString(), false);
+    expect(spy).toHaveBeenCalledWith(ILLUST_ID.toString(), true);
     expect(pages).toEqual([
       {
         illustId: ILLUST_ID,
@@ -80,4 +80,3 @@ describe('hydrate_metadata (job skeleton)', () => {
     await expect(hydrateMetadata(ILLUST_ID)).rejects.toThrow(/meta_pages length mismatch/i);
   });
 });
-

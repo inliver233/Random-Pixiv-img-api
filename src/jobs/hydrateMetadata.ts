@@ -16,6 +16,10 @@ export type HydrateMetadataPage = {
   originalUrl: string;
 };
 
+export type HydrateMetadataOptions = {
+  cache?: boolean;
+};
+
 function toBigInt(value: unknown): bigint {
   if (typeof value === 'bigint') return value;
   if (typeof value === 'number' && Number.isFinite(value)) return BigInt(Math.trunc(value));
@@ -55,8 +59,9 @@ function normalizeOriginalUrls(pixivDetail: any): string[] {
   return urls;
 }
 
-export async function hydrateMetadata(illustId: bigint): Promise<HydrateMetadataPage[]> {
-  const data = await pixivService.getPixivIllustIdData(illustId.toString(), false);
+export async function hydrateMetadata(illustId: bigint, options: HydrateMetadataOptions = {}): Promise<HydrateMetadataPage[]> {
+  const cache = options.cache ?? true;
+  const data = await pixivService.getPixivIllustIdData(illustId.toString(), cache);
   if (data && typeof data === 'object' && 'error' in data) {
     throw new Error('Pixiv API returned error');
   }
@@ -104,4 +109,3 @@ export async function registerHydrateMetadataWorker(): Promise<void> {
     }
   });
 }
-

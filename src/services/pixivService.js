@@ -1,15 +1,26 @@
 const { pixivApiGet } = require('../http/axiosClient.cjs');
 const { isCircuitOpenError, pixivApiCircuitFire } = require('../resilience/circuit.cjs');
 const { incrementUpstreamError } = require('../metrics/upstreamMetrics');
+const { getEnv } = require('../config/env');
 const { getAccessToken, maskHeader } = require('./pixivAuthService');
 const memcachedService = require('./memcachedService');
 
 const PIXIV_BASE_URL = 'https://app-api.pixiv.net/v1';
 
 const getPixivIllustIdData = async (illustId, cache = true) => {
-  if (cache) {
-    const cachedData = await memcachedService.get(illustId);
-    if (cachedData) {
+  const env = getEnv();
+  const cacheEnabled = Boolean(cache && env.PIXIV_DETAIL_CACHE_ENABLED);
+  const cacheTtlSeconds = env.PIXIV_DETAIL_CACHE_TTL_SECONDS;
+
+  if (cacheEnabled) {
+    let cachedData = null;
+    try {
+      cachedData = await memcachedService.get(String(illustId));
+    } catch {
+      cachedData = null;
+    }
+
+    if (cachedData !== null && cachedData !== undefined) {
       console.log('Using cached Pixiv API data for illust ID:', illustId);
       return cachedData;
     }
@@ -25,7 +36,20 @@ const getPixivIllustIdData = async (illustId, cache = true) => {
       },
       validateStatus: (status) => (status >= 200 && status < 300) || status === 404,
     }));
-    if (cache) memcachedService.set(illustId, response.data);
+
+    const status = Number(response?.status);
+    const ok = Number.isFinite(status) ? status >= 200 && status < 300 : false;
+    const payload = response?.data;
+    const hasErrorField = payload && typeof payload === 'object' && 'error' in payload;
+
+    if (cacheEnabled && ok && !hasErrorField) {
+      try {
+        await memcachedService.set(String(illustId), payload, cacheTtlSeconds);
+      } catch {
+        // Cache failures must not affect the main request path.
+      }
+    }
+
     return response.data;
   } catch (error) {
     if (isCircuitOpenError(error)) {
