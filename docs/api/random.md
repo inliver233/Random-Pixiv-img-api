@@ -130,3 +130,21 @@ curl -i "http://127.0.0.1:3000/random?orientation=landscape"
 
 - `orientation` 仅支持 `portrait/landscape/square/any`；空值或其他值会返回 400（`message=Invalid orientation.`）。
 - 依赖图片元信息（width/height）已入库；若大量数据未补全元信息，可能出现 `NO_MATCH`。
+
+## `min_width`
+
+`min_width` 用于筛选最小宽度（像素）：
+
+- 不传：不限制
+- 传入非负整数：只返回宽度 `>= min_width` 的图片
+
+### 示例
+
+```bash
+curl -i "http://127.0.0.1:3000/random?min_width=800"
+```
+
+### 注意事项
+
+- `min_width` 必须是非负整数；空值或非法值返回 400（`message=Invalid min_width.`）。
+- 与 `min_height`、`min_pixels` 同时使用会更严格，可能更容易出现 `NO_MATCH`。
