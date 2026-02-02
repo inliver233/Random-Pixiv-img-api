@@ -204,3 +204,22 @@ curl -i "http://127.0.0.1:3000/random?included_tags=cat|dog"
 
 - 空值或解析后为空会返回 400（`message=Invalid included_tags.`）。
 - 条件越多越严格；与 `excluded_tags`、尺寸过滤叠加时更容易 `NO_MATCH`，必要时可提高 `attempts`。
+
+## `excluded_tags`
+
+`excluded_tags` 用于筛选“必须不包含”的标签（NOT 语义）：
+
+- 传入格式：`tag1|tag2|tag3`（`|` 分隔）
+- 语义：只要命中任意一个排除标签就会被过滤掉（OR / NOT）
+
+### 示例
+
+```bash
+curl -i "http://127.0.0.1:3000/random?excluded_tags=r18"
+curl -i "http://127.0.0.1:3000/random?excluded_tags=r18|r18g"
+```
+
+### 注意事项
+
+- 空值或解析后为空会返回 400（`message=Invalid excluded_tags.`）。
+- 与 `included_tags` 同时使用时：先做 AND（必须包含）再做 NOT（必须不包含），条件越多越严格。
