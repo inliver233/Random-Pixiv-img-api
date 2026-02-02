@@ -54,6 +54,14 @@ curl -L "http://127.0.0.1:3000/random?redirect=1" -o out.bin
 
 - `redirect=1` 会优先于 `format`（即使 `format=json` 也会返回 302）。
 
+## 生产建议（高并发 / CDN）
+
+- `/random` 强制 `Cache-Control: no-store`，不建议被 CDN 缓存。
+- 高并发/生产环境推荐使用 `redirect=1`：让客户端/CDN 缓存稳定图片 URL（`/i/:id.:ext`）的长缓存响应。
+- CDN 建议：
+  - 缓存 `GET /i/*`（长 TTL）
+  - 不缓存 `GET /random`（no-store）
+
 ## `attempts`
 
 `attempts` 用于控制随机挑选失败时的重试次数：
