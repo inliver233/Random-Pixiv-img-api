@@ -2,6 +2,7 @@ import path from 'node:path';
 import type { Request, Response } from 'express';
 import type { Readable } from 'node:stream';
 
+import { getEnv } from '../config/env';
 import { fetchPixivImageStream } from '../http/pixivImageHttp';
 import { enqueueHealUrl } from '../jobs/healUrl';
 import { IMAGE_STATUS_BROKEN, getById, markFail } from '../repositories/imagesRepo';
@@ -25,6 +26,48 @@ function parsePositiveInteger(value: unknown): bigint | null {
   return BigInt(raw);
 }
 
+function parseStatusList(value: string): Set<number> {
+  const normalized = String(value ?? '').trim();
+  if (!normalized) return new Set();
+
+  const out = new Set<number>();
+  for (const part of normalized.split(',')) {
+    const token = part.trim();
+    if (!token) continue;
+    const n = Number(token);
+    if (!Number.isFinite(n)) continue;
+    const status = Math.trunc(n);
+    if (status < 100 || status > 599) continue;
+    out.add(status);
+  }
+  return out;
+}
+
+function hasRetryAfterHeader(headers: unknown): boolean {
+  if (!headers || typeof headers !== 'object') return false;
+  const record = headers as Record<string, unknown>;
+
+  for (const key of Object.keys(record)) {
+    if (key.toLowerCase() !== 'retry-after') continue;
+    const value = record[key];
+    if (Array.isArray(value)) {
+      return value.some((item) => String(item ?? '').trim() !== '');
+    }
+    return String(value ?? '').trim() !== '';
+  }
+
+  return false;
+}
+
+function shouldTriggerHealUrl(status: number, headers: unknown): boolean {
+  const env = getEnv();
+  const triggerStatuses = parseStatusList(env.HEAL_TRIGGER_STATUSES);
+  if (!triggerStatuses.has(status)) return false;
+
+  if (env.HEAL_TRIGGER_SKIP_IF_RETRY_AFTER && hasRetryAfterHeader(headers)) return false;
+  return true;
+}
+
 function classifyUpstreamError(err: unknown): { status: number; code: string; message: string } {
   const anyErr = err as any;
   const status = Number(anyErr?.response?.status);
@@ -33,7 +76,12 @@ function classifyUpstreamError(err: unknown): { status: number; code: string; me
   }
 
   const code = typeof anyErr?.code === 'string' && anyErr.code ? anyErr.code : 'upstream_error';
-  const message = anyErr instanceof Error ? anyErr.message : String(anyErr);
+  const message =
+    anyErr instanceof Error
+      ? anyErr.message
+      : typeof anyErr?.message === 'string' && anyErr.message
+        ? anyErr.message
+        : String(anyErr);
   return { status: 502, code, message };
 }
 
@@ -124,7 +172,8 @@ async function getImageById(req: Request, res: Response) {
     }
 
     const upstream = classifyUpstreamError(err);
-    const markBroken = upstream.status === 403 || upstream.status === 404;
+    const shouldHeal = shouldTriggerHealUrl(upstream.status, anyErr?.response?.headers);
+    const markBroken = shouldHeal;
 
     await safeMarkFail(imageId, {
       code: upstream.code,
@@ -132,7 +181,7 @@ async function getImageById(req: Request, res: Response) {
       status: markBroken ? IMAGE_STATUS_BROKEN : undefined,
     });
 
-    if (markBroken) {
+    if (shouldHeal) {
       void enqueueHealUrl(image.illustId).catch(() => undefined);
     }
 

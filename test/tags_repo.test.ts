@@ -6,7 +6,10 @@ import { syncImageTags, upsertTag } from '../src/repositories/tagsRepo';
 describe('tagsRepo', () => {
   const prisma = {
     tag: {
-      upsert: vi.fn(),
+      findFirst: vi.fn(),
+      create: vi.fn(),
+      update: vi.fn(),
+      findUniqueOrThrow: vi.fn(),
     },
     imageTag: {
       findMany: vi.fn(),
@@ -18,6 +21,14 @@ describe('tagsRepo', () => {
 
   beforeEach(() => {
     setPrismaClientForTest(prisma);
+    prisma.tag.findFirst.mockReset();
+    prisma.tag.create.mockReset();
+    prisma.tag.update.mockReset();
+    prisma.tag.findUniqueOrThrow.mockReset();
+    prisma.imageTag.findMany.mockReset();
+    prisma.imageTag.createMany.mockReset();
+    prisma.imageTag.deleteMany.mockReset();
+    prisma.$transaction.mockClear();
   });
 
   afterEach(() => {
@@ -26,20 +37,29 @@ describe('tagsRepo', () => {
   });
 
   it('upsertTag upserts by name', async () => {
-    prisma.tag.upsert.mockResolvedValue({ id: 1n, name: 'tag' });
+    prisma.tag.findFirst.mockResolvedValue(null);
+    prisma.tag.create.mockResolvedValue({ id: 1n, name: 'tag' });
 
     const res = await upsertTag({ name: ' tag ' });
 
-    expect(prisma.tag.upsert).toHaveBeenCalledWith({
-      where: { name: 'tag' },
-      create: { name: 'tag', translatedName: undefined },
-      update: { translatedName: undefined },
+    expect(prisma.tag.findFirst).toHaveBeenCalledWith({
+      where: {
+        name: {
+          equals: 'tag',
+          mode: 'insensitive',
+        },
+      },
+      select: { id: true },
+    });
+    expect(prisma.tag.create).toHaveBeenCalledWith({
+      data: { name: 'tag', translatedName: undefined },
     });
     expect(res).toEqual({ id: 1n, name: 'tag' });
   });
 
   it('syncImageTags diffs relations (add/remove) and de-dupes input', async () => {
-    prisma.tag.upsert
+    prisma.tag.findFirst.mockResolvedValue(null);
+    prisma.tag.create
       .mockResolvedValueOnce({ id: 1n, name: 'a' })
       .mockResolvedValueOnce({ id: 3n, name: 'b' });
 
@@ -49,7 +69,7 @@ describe('tagsRepo', () => {
 
     const res = await syncImageTags(10n, [{ name: 'a' }, { name: 'b' }, { name: 'b' }]);
 
-    expect(prisma.tag.upsert).toHaveBeenCalledTimes(2);
+    expect(prisma.tag.create).toHaveBeenCalledTimes(2);
 
     expect(prisma.imageTag.createMany).toHaveBeenCalledWith({
       data: [{ imageId: 10n, tagId: 3n }],
@@ -63,7 +83,8 @@ describe('tagsRepo', () => {
   });
 
   it('syncImageTags returns early when no changes', async () => {
-    prisma.tag.upsert.mockResolvedValue({ id: 1n, name: 'a' });
+    prisma.tag.findFirst.mockResolvedValue(null);
+    prisma.tag.create.mockResolvedValue({ id: 1n, name: 'a' });
     prisma.imageTag.findMany.mockResolvedValue([{ tagId: 1n }]);
 
     const res = await syncImageTags(10n, [{ name: 'a' }]);
@@ -74,4 +95,3 @@ describe('tagsRepo', () => {
     expect(res).toEqual({ added: 0, removed: 0 });
   });
 });
-

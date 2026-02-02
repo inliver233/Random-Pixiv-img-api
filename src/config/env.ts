@@ -87,6 +87,9 @@ const envSchema = z.object({
 
   PROMETHEUS_URL: z.string().url().optional(),
 
+  HEAL_TRIGGER_STATUSES: z.string().optional().default('403,404'),
+  HEAL_TRIGGER_SKIP_IF_RETRY_AFTER: booleanSchema.optional().default(true),
+
   RANDOM_FAIL_COOLDOWN_MS: z.coerce.number().int().min(0).optional().default(600_000),
 
   IMGPROXY_URL: z.string().url().optional(),

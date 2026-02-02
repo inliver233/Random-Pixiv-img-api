@@ -9,6 +9,18 @@
 - `src/queue/queue.ts`：队列单例、enqueue/work、health check
 - `src/queue/demo.ts`：demo job（用于手动验收）
 
+## heal_url：URL 自愈任务
+当图片代理遇到“疑似原图 URL 失效”时，会 enqueue `heal_url`（按 `illust_id` 粒度）去冷路径调用 Pixiv detail，刷新 DB 中该作品各页的 `original_url/ext`，并将非 disabled 的图片恢复为 `active`。
+
+### 触发策略（默认安全，可配置）
+- 默认仅在代理上游返回 `403/404` 时触发（见 `HEAL_TRIGGER_STATUSES`）。
+- 为避免把“上游限流”误判为“URL 失效”，当上游响应带 `Retry-After` 时（常见于 rate limit），默认 **不触发** 自愈（见 `HEAL_TRIGGER_SKIP_IF_RETRY_AFTER`）。
+- 对网络错误/超时等无 `response.status` 的错误，不触发自愈（避免放大抖动）。
+
+可用环境变量（同时维护于 `src/config/env.ts` 与 `src/config/env.js`）：
+- `HEAL_TRIGGER_STATUSES`：触发自愈的上游 HTTP 状态码列表（逗号分隔），默认：`403,404`（设置为空可禁用触发）。
+- `HEAL_TRIGGER_SKIP_IF_RETRY_AFTER`：当上游错误响应包含 `Retry-After` 时跳过自愈，默认：`true`。
+
 ## /healthz
 `GET /healthz` 返回 `queue` 字段：
 - `disabled`：未设置 `DATABASE_URL`
@@ -25,4 +37,3 @@
 
 预期：
 - 控制台日志出现 `demo job enqueued` 与 `demo job received`
-

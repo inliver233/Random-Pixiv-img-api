@@ -4,6 +4,7 @@ import { EventEmitter } from 'node:events';
 import request from 'supertest';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { resetEnvForTest } from '../src/config/env';
 import { setPrismaClientForTest } from '../src/db/prismaClient';
 import imageByIdController from '../src/controllers/imageByIdController';
 import imageByIdRoute from '../src/routes/imageById.ts';
@@ -50,6 +51,7 @@ describe('GET /i/:id.:ext', () => {
     mockAxiosGet.mockReset();
     mockEnqueueHealUrl.mockReset();
     mockEnqueueHealUrl.mockResolvedValue('job_1');
+    resetEnvForTest();
   });
 
   afterEach(() => {
@@ -138,6 +140,110 @@ describe('GET /i/:id.:ext', () => {
         status: 3,
       },
     });
+  });
+
+  it('does not enqueue heal_url when upstream 403 includes Retry-After header (rate limit)', async () => {
+    const originUrl = 'https://i.pximg.net/img-original/img/2026/02/01/00/00/00/123_p0.jpg';
+    prisma.image.findUnique.mockResolvedValueOnce({ id: 1n, illustId: 123n, ext: 'jpg', originalUrl: originUrl });
+
+    mockAxiosGet.mockRejectedValueOnce({ response: { status: 403, headers: { 'retry-after': '60' } } });
+    prisma.image.update.mockResolvedValueOnce({ id: 1n });
+
+    const app = createApp();
+
+    const res = await request(app).get('/i/1.jpg').expect(404);
+
+    expect(res.text).toContain('404');
+    expect(mockEnqueueHealUrl).not.toHaveBeenCalled();
+    expect(prisma.image.update).toHaveBeenCalledWith({
+      where: { id: 1n },
+      data: {
+        failCount: { increment: 1 },
+        lastFailAt: expect.any(Date),
+        lastErrorCode: 'upstream_403',
+        lastErrorMsg: 'upstream status 403',
+        status: undefined,
+      },
+    });
+  });
+
+  it('enqueues heal_url when upstream returns 403 without Retry-After', async () => {
+    const originUrl = 'https://i.pximg.net/img-original/img/2026/02/01/00/00/00/123_p0.jpg';
+    prisma.image.findUnique.mockResolvedValueOnce({ id: 1n, illustId: 123n, ext: 'jpg', originalUrl: originUrl });
+
+    mockAxiosGet.mockRejectedValueOnce({ response: { status: 403, headers: {} } });
+    prisma.image.update.mockResolvedValueOnce({ id: 1n });
+
+    const app = createApp();
+
+    const res = await request(app).get('/i/1.jpg').expect(404);
+
+    expect(res.text).toContain('404');
+    expect(mockEnqueueHealUrl).toHaveBeenCalledWith(123n);
+    expect(prisma.image.update).toHaveBeenCalledWith({
+      where: { id: 1n },
+      data: {
+        failCount: { increment: 1 },
+        lastFailAt: expect.any(Date),
+        lastErrorCode: 'upstream_403',
+        lastErrorMsg: 'upstream status 403',
+        status: 3,
+      },
+    });
+  });
+
+  it('does not enqueue heal_url when upstream errors are network-like (no status)', async () => {
+    const originUrl = 'https://i.pximg.net/img-original/img/2026/02/01/00/00/00/123_p0.jpg';
+    prisma.image.findUnique.mockResolvedValueOnce({ id: 1n, illustId: 123n, ext: 'jpg', originalUrl: originUrl });
+
+    mockAxiosGet.mockRejectedValueOnce({ code: 'ECONNRESET', message: 'socket hang up' });
+    prisma.image.update.mockResolvedValueOnce({ id: 1n });
+
+    const app = createApp();
+
+    await request(app).get('/i/1.jpg').expect(502);
+
+    expect(mockEnqueueHealUrl).not.toHaveBeenCalled();
+    expect(prisma.image.update).toHaveBeenCalledWith({
+      where: { id: 1n },
+      data: {
+        failCount: { increment: 1 },
+        lastFailAt: expect.any(Date),
+        lastErrorCode: 'ECONNRESET',
+        lastErrorMsg: 'socket hang up',
+        status: undefined,
+      },
+    });
+  });
+
+  it('can disable heal trigger via HEAL_TRIGGER_STATUSES=', async () => {
+    process.env.HEAL_TRIGGER_STATUSES = '';
+    resetEnvForTest();
+
+    const originUrl = 'https://i.pximg.net/img-original/img/2026/02/01/00/00/00/123_p0.jpg';
+    prisma.image.findUnique.mockResolvedValueOnce({ id: 1n, illustId: 123n, ext: 'jpg', originalUrl: originUrl });
+
+    mockAxiosGet.mockRejectedValueOnce({ response: { status: 404 } });
+    prisma.image.update.mockResolvedValueOnce({ id: 1n });
+
+    const app = createApp();
+
+    await request(app).get('/i/1.jpg').expect(404);
+
+    expect(mockEnqueueHealUrl).not.toHaveBeenCalled();
+    expect(prisma.image.update).toHaveBeenCalledWith({
+      where: { id: 1n },
+      data: {
+        failCount: { increment: 1 },
+        lastFailAt: expect.any(Date),
+        lastErrorCode: 'upstream_404',
+        lastErrorMsg: 'upstream status 404',
+        status: undefined,
+      },
+    });
+
+    delete process.env.HEAL_TRIGGER_STATUSES;
+    resetEnvForTest();
   });
 
   it('does not mark fail_count on client disconnect (request abort)', async () => {

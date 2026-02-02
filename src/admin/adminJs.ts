@@ -414,7 +414,7 @@ export async function getAdminJsRouter(): Promise<Router> {
             }
 
             const errorsRes = await queryPrometheusInstant(
-              'topk(10, sum by (status) (increase(http_requests_total{status=~\"4..|5..\"}[24h])))',
+              'topk(10, sum by (status) (increase(http_requests_total{status=~"4..|5.."}[24h])))',
               { baseUrl: env.PROMETHEUS_URL },
             );
             if (errorsRes.ok) {
