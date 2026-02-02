@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import fs from 'node:fs/promises';
 
+import { getEnv } from '../config/env';
 import { getPrismaClient } from '../db/prismaClient';
 import { parsePixivUrl } from '../utils/parsePixivUrl';
 import { upsertImageForImport } from '../services/import/imageWriteService';
@@ -9,6 +10,66 @@ import { auditAdminEvent } from '../audit/adminAudit';
 
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const formidable = require('express-formidable') as (options?: any) => any;
+
+function parseAllowedMimeTypes(value: string): string[] {
+  const raw = String(value || '').trim();
+  if (!raw) return [];
+  return raw
+    .split(',')
+    .map((item) => item.trim().toLowerCase())
+    .filter((item) => item !== '');
+}
+
+function validateUploadFileType(file: any): void {
+  if (!file) return;
+
+  const env = getEnv();
+  const allowed = parseAllowedMimeTypes(env.ADMIN_IMPORT_ALLOWED_MIME_TYPES);
+  if (allowed.length === 0) return;
+
+  const mime = String(file.type || '').trim().toLowerCase();
+  if (!mime) return;
+
+  if (!allowed.includes(mime)) {
+    const err = new Error(`Invalid upload type: ${mime}`);
+    (err as any).status = 400;
+    (err as any).code = 'INVALID_UPLOAD_TYPE';
+    throw err;
+  }
+}
+
+function adminImportUploadMiddleware(req: any, res: any, next: any): void {
+  const env = getEnv();
+
+  const mw = formidable({
+    multiples: false,
+    maxFileSize: env.ADMIN_IMPORT_MAX_FILE_BYTES,
+    maxFieldsSize: env.ADMIN_IMPORT_MAX_FILE_BYTES,
+  });
+
+  mw(req, res, (err: any) => {
+    if (!err) {
+      next();
+      return;
+    }
+
+    const httpCode = Number(err?.httpCode);
+    const code = typeof err?.code === 'string' ? err.code : '';
+    const message = typeof err?.message === 'string' ? err.message : '';
+
+    const tooLarge = code === 'ETOOBIG'
+      || code === 'LIMIT_FILE_SIZE'
+      || httpCode === 413
+      || /maxfilesize|maxfieldssize|payload too large|too large|exceeded/i.test(message);
+
+    if (tooLarge) {
+      err.status = 413;
+      err.code = 'PAYLOAD_TOO_LARGE';
+    }
+
+    next(err);
+  });
+}
 
 type ImportOkRow = {
   ok: true;
@@ -77,7 +138,7 @@ const router = Router();
 
 router.post(
   '/images/import',
-  formidable({ multiples: false }),
+  adminImportUploadMiddleware,
   (req, res, next) => {
     (async () => {
       const fields = (req as any).fields || {};
@@ -89,7 +150,9 @@ router.post(
         || normalizeText(fields.textarea)
         || normalizeText(fields.input);
 
-      const fileText = await readUploadFileText(files.file || files.upload || files.urls);
+      const uploadFile = files.file || files.upload || files.urls;
+      validateUploadFileType(uploadFile);
+      const fileText = await readUploadFileText(uploadFile);
 
       const combined = [textarea, fileText].filter((v) => v && v.trim()).join('\n');
       const lines = readLines(combined);

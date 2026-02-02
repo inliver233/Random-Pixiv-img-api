@@ -70,6 +70,11 @@ const envSchema = z.object({
   CORS_ALLOWED_ORIGINS: z.string().optional().default('*'),
   CORS_ADMIN_ALLOWED_ORIGINS: z.string().optional().default('*'),
 
+  JSON_BODY_LIMIT: z.string().optional().default('256kb'),
+
+  ADMIN_IMPORT_MAX_FILE_BYTES: z.coerce.number().int().positive().optional().default(1024 * 1024),
+  ADMIN_IMPORT_ALLOWED_MIME_TYPES: z.string().optional().default('text/plain,application/octet-stream'),
+
   RATE_LIMIT_ENABLED: booleanSchema.optional().default(false),
   RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().optional().default(60_000),
   RATE_LIMIT_MAX: z.coerce.number().int().positive().optional().default(60),

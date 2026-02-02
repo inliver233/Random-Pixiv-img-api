@@ -2,7 +2,7 @@ import express, { type NextFunction, type Request, type Response } from 'express
 import path from 'node:path';
 import dotenv from 'dotenv';
 
-import { validateEnv } from './src/config/env';
+import { getEnv, validateEnv } from './src/config/env';
 
 dotenv.config();
 
@@ -12,6 +12,8 @@ try {
   console.error(err instanceof Error ? err.message : err);
   process.exit(1);
 }
+
+const env = getEnv();
 
 const showVersion = require('./src/middlewares/headerMiddleware').default;
 const apiRoutes = require('./src/routes/api').default;
@@ -32,6 +34,8 @@ app.set('views', path.join(__dirname, 'views'));
 
 app.use(requestIdMiddleware);
 app.use(httpLoggerMiddleware);
+app.use(express.json({ limit: env.JSON_BODY_LIMIT }));
+app.use(express.urlencoded({ extended: false, limit: env.JSON_BODY_LIMIT }));
 app.use(corsMiddleware);
 app.use(['/random', '/images', '/healthz', '/metrics', '/admin'], securityHeaders);
 

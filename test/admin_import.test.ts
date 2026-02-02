@@ -2,6 +2,7 @@ import express from 'express';
 import request from 'supertest';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { resetEnvForTest } from '../src/config/env';
 import { setPrismaClientForTest } from '../src/db/prismaClient';
 import adminImportRoute from '../src/routes/adminImport';
 
@@ -33,12 +34,20 @@ describe('POST /admin/images/import', () => {
     prisma.image.update.mockReset();
     prisma.import.create.mockReset();
 
+    delete process.env.ADMIN_IMPORT_MAX_FILE_BYTES;
+    delete process.env.ADMIN_IMPORT_ALLOWED_MIME_TYPES;
+    resetEnvForTest();
+
     setPrismaClientForTest(prisma);
   });
 
   afterEach(() => {
     setPrismaClientForTest(undefined);
     vi.restoreAllMocks();
+
+    delete process.env.ADMIN_IMPORT_MAX_FILE_BYTES;
+    delete process.env.ADMIN_IMPORT_ALLOWED_MIME_TYPES;
+    resetEnvForTest();
   });
 
   it('imports from textarea and writes audit', async () => {
@@ -168,5 +177,32 @@ describe('POST /admin/images/import', () => {
 
     expect(prisma.image.upsert).toHaveBeenCalledTimes(1);
   });
-});
 
+  it('returns 413 when uploaded file exceeds the configured limit', async () => {
+    process.env.ADMIN_IMPORT_MAX_FILE_BYTES = '10';
+    resetEnvForTest();
+
+    const app = createApp();
+
+    const res = await request(app)
+      .post('/admin/images/import')
+      .attach('file', Buffer.from(`${VALID_URL}\n${'a'.repeat(200)}\n`), { filename: 'urls.txt', contentType: 'text/plain' })
+      .expect(413);
+
+    expect(res.body).toMatchObject({ code: 'PAYLOAD_TOO_LARGE' });
+  });
+
+  it('returns 400 when upload content-type is not allowed', async () => {
+    process.env.ADMIN_IMPORT_ALLOWED_MIME_TYPES = 'text/plain';
+    resetEnvForTest();
+
+    const app = createApp();
+
+    const res = await request(app)
+      .post('/admin/images/import')
+      .attach('file', Buffer.from('hello'), { filename: 'urls.png', contentType: 'image/png' })
+      .expect(400);
+
+    expect(res.body).toMatchObject({ code: 'INVALID_UPLOAD_TYPE' });
+  });
+});

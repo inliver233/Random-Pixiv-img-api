@@ -2,7 +2,7 @@ const express = require('express');
 const path = require('path');
 require('dotenv').config();
 
-const { validateEnv } = require('./src/config/env');
+const { validateEnv, getEnv } = require('./src/config/env');
 
 try {
   validateEnv();
@@ -10,6 +10,8 @@ try {
   console.error(err?.message || err);
   process.exit(1);
 }
+
+const env = getEnv();
 
 const requestIdMiddleware = require('./src/middlewares/requestIdMiddleware');
 const httpLoggerMiddleware = require('./src/middlewares/httpLoggerMiddleware');
@@ -30,6 +32,8 @@ app.set('views', path.join(__dirname, 'views'));
 
 app.use(requestIdMiddleware);
 app.use(httpLoggerMiddleware);
+app.use(express.json({ limit: env.JSON_BODY_LIMIT }));
+app.use(express.urlencoded({ extended: false, limit: env.JSON_BODY_LIMIT }));
 app.use(corsMiddleware);
 app.use(['/random', '/images', '/healthz', '/metrics', '/admin'], securityHeaders);
 
