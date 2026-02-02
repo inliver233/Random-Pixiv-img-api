@@ -223,3 +223,20 @@ curl -i "http://127.0.0.1:3000/random?excluded_tags=r18|r18g"
 
 - 空值或解析后为空会返回 400（`message=Invalid excluded_tags.`）。
 - 与 `included_tags` 同时使用时：先做 AND（必须包含）再做 NOT（必须不包含），条件越多越严格。
+
+## `user_id`
+
+`user_id` 用于按 Pixiv 用户 ID 精确筛选：
+
+- 不传：不筛选
+- 传入正整数：只返回 `user_id` 匹配的图片
+
+### 示例
+
+```bash
+curl -i "http://127.0.0.1:3000/random?user_id=12345678"
+```
+
+### 注意事项
+
+- `user_id` 仅接受正整数；空值或非法值返回 400（`message=Invalid user_id.`）。
