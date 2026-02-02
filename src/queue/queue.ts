@@ -13,6 +13,30 @@ declare global {
   var __pixivcatQueue: QueueState | undefined;
 }
 
+function parseBooleanEnv(value: unknown, defaultValue: boolean): boolean {
+  if (typeof value !== 'string') return defaultValue;
+  const normalized = value.trim().toLowerCase();
+  if (['1', 'true', 'yes', 'y', 'on'].includes(normalized)) return true;
+  if (['0', 'false', 'no', 'n', 'off'].includes(normalized)) return false;
+  return defaultValue;
+}
+
+function normalizeDeadLetterSuffix(value: unknown): string {
+  const suffix = typeof value === 'string' ? value.trim() : '';
+  return suffix ? suffix : '__dlq';
+}
+
+export function getDeadLetterQueueName(queueName: string): string | null {
+  const enabled = parseBooleanEnv(process.env.QUEUE_DEAD_LETTER_ENABLED, true);
+  if (!enabled) return null;
+
+  const suffix = normalizeDeadLetterSuffix(process.env.QUEUE_DEAD_LETTER_SUFFIX);
+  if (!suffix) return null;
+
+  if (queueName.endsWith(suffix)) return null;
+  return `${queueName}${suffix}`;
+}
+
 function ensureState(): QueueState {
   globalThis.__pixivcatQueue ??= {
     boss: null,
@@ -25,6 +49,10 @@ function ensureState(): QueueState {
 function getDatabaseUrl(): string | null {
   const url = String(process.env.DATABASE_URL || '').trim();
   return url ? url : null;
+}
+
+export function resetQueueForTest(): void {
+  globalThis.__pixivcatQueue = undefined;
 }
 
 export async function startQueue(): Promise<PgBossInstance | null> {
@@ -84,7 +112,27 @@ export async function stopQueue(): Promise<void> {
   }
 }
 
-export async function enqueue<T = any>(queueName: string, data?: T, options?: any): Promise<string> {
+async function ensureQueueCreatedWithBoss(boss: PgBossInstance, queueName: string, options?: any): Promise<void> {
+  const configuredDeadLetter =
+    typeof options?.deadLetter === 'string' && options.deadLetter.trim() ? String(options.deadLetter).trim() : null;
+  const deadLetter = configuredDeadLetter ?? getDeadLetterQueueName(queueName);
+
+  const createOptions: any = { ...(options ?? {}) };
+  if (deadLetter) createOptions.deadLetter = deadLetter;
+  else delete createOptions.deadLetter;
+
+  const hasOptions = Object.keys(createOptions).length > 0;
+  if (hasOptions) {
+    await boss.createQueue(queueName, createOptions);
+  } else {
+    await boss.createQueue(queueName);
+  }
+  if (deadLetter) {
+    await boss.createQueue(deadLetter);
+  }
+}
+
+export async function ensureQueue(queueName: string, options?: any): Promise<PgBossInstance> {
   const boss = await startQueue();
   if (!boss) {
     const err = new Error('Queue is disabled (DATABASE_URL not set).');
@@ -92,7 +140,12 @@ export async function enqueue<T = any>(queueName: string, data?: T, options?: an
     throw err;
   }
 
-  await boss.createQueue(queueName);
+  await ensureQueueCreatedWithBoss(boss, queueName, options);
+  return boss;
+}
+
+export async function enqueue<T = any>(queueName: string, data?: T, options?: any): Promise<string> {
+  const boss = await ensureQueue(queueName);
   const id = await boss.send(queueName, data ?? {}, options);
   if (!id) {
     const err = new Error('Failed to enqueue job.');
@@ -110,7 +163,7 @@ export async function work<T = any>(
   const boss = await startQueue();
   if (!boss) return;
 
-  await boss.createQueue(queueName);
+  await ensureQueueCreatedWithBoss(boss, queueName);
   await boss.work(queueName, options ?? {}, handler as any);
 }
 

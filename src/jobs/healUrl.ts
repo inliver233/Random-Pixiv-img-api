@@ -1,6 +1,6 @@
 import logger from '../logger/logger';
 import { getEnv } from '../config/env';
-import { enqueue, startQueue, work } from '../queue/queue';
+import { enqueue, ensureQueue, work } from '../queue/queue';
 import { healOriginalUrlsForIllust } from '../repositories/imagesRepo';
 import { hydrateMetadata, type HydrateMetadataPage } from './hydrateMetadata';
 
@@ -56,14 +56,7 @@ export async function enqueueHealUrl(illustId: bigint): Promise<string | null> {
     return enqueue<HealUrlJobData>(HEAL_URL_JOB, { illust_id: illustId.toString() }, options);
   }
 
-  const boss = await startQueue();
-  if (!boss) {
-    const err = new Error('Queue is disabled (DATABASE_URL not set).');
-    (err as any).code = 'QUEUE_DISABLED';
-    throw err;
-  }
-
-  await boss.createQueue(HEAL_URL_JOB);
+  const boss = await ensureQueue(HEAL_URL_JOB);
   const jobId = await boss.sendThrottled(
     HEAL_URL_JOB,
     { illust_id: illustId.toString() },

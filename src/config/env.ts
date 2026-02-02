@@ -87,6 +87,9 @@ const envSchema = z.object({
 
   PROMETHEUS_URL: z.string().url().optional(),
 
+  QUEUE_DEAD_LETTER_ENABLED: booleanSchema.optional().default(true),
+  QUEUE_DEAD_LETTER_SUFFIX: z.string().min(1).optional().default('__dlq'),
+
   HEAL_TRIGGER_STATUSES: z.string().optional().default('403,404'),
   HEAL_TRIGGER_SKIP_IF_RETRY_AFTER: booleanSchema.optional().default(true),
   HEAL_DEBOUNCE_SECONDS: z.coerce.number().int().min(0).optional().default(600),

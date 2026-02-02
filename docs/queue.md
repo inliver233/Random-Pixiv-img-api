@@ -35,6 +35,24 @@
 - `HYDRATE_RATE_LIMIT_GLOBAL_MS`：全局最小间隔（毫秒，0 表示不限制），默认：`200`。
 - `HYDRATE_RATE_LIMIT_PER_TOKEN_MS`：每个 token 的最小间隔（毫秒，0 表示不限制），默认：`1000`。
 
+## dead-letter：失败作业归档（DLQ）
+当 job 执行失败且超过 `retryLimit` 阈值后，pg-boss 可将该 job 路由到 dead-letter queue（DLQ）以便排障与人工处理。
+
+本项目默认启用“每个队列一个 DLQ”：
+- DLQ 名称：`<queue_name><QUEUE_DEAD_LETTER_SUFFIX>`
+- 默认 suffix：`__dlq`
+- 例：`heal_url__dlq`、`hydrate_metadata__dlq`
+
+默认不注册 DLQ worker（避免自动消费/删除），因此 job 会保留在 DLQ 中供排查。
+
+可用环境变量（同时维护于 `src/config/env.ts` 与 `src/config/env.js`）：
+- `QUEUE_DEAD_LETTER_ENABLED`：是否启用 DLQ，默认：`true`。
+- `QUEUE_DEAD_LETTER_SUFFIX`：DLQ 后缀，默认：`__dlq`。
+
+手动查看建议：
+- 用 pg-boss API：`boss.getQueueStats('<dlq_name>')`
+- 或直接查询 DB（schema `pgboss`）
+
 ## /healthz
 `GET /healthz` 返回 `queue` 字段：
 - `disabled`：未设置 `DATABASE_URL`

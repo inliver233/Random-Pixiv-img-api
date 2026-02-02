@@ -3,14 +3,14 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { resetEnvForTest } from '../src/config/env';
 
 const mockEnqueue = vi.hoisted(() => vi.fn());
-const mockStartQueue = vi.hoisted(() => vi.fn());
+const mockEnsureQueue = vi.hoisted(() => vi.fn());
 const mockWork = vi.hoisted(() => vi.fn());
 const mockBossCreateQueue = vi.hoisted(() => vi.fn());
 const mockBossSendThrottled = vi.hoisted(() => vi.fn());
 
 vi.mock('../src/queue/queue', () => ({
   enqueue: mockEnqueue,
-  startQueue: mockStartQueue,
+  ensureQueue: mockEnsureQueue,
   work: mockWork,
 }));
 
@@ -19,7 +19,7 @@ import { enqueueHealUrl } from '../src/jobs/healUrl';
 describe('enqueueHealUrl', () => {
   beforeEach(() => {
     mockEnqueue.mockReset();
-    mockStartQueue.mockReset();
+    mockEnsureQueue.mockReset();
     mockWork.mockReset();
     mockBossCreateQueue.mockReset();
     mockBossSendThrottled.mockReset();
@@ -32,8 +32,7 @@ describe('enqueueHealUrl', () => {
   });
 
   it('uses pg-boss sendThrottled with debounce window (defaults to 600s)', async () => {
-    mockStartQueue.mockResolvedValueOnce({
-      createQueue: mockBossCreateQueue,
+    mockEnsureQueue.mockResolvedValueOnce({
       sendThrottled: mockBossSendThrottled,
     });
     mockBossSendThrottled.mockResolvedValueOnce('job_1');
@@ -41,7 +40,7 @@ describe('enqueueHealUrl', () => {
     const id = await enqueueHealUrl(123n);
 
     expect(id).toBe('job_1');
-    expect(mockBossCreateQueue).toHaveBeenCalledWith('heal_url');
+    expect(mockEnsureQueue).toHaveBeenCalledWith('heal_url');
     expect(mockBossSendThrottled).toHaveBeenCalledWith(
       'heal_url',
       { illust_id: '123' },
@@ -58,8 +57,7 @@ describe('enqueueHealUrl', () => {
   });
 
   it('returns null when throttled (duplicate within window)', async () => {
-    mockStartQueue.mockResolvedValueOnce({
-      createQueue: mockBossCreateQueue,
+    mockEnsureQueue.mockResolvedValueOnce({
       sendThrottled: mockBossSendThrottled,
     });
     mockBossSendThrottled.mockResolvedValueOnce(null);
@@ -75,8 +73,7 @@ describe('enqueueHealUrl', () => {
     process.env.HEAL_RETRY_BACKOFF = '0';
     resetEnvForTest();
 
-    mockStartQueue.mockResolvedValueOnce({
-      createQueue: mockBossCreateQueue,
+    mockEnsureQueue.mockResolvedValueOnce({
       sendThrottled: mockBossSendThrottled,
     });
     mockBossSendThrottled.mockResolvedValueOnce('job_2');
