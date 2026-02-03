@@ -112,7 +112,8 @@ const envSchema = z.object({
   JSON_BODY_LIMIT: optionalStringWithDefault('256kb'),
 
   ADMIN_IMPORT_MAX_LINES: optionalCoercedIntWithDefault(z.number().int().min(0), 0),
-  ADMIN_IMPORT_MAX_FILE_BYTES: optionalCoercedIntWithDefault(z.number().int().positive(), 1024 * 1024),
+  // Allow large URL lists (e.g. 100k lines) by default; Admin endpoints are protected.
+  ADMIN_IMPORT_MAX_FILE_BYTES: optionalCoercedIntWithDefault(z.number().int().positive(), 32 * 1024 * 1024),
   ADMIN_IMPORT_ALLOWED_MIME_TYPES: optionalStringWithDefault('text/plain,application/octet-stream'),
 
   RATE_LIMIT_ENABLED: booleanSchema.optional().default(false),

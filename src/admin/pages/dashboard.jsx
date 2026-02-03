@@ -182,8 +182,8 @@ export default function Dashboard() {
                 <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee' }}>{data.imports.last_24h}</td>
               </tr>
               <tr>
-                <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee', fontWeight: 600 }}>last_import_at</td>
-                <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee' }}>{String(data.imports.last_import_at || 'N/A')}</td>
+                <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee', fontWeight: 600 }}>last_at</td>
+                <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee' }}>{String(data.imports.last_at || 'N/A')}</td>
               </tr>
             </tbody>
           </table>
@@ -192,10 +192,56 @@ export default function Dashboard() {
 
       <div style={{ marginTop: 16, display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: 12 }}>
         <div style={{ border: '1px solid #e5e7eb', borderRadius: 12, padding: 12 }}>
+          <h3 style={{ marginTop: 0 }}>Traffic</h3>
+          {!data.traffic?.ok ? (
+            <p style={{ marginTop: 0, color: '#666' }}>N/A</p>
+          ) : (
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <tbody>
+                <tr>
+                  <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee', fontWeight: 600 }}>http_total</td>
+                  <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee', textAlign: 'right' }}>{data.traffic.http.total}</td>
+                </tr>
+                <tr>
+                  <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee', fontWeight: 600 }}>http_2xx</td>
+                  <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee', textAlign: 'right' }}>{data.traffic.http.status_2xx}</td>
+                </tr>
+                <tr>
+                  <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee', fontWeight: 600 }}>http_4xx</td>
+                  <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee', textAlign: 'right' }}>{data.traffic.http.status_4xx}</td>
+                </tr>
+                <tr>
+                  <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee', fontWeight: 600 }}>http_5xx</td>
+                  <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee', textAlign: 'right' }}>{data.traffic.http.status_5xx}</td>
+                </tr>
+                <tr>
+                  <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee', fontWeight: 600 }}>http_success_ratio</td>
+                  <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee', textAlign: 'right' }}>
+                    {Number.isFinite(data.traffic.http.success_ratio) ? formatPercent(data.traffic.http.success_ratio) : 'N/A'}
+                  </td>
+                </tr>
+                <tr>
+                  <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee', fontWeight: 600 }}>random_total</td>
+                  <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee', textAlign: 'right' }}>{data.traffic.random.total}</td>
+                </tr>
+                <tr>
+                  <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee', fontWeight: 600 }}>random_success_ratio</td>
+                  <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee', textAlign: 'right' }}>
+                    {Number.isFinite(data.traffic.random.success_ratio) ? formatPercent(data.traffic.random.success_ratio) : 'N/A'}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          )}
+          <p style={{ marginTop: 8, color: '#666' }}>
+            success_ratio 仅基于累计计数；更准确的“近 5 分钟成功率”建议用 Prometheus 的 rate/increase。
+          </p>
+        </div>
+
+        <div style={{ border: '1px solid #e5e7eb', borderRadius: 12, padding: 12 }}>
           <h3 style={{ marginTop: 0 }}>Metrics</h3>
           <p style={{ marginTop: 0, color: '#666' }}>
-            configured: <b>{String(Boolean(data.metrics?.configured))}</b>
-            {data.metrics?.fetched_at ? <span style={{ color: '#666' }}> · fetched_at: {data.metrics.fetched_at}</span> : null}
+            enabled: <b>{String(Boolean(data.metrics?.enabled))}</b>
           </p>
           <details>
             <summary>metric names</summary>
@@ -286,4 +332,3 @@ export default function Dashboard() {
     </div>
   );
 }
-

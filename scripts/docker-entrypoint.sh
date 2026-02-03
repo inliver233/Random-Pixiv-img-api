@@ -21,5 +21,9 @@ if [ -z "${DATABASE_URL:-}" ]; then
   fi
 fi
 
-exec "$@"
+# AdminJS bundler output dir (components bundle). Ensure it exists and is writable.
+if [ -n "${ADMIN_JS_TMP_DIR:-}" ]; then
+  mkdir -p "${ADMIN_JS_TMP_DIR}" || true
+fi
 
+exec "$@"

@@ -42,6 +42,9 @@ services:
       RATE_LIMIT_API_KEYS: "${RATE_LIMIT_API_KEYS:-}"
       METRICS_ENABLED: "${METRICS_ENABLED:-1}"
       METRICS_ROUTE: "${METRICS_ROUTE:-/metrics}"
+      # AdminJS writes component bundles to ADMIN_JS_TMP_DIR (defaults to .adminjs).
+      # Use /tmp so it stays writable even when BACKEND_READ_ONLY=true and avoids tmpfs permission issues.
+      ADMIN_JS_TMP_DIR: "/tmp/.adminjs"
     # Optional hardening: enable with BACKEND_READ_ONLY=true
     # When read-only, allow runtime temp writes via tmpfs mounts.
     read_only: ${BACKEND_READ_ONLY:-false}

@@ -316,10 +316,30 @@ export async function getAdminJsRouter(): Promise<Router> {
     const componentLoader = new ComponentLoader();
     // AdminJS bundler parses JSX reliably from .jsx/.tsx but not from plain .js in some environments.
     const Dashboard = componentLoader.add('Dashboard', path.join(__dirname, 'pages', 'dashboard.jsx'));
+    const ImportUrls = componentLoader.add('ImportUrls', path.join(__dirname, 'pages', 'importUrls.jsx'));
 
     const admin = new AdminJS({
       rootPath: '/admin',
       componentLoader,
+      pages: {
+        importUrls: {
+          label: 'Import URLs',
+          component: ImportUrls,
+          handler: async () => {
+            // eslint-disable-next-line @typescript-eslint/no-var-requires
+            const { getEnv } = require('../config/env') as typeof import('../config/env');
+            const env = getEnv();
+            return {
+              ok: true,
+              // Used by the frontend to build relative API URLs under reverse proxies.
+              baseUrl: '',
+              adminImportMaxFileBytes: env.ADMIN_IMPORT_MAX_FILE_BYTES,
+              adminImportMaxLines: env.ADMIN_IMPORT_MAX_LINES,
+              note: 'Use /admin/images/import for actual import. This page helps with batching and previews.',
+            };
+          },
+        },
+      },
       dashboard: {
         component: Dashboard,
         handler: async () => {
@@ -379,6 +399,53 @@ export async function getAdminJsRouter(): Promise<Router> {
           }
 
           const brokenRatio = imagesTotal > 0 ? imagesBroken / imagesTotal : 0;
+
+          let traffic: any = { ok: false };
+          try {
+            // eslint-disable-next-line @typescript-eslint/no-var-requires
+            const { getHttpRequestsTotalCounter } = require('../metrics/httpMetrics') as typeof import('../metrics/httpMetrics');
+            // eslint-disable-next-line @typescript-eslint/no-var-requires
+            const { getRandomSuccessTotalCounter, getRandomFailTotalCounter } = require('../metrics/randomMetrics') as typeof import('../metrics/randomMetrics');
+
+            const httpMetric = await getHttpRequestsTotalCounter().get();
+            let httpTotal = 0;
+            let http2xx = 0;
+            let http4xx = 0;
+            let http5xx = 0;
+            for (const row of httpMetric.values || []) {
+              const value = Number(row.value) || 0;
+              httpTotal += value;
+              const status = String(row.labels?.status || '');
+              if (status.startsWith('2')) http2xx += value;
+              else if (status.startsWith('4')) http4xx += value;
+              else if (status.startsWith('5')) http5xx += value;
+            }
+
+            const randomSuccessMetric = await getRandomSuccessTotalCounter().get();
+            const randomFailMetric = await getRandomFailTotalCounter().get();
+            const randomSuccess = Number(randomSuccessMetric.values?.[0]?.value || 0);
+            const randomFail = Number(randomFailMetric.values?.[0]?.value || 0);
+            const randomTotal = randomSuccess + randomFail;
+
+            traffic = {
+              ok: true,
+              http: {
+                total: httpTotal,
+                status_2xx: http2xx,
+                status_4xx: http4xx,
+                status_5xx: http5xx,
+                success_ratio: httpTotal > 0 ? http2xx / httpTotal : null,
+              },
+              random: {
+                success_total: randomSuccess,
+                fail_total: randomFail,
+                total: randomTotal,
+                success_ratio: randomTotal > 0 ? randomSuccess / randomTotal : null,
+              },
+            };
+          } catch {
+            traffic = { ok: false };
+          }
 
           // eslint-disable-next-line @typescript-eslint/no-var-requires
           const { getEnv } = require('../config/env') as { getEnv: () => { METRICS_ENABLED: boolean; PROMETHEUS_URL?: string } };
@@ -467,8 +534,8 @@ export async function getAdminJsRouter(): Promise<Router> {
               disabled: imagesDisabled,
               broken: imagesBroken,
               broken_ratio: brokenRatio,
+              top_errors: topErrors,
             },
-            top_errors: topErrors,
             imports: {
               total: importsTotal,
               last_24h: importsLast24h,
@@ -487,6 +554,7 @@ export async function getAdminJsRouter(): Promise<Router> {
               metric_names: metricNames,
             },
             prometheus,
+            traffic,
             errors: {
               db: dbError,
             },
