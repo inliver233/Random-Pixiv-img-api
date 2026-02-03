@@ -4,6 +4,7 @@ const { incrementUpstreamError } = require('../metrics/upstreamMetrics');
 const { getEnv } = require('../config/env');
 const { getAccessToken, getAccessTokenWithMeta, maskHeader } = require('./pixivAuthService');
 const memcachedService = require('./memcachedService');
+const logger = require('../logger/logger');
 
 const PIXIV_BASE_URL = 'https://app-api.pixiv.net/v1';
 
@@ -104,13 +105,13 @@ const getPixivIllustIdData = async (illustId, cache = true, options = {}) => {
     }
 
     if (cachedData !== null && cachedData !== undefined) {
-      console.log('Using cached Pixiv API data for illust ID:', illustId);
+      logger.info({ illust_id: String(illustId) }, 'Using cached Pixiv API data for illust ID');
       return cachedData;
     }
   }
 
   try {
-    console.log('Fetching Pixiv API data for illust ID:', illustId);
+    logger.info({ illust_id: String(illustId) }, 'Fetching Pixiv API data for illust ID');
     const fetch = async (accessToken) => pixivApiCircuitFire(async () => pixivApiGet(`${PIXIV_BASE_URL}/illust/detail?illust_id=${illustId}`, {
       headers: {
         Accept: 'application/json',
@@ -172,7 +173,7 @@ const getPixivIllustIdData = async (illustId, cache = true, options = {}) => {
     else if (Number.isFinite(status) && status >= 500) incrementUpstreamError('5xx');
 
     // Other upstream errors
-    console.error('Pixiv service error:', error);
+    logger.error({ err: error }, 'Pixiv service error');
     const err = new Error('Pixiv API request failed');
     err.code = 'upstream';
     throw err;

@@ -3,11 +3,12 @@ const path = require('path');
 require('dotenv').config();
 
 const { validateEnv, getEnv } = require('./src/config/env');
+const logger = require('./src/logger/logger');
 
 try {
   validateEnv();
 } catch (err) {
-  console.error(err?.message || err);
+  logger.error({ err }, 'Invalid environment variables');
   process.exit(1);
 }
 
@@ -48,7 +49,7 @@ app.use(errorHandler);
 // Start the server (only when executed directly; allow importing app for tests)
 if (require.main === module) {
   app.listen(PORT, HOST, () => {
-    console.log(`Server is running on ${HOST}:${PORT}`);
+    logger.info({ host: HOST, port: PORT }, 'Server is running');
   });
 }
 

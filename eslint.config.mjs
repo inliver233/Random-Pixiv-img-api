@@ -11,6 +11,9 @@ export default [
 
   {
     files: ["**/*.{js,mjs,cjs,ts}"],
+    linterOptions: {
+      reportUnusedDisableDirectives: false,
+    },
     languageOptions: {
       globals: {
         ...globals.browser,
@@ -24,13 +27,7 @@ export default [
     rules: {
       "no-console": "warn",
       "no-unused-vars": "warn",
-      "import/order": [
-        "warn",
-        {
-          "alphabetize": { "order": "asc", "caseInsensitive": true },
-          "newlines-between": "always"
-        }
-      ],
+      "import/order": "off",
       "promise/catch-or-return": "warn",
     },
   },

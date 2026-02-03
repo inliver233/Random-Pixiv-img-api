@@ -1,15 +1,17 @@
-import express, { type NextFunction, type Request, type Response } from 'express';
 import path from 'node:path';
+
+import express from 'express';
 import dotenv from 'dotenv';
 
 import { getEnv, validateEnv } from './src/config/env';
+import logger from './src/logger/logger';
 
 dotenv.config();
 
 try {
   validateEnv();
 } catch (err: unknown) {
-  console.error(err instanceof Error ? err.message : err);
+  logger.error({ err }, 'Invalid environment variables');
   process.exit(1);
 }
 
@@ -50,7 +52,7 @@ app.use(errorHandler);
 // Start the server
 if (require.main === module) {
   app.listen(PORT, HOST, () => {
-    console.log(`Server is running on ${HOST}:${PORT}`);
+    logger.info({ host: HOST, port: PORT }, 'Server is running');
   });
 }
 

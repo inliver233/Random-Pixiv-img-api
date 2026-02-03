@@ -2,6 +2,7 @@ import { pixivApiGet } from '../http/axiosClient';
 import { isCircuitOpenError, pixivApiCircuitFire } from '../resilience/circuit';
 import { incrementUpstreamError } from '../metrics/upstreamMetrics';
 import { getEnv } from '../config/env';
+import logger from '../logger/logger';
 
 import { getAccessToken, getAccessTokenWithMeta, maskHeader } from './pixivAuthService';
 import memcachedService from './memcachedService';
@@ -125,13 +126,13 @@ const getPixivIllustIdData = async (illustId: string | number, cache = true, opt
     }
 
     if (cachedData !== null && cachedData !== undefined) {
-      console.log('Using cached Pixiv API data for illust ID:', illustId);
+      logger.info({ illust_id: String(illustId) }, 'Using cached Pixiv API data for illust ID');
       return cachedData;
     }
   }
 
   try {
-    console.log('Fetching Pixiv API data for illust ID:', illustId);
+    logger.info({ illust_id: String(illustId) }, 'Fetching Pixiv API data for illust ID');
 
     const fetch = async (accessToken: string) => pixivApiCircuitFire(async () => pixivApiGet(`${PIXIV_BASE_URL}/illust/detail?illust_id=${illustId}`, {
       headers: {
@@ -194,7 +195,7 @@ const getPixivIllustIdData = async (illustId: string | number, cache = true, opt
     else if (Number.isFinite(status) && status >= 500) incrementUpstreamError('5xx');
 
     // Other upstream errors
-    console.error('Pixiv service error:', error);
+    logger.error({ err: error }, 'Pixiv service error');
     const err: any = new Error('Pixiv API request failed');
     err.code = 'upstream';
     throw err;

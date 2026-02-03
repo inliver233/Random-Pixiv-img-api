@@ -4,6 +4,7 @@ import type { Readable } from 'node:stream';
 import { Pool } from 'pg';
 
 import pixivService from '../services/pixivService';
+import logger from '../logger/logger';
 import { getImageContentTypeFromFilename } from '../utils/contentType';
 
 const imageHeaders = {
@@ -50,7 +51,7 @@ async function tryGetOriginalUrlFromDb(illustId: string, pageIndex: number): Pro
     const row = res.rows[0];
     return row && row.original_url ? String(row.original_url) : null;
   } catch (err: unknown) {
-    console.warn('DB lookup failed, falling back to Pixiv API.', err instanceof Error ? err.message : err);
+    logger.warn({ err }, 'DB lookup failed, falling back to Pixiv API.');
     return null;
   }
 }
@@ -65,7 +66,7 @@ async function hasMultiplePagesInDb(illustId: string): Promise<boolean> {
     ]);
     return res.rows.length > 0;
   } catch (err: unknown) {
-    console.warn('DB lookup failed (multi-page probe).', err instanceof Error ? err.message : err);
+    logger.warn({ err }, 'DB lookup failed (multi-page probe).');
     return false;
   }
 }
@@ -89,7 +90,7 @@ async function streamImageByUrl(imageURL: string, res: Response): Promise<void> 
 
   // Handle source stream errors
   sourceStream.on('error', (err) => {
-    console.error('Source stream error:', err);
+    logger.error({ err }, 'Source stream error');
     sourceStream.destroy();
     // Can't send error page after headers are sent, just end the response
     if (!res.headersSent) {
@@ -106,7 +107,7 @@ async function streamImageByUrl(imageURL: string, res: Response): Promise<void> 
   // Handle client disconnect - destroy source stream to prevent memory leak
   res.on('close', () => {
     if (!sourceStream.destroyed) {
-      console.log('Client closed connection, destroying stream');
+      logger.info('Client closed connection, destroying stream');
       sourceStream.destroy();
     }
   });
@@ -177,7 +178,7 @@ const getIllustSingle = async (req: Request, res: Response) => {
     const imageURL = pixivApiResponse.illust.meta_single_page.original_image_url as string;
     await streamImageByUrl(imageURL, res);
   } catch (error: any) {
-    console.error('Illust proxy controller error:', error);
+    logger.error({ err: error }, 'Illust proxy controller error');
     if (error?.message === 'Pixiv API rate limit exceeded.') {
       res
         .status(503)
@@ -233,7 +234,7 @@ const getIllustMulti = async (req: Request, res: Response) => {
     const imageURL = pixivApiResponse.illust.meta_pages[requestedPage - 1].image_urls.original as string;
     await streamImageByUrl(imageURL, res);
   } catch (error: any) {
-    console.error('Illust proxy controller error:', error);
+    logger.error({ err: error }, 'Illust proxy controller error');
     if (error?.message === 'Pixiv API rate limit exceeded.') {
       res
         .status(503)
