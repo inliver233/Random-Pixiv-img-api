@@ -1,4 +1,5 @@
 import crypto from 'node:crypto';
+import path from 'node:path';
 import { Router } from 'express';
 import session from 'express-session';
 
@@ -29,7 +30,9 @@ router.use(session({
     path: '/admin',
     httpOnly: true,
     sameSite: 'strict',
-    secure: process.env.NODE_ENV === 'production',
+    // Use auto so local HTTP works, while HTTPS (or proxied HTTPS) still gets Secure cookies.
+    // Requires Express `trust proxy` to be configured correctly when behind reverse proxies.
+    secure: 'auto' as any,
     maxAge: 7 * 24 * 60 * 60 * 1000,
   },
 }));
@@ -37,6 +40,24 @@ router.use(session({
 router.use(adminAuth);
 router.use(adminWriteRateLimit);
 router.use(adminCsrf);
+
+// AdminJS serves custom components bundle from ADMIN_JS_TMP_DIR/bundle.js in production.
+// The default tmp dir (`.adminjs`) is a dotfile and Express `sendFile` ignores dotfiles by default,
+// causing a persistent 404 even when the bundle exists. Serve it explicitly with dotfiles allowed.
+router.get('/frontend/assets/components.bundle.js', (req, res, next) => {
+  if (process.env.NODE_ENV !== 'production') {
+    next();
+    return;
+  }
+
+  const tmpDir = String(process.env.ADMIN_JS_TMP_DIR || '.adminjs').trim() || '.adminjs';
+  const bundlePath = path.resolve(tmpDir, 'bundle.js');
+
+  res.setHeader('Cache-Control', 'no-store');
+  res.sendFile(bundlePath, { dotfiles: 'allow' } as any, (err) => {
+    if (err) next(err);
+  });
+});
 
 router.get('/login', (req, res) => {
   if (!parseBooleanEnv(process.env.ADMIN_SESSION_AUTH_ENABLED, false)) {

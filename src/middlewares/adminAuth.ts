@@ -198,7 +198,7 @@ function parseCookie(header: string, name: string): string | null {
   return null;
 }
 
-function setAdminTokenCookie(res: Response, token: string) {
+function setAdminTokenCookie(req: Request, res: Response, token: string) {
   const encoded = encodeURIComponent(token);
 
   // Limit the cookie to /admin to reduce accidental leakage to public endpoints.
@@ -212,8 +212,9 @@ function setAdminTokenCookie(res: Response, token: string) {
     `Max-Age=${7 * 24 * 60 * 60}`,
   ];
 
-  // Only mark Secure in production. (Local dev often runs without HTTPS.)
-  if (process.env.NODE_ENV === 'production') {
+  // Only mark Secure when the current request is HTTPS (or proxied HTTPS).
+  // This avoids the common "login works but assets 401" issue when someone tests over plain HTTP.
+  if (req.secure) {
     parts.push('Secure');
   }
 
@@ -336,7 +337,7 @@ export default function adminAuth(req: Request, res: Response, next: NextFunctio
 
   if (typeof req.query?.token === 'string') {
     // First-time browser access: persist token as cookie to allow subsequent asset/API requests.
-    setAdminTokenCookie(res, provided);
+    setAdminTokenCookie(req, res, provided);
 
     if (req.method === 'GET') {
       // Redirect to the same path without the token query param to keep it out of the URL bar.
