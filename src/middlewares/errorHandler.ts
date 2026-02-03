@@ -57,6 +57,16 @@ function buildSafeErrorMeta(err: unknown): Record<string, unknown> {
   };
 }
 
+function normalizeErrorCode(code: string): string {
+  const raw = code.trim();
+  if (!raw) return raw;
+
+  if (raw === 'invalid_url' || raw === 'unsupported_url') return 'UNSUPPORTED_URL';
+  if (raw === 'rate_limit') return 'UPSTREAM_RATE_LIMIT';
+
+  return raw;
+}
+
 function getRequestId(req: Request, res: Response): string | undefined {
   return (req as any).request_id || res.locals.request_id;
 }
@@ -87,9 +97,13 @@ function normalizeError(err: unknown): { status: number; code: string; message: 
   const maybe = err as Partial<ErrorWithMeta> | null;
 
   const statusCandidate = Number(maybe?.status ?? maybe?.statusCode);
-  const status = Number.isFinite(statusCandidate) && statusCandidate >= 400 && statusCandidate <= 599 ? statusCandidate : 500;
+  let status = Number.isFinite(statusCandidate) && statusCandidate >= 400 && statusCandidate <= 599 ? statusCandidate : 500;
 
   const codeFromError = typeof maybe?.code === 'string' && maybe.code ? maybe.code : null;
+  const normalizedCodeFromError = codeFromError ? normalizeErrorCode(codeFromError) : null;
+  if (normalizedCodeFromError === 'UNSUPPORTED_URL' && status === 500) status = 400;
+  if (normalizedCodeFromError === 'UPSTREAM_RATE_LIMIT' && status === 500) status = 503;
+
   const codeFromStatus = status === 400
     ? 'BAD_REQUEST'
     : status === 401
@@ -104,11 +118,11 @@ function normalizeError(err: unknown): { status: number; code: string; message: 
               ? 'INTERNAL_SERVER_ERROR'
               : 'ERROR';
 
-  const message = status >= 500 ? 'Internal Server Error' : maskUrlsInText(maybe?.message || 'Error');
+  const message = status >= 500 ? (STATUS_CODES[status] || 'Internal Server Error') : maskUrlsInText(maybe?.message || 'Error');
 
   return {
     status,
-    code: codeFromError || codeFromStatus,
+    code: normalizedCodeFromError || codeFromStatus,
     message,
   };
 }

@@ -19,3 +19,19 @@
 
 - 任何输出到**日志/错误响应**的 URL（尤其是 `origin_url`）默认会移除 query/hash（例如 `?token=...`），避免泄漏敏感信息。
 - 对于上游请求类错误（例如 Axios error），日志会尽量输出 `origin_url` 的 **scheme/host/path** 部分，便于定位资源但不暴露 query。
+
+## Error codes
+
+> 约定：所有 JSON 错误响应返回 `{ code, message, request_id }`。HTML（legacy）错误页仅展示 `request_id`（不保证包含 code）。
+
+| code | http | meaning | notes |
+| --- | --- | --- | --- |
+| `BAD_REQUEST` | 400 | 请求参数非法/缺失 | 未显式设置 `err.code` 时的默认值 |
+| `UNAUTHORIZED` | 401 | 未授权 | 同上 |
+| `FORBIDDEN` | 403 | 禁止访问 | 同上 |
+| `NOT_FOUND` | 404 | 资源不存在 | 同上 |
+| `RATE_LIMIT` | 429 | 本服务限流 | 同上 |
+| `INTERNAL_SERVER_ERROR` | 500 | 服务内部错误 | 同上（message 会被固定为 `Internal Server Error`） |
+| `NO_MATCH` | 404 | 随机筛选无匹配图片 | `/random` 在筛选无结果时返回 |
+| `UNSUPPORTED_URL` | 400 | 不支持的 URL（host/path 形态不匹配） | URL 解析类失败（例如 Pixiv 原图 URL） |
+| `UPSTREAM_RATE_LIMIT` | 503 | 上游限流 | Pixiv API 或图片上游返回限流/触发熔断时使用 |
