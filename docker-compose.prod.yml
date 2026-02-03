@@ -9,6 +9,16 @@ services:
     tmpfs:
       - /tmp
       - /app/.adminjs
+    # Optional hardening: resource limits (tune per host).
+    deploy:
+      resources:
+        limits:
+          cpus: "${BACKEND_LIMIT_CPUS:-1.0}"
+          memory: "${BACKEND_LIMIT_MEMORY:-1024M}"
+    ulimits:
+      nofile:
+        soft: ${BACKEND_ULIMIT_NOFILE_SOFT:-65535}
+        hard: ${BACKEND_ULIMIT_NOFILE_HARD:-65535}
     healthcheck:
       test:
         - CMD
