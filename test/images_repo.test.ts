@@ -119,9 +119,11 @@ describe('imagesRepo', () => {
       expect(prisma.image.findFirst).toHaveBeenNthCalledWith(1, {
         where: {
           status: IMAGE_STATUS_ACTIVE,
-          xRestrict: 0,
           width: { gte: 500 },
-          OR: [{ lastFailAt: null }, { lastFailAt: { lt: cutoff } }],
+          AND: [
+            { OR: [{ xRestrict: 0 }, { xRestrict: null }] },
+            { OR: [{ lastFailAt: null }, { lastFailAt: { lt: cutoff } }] },
+          ],
           randomKey: { gte: 0.5 },
         },
         orderBy: { randomKey: 'asc' },
@@ -130,9 +132,11 @@ describe('imagesRepo', () => {
       expect(prisma.image.findFirst).toHaveBeenNthCalledWith(2, {
         where: {
           status: IMAGE_STATUS_ACTIVE,
-          xRestrict: 0,
           width: { gte: 500 },
-          OR: [{ lastFailAt: null }, { lastFailAt: { lt: cutoff } }],
+          AND: [
+            { OR: [{ xRestrict: 0 }, { xRestrict: null }] },
+            { OR: [{ lastFailAt: null }, { lastFailAt: { lt: cutoff } }] },
+          ],
         },
         orderBy: { randomKey: 'asc' },
       });
@@ -151,6 +155,10 @@ describe('imagesRepo', () => {
 
     expect(prisma.image.findFirst).not.toHaveBeenCalled();
     expect(prisma.$queryRaw).toHaveBeenCalledTimes(2);
+
+    const firstQuery = prisma.$queryRaw.mock.calls[0]?.[0];
+    expect(firstQuery?.sql).toContain('x_restrict IS NULL');
+
     expect(prisma.image.findUnique).toHaveBeenCalledWith({ where: { id: 5n } });
     expect(res).toEqual({ id: 5n });
   });

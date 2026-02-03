@@ -22,6 +22,7 @@ const VALID_URL = 'https://i.pximg.net/img-original/img/2020/01/01/00/00/00/1234
 
 describe('POST /admin/images/import', () => {
   const prisma = {
+    $executeRaw: vi.fn(),
     image: {
       upsert: vi.fn(),
       update: vi.fn(),
@@ -33,6 +34,7 @@ describe('POST /admin/images/import', () => {
   } as any;
 
   beforeEach(() => {
+    prisma.$executeRaw.mockReset();
     prisma.image.upsert.mockReset();
     prisma.image.update.mockReset();
     prisma.import.create.mockReset();
@@ -41,6 +43,8 @@ describe('POST /admin/images/import', () => {
     delete process.env.ADMIN_IMPORT_MAX_LINES;
     delete process.env.ADMIN_IMPORT_MAX_FILE_BYTES;
     delete process.env.ADMIN_IMPORT_ALLOWED_MIME_TYPES;
+    delete process.env.ADMIN_IMPORT_BULK_MIN_IMAGES;
+    delete process.env.ADMIN_IMPORT_MAX_HYDRATE_ILLUSTS;
     resetEnvForTest();
 
     setPrismaClientForTest(prisma);
@@ -53,6 +57,8 @@ describe('POST /admin/images/import', () => {
     delete process.env.ADMIN_IMPORT_MAX_LINES;
     delete process.env.ADMIN_IMPORT_MAX_FILE_BYTES;
     delete process.env.ADMIN_IMPORT_ALLOWED_MIME_TYPES;
+    delete process.env.ADMIN_IMPORT_BULK_MIN_IMAGES;
+    delete process.env.ADMIN_IMPORT_MAX_HYDRATE_ILLUSTS;
     resetEnvForTest();
   });
 
@@ -107,6 +113,34 @@ describe('POST /admin/images/import', () => {
         }),
       }),
     );
+  });
+
+  it('uses bulk DB writes when ADMIN_IMPORT_BULK_MIN_IMAGES is met', async () => {
+    process.env.ADMIN_IMPORT_BULK_MIN_IMAGES = '1';
+    resetEnvForTest();
+
+    prisma.$executeRaw.mockResolvedValue(1);
+    prisma.import.create.mockResolvedValue({ id: 101n });
+
+    const app = createApp();
+
+    const res = await request(app)
+      .post('/admin/images/import')
+      .field('urls', VALID_URL)
+      .expect(200);
+
+    expect(res.body).toMatchObject({
+      ok: true,
+      import_id: '101',
+      total_lines: 1,
+      unique_images: 1,
+      success: 1,
+      failed: 0,
+    });
+
+    expect(prisma.$executeRaw).toHaveBeenCalledTimes(1);
+    expect(prisma.image.upsert).not.toHaveBeenCalled();
+    expect(prisma.image.update).not.toHaveBeenCalled();
   });
 
   it('GET /admin/imports/:id returns progress details', async () => {

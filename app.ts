@@ -58,6 +58,17 @@ if (require.main === module) {
   app.listen(PORT, HOST, () => {
     logger.info({ host: HOST, port: PORT }, 'Server is running');
   });
+
+  const registerHydrateMetadataWorker = require('./src/jobs/hydrateMetadata').registerHydrateMetadataWorker as () => Promise<void>;
+  const registerHealUrlWorker = require('./src/jobs/healUrl').registerHealUrlWorker as () => Promise<void>;
+
+  void registerHydrateMetadataWorker().catch((err: unknown) => {
+    logger.error({ err }, 'register hydrate_metadata worker failed');
+  });
+
+  void registerHealUrlWorker().catch((err: unknown) => {
+    logger.error({ err }, 'register heal_url worker failed');
+  });
 }
 
 export default app;

@@ -121,14 +121,16 @@ async function ensureQueueCreatedWithBoss(boss: PgBossInstance, queueName: strin
   if (deadLetter) createOptions.deadLetter = deadLetter;
   else delete createOptions.deadLetter;
 
+  if (deadLetter) {
+    // pg-boss requires the dead-letter queue to exist before it can be referenced.
+    await boss.createQueue(deadLetter);
+  }
+
   const hasOptions = Object.keys(createOptions).length > 0;
   if (hasOptions) {
     await boss.createQueue(queueName, createOptions);
   } else {
     await boss.createQueue(queueName);
-  }
-  if (deadLetter) {
-    await boss.createQueue(deadLetter);
   }
 }
 

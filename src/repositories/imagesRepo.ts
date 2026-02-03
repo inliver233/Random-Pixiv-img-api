@@ -227,7 +227,14 @@ function buildPickRandomBaseWhere(filters: PickRandomFilters) {
   };
 
   if (filters.xRestrict !== undefined && filters.xRestrict !== null) {
-    where.xRestrict = filters.xRestrict;
+    if (filters.xRestrict === 0) {
+      // Imported images may not have metadata yet (xRestrict is NULL).
+      // When r18=0 we still want to serve these images.
+      where.AND ??= [];
+      where.AND.push({ OR: [{ xRestrict: 0 }, { xRestrict: null }] });
+    } else {
+      where.xRestrict = filters.xRestrict;
+    }
   }
 
   if (filters.userId !== undefined && filters.userId !== null) {
@@ -253,7 +260,8 @@ function buildPickRandomBaseWhere(filters: PickRandomFilters) {
   const env = getEnv();
   if (env.RANDOM_FAIL_COOLDOWN_MS > 0) {
     const cutoff = new Date(Date.now() - env.RANDOM_FAIL_COOLDOWN_MS);
-    where.OR = [{ lastFailAt: null }, { lastFailAt: { lt: cutoff } }];
+    where.AND ??= [];
+    where.AND.push({ OR: [{ lastFailAt: null }, { lastFailAt: { lt: cutoff } }] });
   }
 
   if (filters.includedTags !== undefined && filters.includedTags !== null && filters.includedTags.length > 0) {
@@ -317,7 +325,11 @@ function buildPickRandomSqlConditions(filters: PickRandomFilters): Prisma.Sql[] 
   const conditions: Prisma.Sql[] = [Prisma.sql`status = ${IMAGE_STATUS_ACTIVE}`];
 
   if (filters.xRestrict !== undefined && filters.xRestrict !== null) {
-    conditions.push(Prisma.sql`x_restrict = ${filters.xRestrict}`);
+    if (filters.xRestrict === 0) {
+      conditions.push(Prisma.sql`(x_restrict = ${filters.xRestrict} OR x_restrict IS NULL)`);
+    } else {
+      conditions.push(Prisma.sql`x_restrict = ${filters.xRestrict}`);
+    }
   }
 
   if (filters.userId !== undefined && filters.userId !== null) {

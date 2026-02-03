@@ -323,7 +323,7 @@ export async function getAdminJsRouter(): Promise<Router> {
       componentLoader,
       pages: {
         importUrls: {
-          label: 'Import URLs',
+          label: '批量导入 URL',
           component: ImportUrls,
           handler: async () => {
             // eslint-disable-next-line @typescript-eslint/no-var-requires
@@ -335,7 +335,7 @@ export async function getAdminJsRouter(): Promise<Router> {
               baseUrl: '',
               adminImportMaxFileBytes: env.ADMIN_IMPORT_MAX_FILE_BYTES,
               adminImportMaxLines: env.ADMIN_IMPORT_MAX_LINES,
-              note: 'Use /admin/images/import for actual import. This page helps with batching and previews.',
+              note: '实际导入接口：/admin/images/import。本页面用于预览、去重与分批提交（更适合 1Panel/Cloudflare 反代）。',
             };
           },
         },

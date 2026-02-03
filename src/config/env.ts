@@ -115,6 +115,12 @@ const envSchema = z.object({
   // Allow large URL lists (e.g. 100k lines) by default; Admin endpoints are protected.
   ADMIN_IMPORT_MAX_FILE_BYTES: optionalCoercedIntWithDefault(z.number().int().positive(), 32 * 1024 * 1024),
   ADMIN_IMPORT_ALLOWED_MIME_TYPES: optionalStringWithDefault('text/plain,application/octet-stream'),
+  // Switch to bulk DB writes when importing a lot of URLs.
+  // 0 disables bulk mode (always per-line upsert).
+  ADMIN_IMPORT_BULK_MIN_IMAGES: optionalCoercedIntWithDefault(z.number().int().min(0), 1000),
+  // Enqueueing hydrate jobs for very large imports can be slow and may hit proxy timeouts.
+  // 0 means unlimited; otherwise enqueue is skipped when unique illust_id count exceeds this value.
+  ADMIN_IMPORT_MAX_HYDRATE_ILLUSTS: optionalCoercedIntWithDefault(z.number().int().min(0), 2000),
 
   RATE_LIMIT_ENABLED: booleanSchema.optional().default(false),
   RATE_LIMIT_WINDOW_MS: optionalCoercedIntWithDefault(z.number().int().positive(), 60_000),

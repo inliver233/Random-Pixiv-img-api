@@ -4,9 +4,9 @@ import fs from 'node:fs/promises';
 import { getEnv } from '../config/env';
 import { getPrismaClient } from '../db/prismaClient';
 import { enqueueHydrateMetadata } from '../jobs/hydrateMetadata';
-import { getQueueHealth } from '../queue/queue';
+import { ensureQueue, getQueueHealth } from '../queue/queue';
 import { parsePixivUrl } from '../utils/parsePixivUrl';
-import { upsertImageForImport } from '../services/import/imageWriteService';
+import { bulkUpsertImagesForImport, upsertImageForImport } from '../services/import/imageWriteService';
 import { createImport, getById as getImportById } from '../repositories/importsRepo';
 import { auditAdminEvent } from '../audit/adminAudit';
 
@@ -156,6 +156,10 @@ function buildStableProxyPath(id: bigint, ext: string): string {
   return `/i/${id.toString()}.${ext}`;
 }
 
+function buildImportProxyPath(illustId: bigint, pageIndex: number, ext: string): string {
+  return `/i/${illustId.toString()}_${pageIndex}.${ext}`;
+}
+
 const router = Router();
 
 function parsePositiveBigInt(value: unknown): bigint | null {
@@ -256,22 +260,38 @@ router.post(
       const errors: ImportErrorRow[] = [];
       const results: ImportOkRow[] = [];
 
+      const MAX_RESULTS = 200;
+      const MAX_ERRORS = 2000;
+      const BULK_BATCH_SIZE = 5000;
+
       const dedup = new Set<string>();
       let deduped = 0;
       const illustIdsToHydrate = new Set<string>();
+      let failedCount = 0;
 
       const prisma = dryRun ? null : getPrismaClient();
+
+      const parsedOk: Array<{
+        line: number;
+        illustId: bigint;
+        pageIndex: number;
+        ext: string;
+        originalUrl: string;
+      }> = [];
 
       for (const item of lines) {
         const parsed = parsePixivUrl(item.url);
         if (!parsed.ok) {
-          errors.push({
-            ok: false,
-            line: item.line,
+          failedCount += 1;
+          if (errors.length < MAX_ERRORS) {
+            errors.push({
+              ok: false,
+              line: item.line,
             url: item.url,
             code: parsed.code,
             message: parsed.message,
-          });
+            });
+          }
           continue;
         }
 
@@ -282,67 +302,107 @@ router.post(
         }
         dedup.add(key);
 
-        const provisionalProxyPath = `/i/pending.${parsed.ext}`;
+        parsedOk.push({
+          line: item.line,
+          illustId: parsed.illustId,
+          pageIndex: parsed.pageIndex,
+          ext: parsed.ext,
+          originalUrl: item.url,
+        });
+      }
 
-        try {
-          if (!dryRun) {
+      const totalLines = lines.length;
+
+      const bulkMin = Math.max(0, Math.trunc(env.ADMIN_IMPORT_BULK_MIN_IMAGES || 0));
+      const useBulk = !dryRun && bulkMin > 0 && parsedOk.length >= bulkMin;
+
+      let success = 0;
+
+      if (dryRun) {
+        success = parsedOk.length;
+        for (const row of parsedOk.slice(0, MAX_RESULTS)) {
+          results.push({
+            ok: true,
+            illust_id: row.illustId.toString(),
+            page_index: row.pageIndex,
+            image_id: null,
+            ext: row.ext,
+            original_url: row.originalUrl,
+            proxy_path: null,
+          });
+        }
+      } else if (useBulk) {
+        for (let offset = 0; offset < parsedOk.length; offset += BULK_BATCH_SIZE) {
+          const chunk = parsedOk.slice(offset, offset + BULK_BATCH_SIZE).map((row) => ({
+            illustId: row.illustId,
+            pageIndex: row.pageIndex,
+            ext: row.ext,
+            originalUrl: row.originalUrl,
+            proxyPath: buildImportProxyPath(row.illustId, row.pageIndex, row.ext),
+          }));
+          // eslint-disable-next-line no-await-in-loop
+          await bulkUpsertImagesForImport(chunk);
+        }
+
+        success = parsedOk.length;
+        for (const row of parsedOk) {
+          illustIdsToHydrate.add(row.illustId.toString());
+        }
+      } else {
+        for (const row of parsedOk) {
+          const provisionalProxyPath = `/i/pending.${row.ext}`;
+
+          try {
             const image = await upsertImageForImport({
-              illustId: parsed.illustId,
-              pageIndex: parsed.pageIndex,
-              ext: parsed.ext,
-              originalUrl: item.url,
+              illustId: row.illustId,
+              pageIndex: row.pageIndex,
+              ext: row.ext,
+              originalUrl: row.originalUrl,
               proxyPath: provisionalProxyPath,
             });
 
-            const stableProxyPath = buildStableProxyPath(image.id, parsed.ext);
+            const stableProxyPath = buildStableProxyPath(image.id, row.ext);
             if (image.proxyPath !== stableProxyPath && prisma) {
               await prisma.image.update({ where: { id: image.id }, data: { proxyPath: stableProxyPath } });
             }
 
-            results.push({
-              ok: true,
-              illust_id: parsed.illustId.toString(),
-              page_index: parsed.pageIndex,
-              image_id: image.id.toString(),
-              ext: parsed.ext,
-              original_url: item.url,
-              proxy_path: stableProxyPath,
-            });
+            if (results.length < MAX_RESULTS) {
+              results.push({
+                ok: true,
+                illust_id: row.illustId.toString(),
+                page_index: row.pageIndex,
+                image_id: image.id.toString(),
+                ext: row.ext,
+                original_url: row.originalUrl,
+                proxy_path: stableProxyPath,
+              });
+            }
 
-            illustIdsToHydrate.add(parsed.illustId.toString());
-            continue;
+            success += 1;
+            illustIdsToHydrate.add(row.illustId.toString());
+          } catch (err: unknown) {
+            failedCount += 1;
+            if (errors.length < MAX_ERRORS) {
+              errors.push({
+                ok: false,
+                line: row.line,
+                url: row.originalUrl,
+                code: 'upsert_failed',
+                message: err instanceof Error ? err.message : String(err),
+              });
+            }
           }
-
-          results.push({
-            ok: true,
-            illust_id: parsed.illustId.toString(),
-            page_index: parsed.pageIndex,
-            image_id: null,
-            ext: parsed.ext,
-            original_url: item.url,
-            proxy_path: null,
-          });
-        } catch (err: unknown) {
-          errors.push({
-            ok: false,
-            line: item.line,
-            url: item.url,
-            code: 'upsert_failed',
-            message: err instanceof Error ? err.message : String(err),
-          });
         }
       }
 
-      const totalLines = lines.length;
-      const success = results.length;
-      const failed = errors.length;
+      const failed = failedCount;
 
       const maxExportErrors = 1000;
       const exportErrors = errors.slice(0, maxExportErrors);
       const errorExport = {
-        total_errors: errors.length,
+        total_errors: failed,
         exported_errors: exportErrors.length,
-        truncated: errors.length > maxExportErrors,
+        truncated: failed > maxExportErrors,
         urls_text: exportErrors.map((row) => row.url).join('\n'),
         urls_with_comments_text: exportErrors
           .map((row) => `# line ${row.line} code=${row.code}\n${row.url}`)
@@ -355,6 +415,26 @@ router.post(
       const requestId = typeof requestIdRaw === 'string' && requestIdRaw.trim() ? requestIdRaw.trim() : undefined;
 
       if (!dryRun && illustIdsToHydrate.size > 0) {
+        const maxHydrateIllusts = Math.max(0, Math.trunc(env.ADMIN_IMPORT_MAX_HYDRATE_ILLUSTS || 0));
+        if (maxHydrateIllusts > 0 && illustIdsToHydrate.size > maxHydrateIllusts) {
+          enqueueNote = `skipped:too_many_illusts:${illustIdsToHydrate.size}`;
+        } else if (useBulk) {
+          try {
+            const boss = await ensureQueue('hydrate_metadata');
+            for (const rawIllustId of illustIdsToHydrate) {
+              const payload: any = { illust_id: rawIllustId };
+              if (requestId) payload.request_id = requestId;
+              // eslint-disable-next-line no-await-in-loop
+              const id = await boss.send('hydrate_metadata', payload);
+              if (!id) continue;
+              enqueuedHydrateMetadata += 1;
+            }
+          } catch (err: unknown) {
+            const code = typeof (err as any)?.code === 'string' ? (err as any).code : '';
+            const message = err instanceof Error ? err.message : String(err);
+            enqueueNote = code ? `enqueue_failed:${code}:${message}` : `enqueue_failed:${message}`;
+          }
+        } else {
         try {
           for (const rawIllustId of illustIdsToHydrate) {
             if (requestId) {
@@ -368,6 +448,7 @@ router.post(
           const code = typeof (err as any)?.code === 'string' ? (err as any).code : '';
           const message = err instanceof Error ? err.message : String(err);
           enqueueNote = code ? `enqueue_failed:${code}:${message}` : `enqueue_failed:${message}`;
+        }
         }
       }
 

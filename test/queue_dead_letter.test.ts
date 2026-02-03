@@ -35,8 +35,7 @@ describe('queue dead-letter (DLQ)', () => {
     const returned = await ensureQueue('heal_url');
 
     expect(returned).toBe(boss);
-    expect(createQueue).toHaveBeenNthCalledWith(1, 'heal_url', { deadLetter: 'heal_url__dlq' });
-    expect(createQueue).toHaveBeenNthCalledWith(2, 'heal_url__dlq');
+    expect(createQueue).toHaveBeenNthCalledWith(1, 'heal_url__dlq');
+    expect(createQueue).toHaveBeenNthCalledWith(2, 'heal_url', { deadLetter: 'heal_url__dlq' });
   });
 });
-

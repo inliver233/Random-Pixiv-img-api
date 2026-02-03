@@ -89,8 +89,10 @@ const envSchema = z
     JSON_BODY_LIMIT: z.string().optional().default('256kb'),
 
     ADMIN_IMPORT_MAX_LINES: z.coerce.number().int().min(0).optional().default(0),
-    ADMIN_IMPORT_MAX_FILE_BYTES: z.coerce.number().int().positive().optional().default(1024 * 1024),
+    ADMIN_IMPORT_MAX_FILE_BYTES: z.coerce.number().int().positive().optional().default(32 * 1024 * 1024),
     ADMIN_IMPORT_ALLOWED_MIME_TYPES: z.string().optional().default('text/plain,application/octet-stream'),
+    ADMIN_IMPORT_BULK_MIN_IMAGES: z.coerce.number().int().min(0).optional().default(1000),
+    ADMIN_IMPORT_MAX_HYDRATE_ILLUSTS: z.coerce.number().int().min(0).optional().default(2000),
 
     RATE_LIMIT_ENABLED: booleanSchema.optional().default(false),
     RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().optional().default(60_000),

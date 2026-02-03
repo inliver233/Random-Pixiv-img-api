@@ -224,7 +224,7 @@ export default function ImportUrlsPage() {
 
   return (
     <div style={{ padding: 16, maxWidth: 980 }}>
-      <h2 style={{ marginTop: 0 }}>Import URLs</h2>
+      <h2 style={{ marginTop: 0 }}>批量导入 URL</h2>
       <p style={{ marginTop: 0, color: '#666' }}>
         批量导入 Pixiv 原图（pximg）URL，一行一个。支持注释行（以 <code>#</code> 开头）。后端会做解析与去重（illustId + page）。
       </p>
@@ -237,7 +237,7 @@ export default function ImportUrlsPage() {
 
       <div style={{ marginTop: 12, display: 'grid', gridTemplateColumns: '1fr 320px', gap: 12 }}>
         <div style={{ border: '1px solid #e5e7eb', borderRadius: 12, padding: 12 }}>
-          <h3 style={{ marginTop: 0 }}>Paste</h3>
+          <h3 style={{ marginTop: 0 }}>粘贴导入</h3>
           <textarea
             value={text}
             onChange={(e) => setText(e.target.value)}
@@ -285,7 +285,7 @@ export default function ImportUrlsPage() {
                 cursor: loading ? 'not-allowed' : 'pointer',
               }}
             >
-              {preview ? 'Preview' : 'Import'}
+              {preview ? '预览（不写入）' : '开始导入'}
             </button>
             <button
               type="button"
@@ -299,7 +299,7 @@ export default function ImportUrlsPage() {
                 cursor: loading ? 'not-allowed' : 'pointer',
               }}
             >
-              Preview
+              预览（不写入）
             </button>
             <button
               type="button"
@@ -313,45 +313,45 @@ export default function ImportUrlsPage() {
                 cursor: loading ? 'not-allowed' : 'pointer',
               }}
             >
-              Import
+              开始导入
             </button>
           </div>
 
           {progress ? (
             <p style={{ marginTop: 10, color: '#666' }}>
-              Sending batch {progress.current}/{progress.total} ({progress.lines} lines)…
+              正在提交第 {progress.current}/{progress.total} 批（{progress.lines} 行）…
             </p>
           ) : null}
         </div>
 
         <div style={{ border: '1px solid #e5e7eb', borderRadius: 12, padding: 12 }}>
-          <h3 style={{ marginTop: 0 }}>Upload file</h3>
+          <h3 style={{ marginTop: 0 }}>上传文件</h3>
           <p style={{ marginTop: 0, color: '#666' }}>
             大量（例如 10w 行）建议用文件上传，更稳。
           </p>
           <input ref={fileInputRef} type="file" accept=".txt,text/plain" />
 
-          <h3 style={{ marginTop: 16 }}>Limits</h3>
+          <h3 style={{ marginTop: 16 }}>限制</h3>
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <tbody>
               <tr>
-                <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee', fontWeight: 600 }}>max upload</td>
+                <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee', fontWeight: 600 }}>单次最大上传</td>
                 <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee', textAlign: 'right' }}>{maxBytesLabel}</td>
               </tr>
               <tr>
-                <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee', fontWeight: 600 }}>raw lines</td>
+                <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee', fontWeight: 600 }}>原始行数</td>
                 <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee', textAlign: 'right' }}>{stats.raw_lines}</td>
               </tr>
               <tr>
-                <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee', fontWeight: 600 }}>after dedupe</td>
+                <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee', fontWeight: 600 }}>去重后行数</td>
                 <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee', textAlign: 'right' }}>{stats.after_dedupe_lines}</td>
               </tr>
               <tr>
-                <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee', fontWeight: 600 }}>removed</td>
+                <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee', fontWeight: 600 }}>去重移除</td>
                 <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee', textAlign: 'right' }}>{stats.deduped_removed}</td>
               </tr>
               <tr>
-                <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee', fontWeight: 600 }}>approx bytes</td>
+                <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee', fontWeight: 600 }}>估算大小</td>
                 <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee', textAlign: 'right' }}>{stats.approx_bytes.toLocaleString()}</td>
               </tr>
             </tbody>
@@ -361,9 +361,9 @@ export default function ImportUrlsPage() {
 
       {result ? (
         <div style={{ marginTop: 12, border: '1px solid #e5e7eb', borderRadius: 12, padding: 12 }}>
-          <h3 style={{ marginTop: 0 }}>Result</h3>
+          <h3 style={{ marginTop: 0 }}>结果</h3>
           <p style={{ marginTop: 0, color: '#666' }}>
-            batches: <b>{result.batches}</b>
+            批次数：<b>{result.batches}</b>
           </p>
 
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
@@ -397,7 +397,7 @@ export default function ImportUrlsPage() {
 
           {(result.combined.errors || []).length > 0 ? (
             <div style={{ marginTop: 12 }}>
-              <h4 style={{ marginTop: 0 }}>Errors ({result.combined.errors.length})</h4>
+              <h4 style={{ marginTop: 0 }}>错误（{result.combined.errors.length}）</h4>
               <button
                 type="button"
                 onClick={() => downloadText('import-errors.txt', (result.combined.errors || []).map((e) => e.url).join('\n'))}
@@ -410,19 +410,18 @@ export default function ImportUrlsPage() {
                   marginBottom: 8,
                 }}
               >
-                Download error URLs
+                下载错误 URL
               </button>
               <pre style={{ whiteSpace: 'pre-wrap', fontSize: 12, background: '#fafafa', border: '1px solid #eee', borderRadius: 10, padding: 10 }}>
                 {JSON.stringify(result.combined.errors.slice(0, 50), null, 2)}
               </pre>
-              {result.combined.errors.length > 50 ? <p style={{ color: '#666' }}>Showing first 50.</p> : null}
+              {result.combined.errors.length > 50 ? <p style={{ color: '#666' }}>仅展示前 50 条。</p> : null}
             </div>
           ) : (
-            <p style={{ marginTop: 12, color: '#065f46' }}><b>No errors.</b></p>
+            <p style={{ marginTop: 12, color: '#065f46' }}><b>没有错误。</b></p>
           )}
         </div>
       ) : null}
     </div>
   );
 }
-
