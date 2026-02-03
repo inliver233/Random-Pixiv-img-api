@@ -589,7 +589,27 @@ export async function getAdminJsRouter(): Promise<Router> {
       })(),
     });
 
-    const router = AdminJSExpress.buildRouter(admin);
+    // AdminJS Express starts bundling asynchronously (not awaited). In production that can lead to the
+    // first request for `/admin/frontend/assets/components.bundle.js` hitting before the file exists.
+    // Ensure the bundle is built before serving the admin UI.
+    const shouldEnsureBundle = process.env.NODE_ENV === 'production'
+      && String(process.env.ADMIN_JS_SKIP_BUNDLE || '').trim().toLowerCase() !== 'true';
+
+    let router: Router;
+    if (shouldEnsureBundle) {
+      const prevSkip = process.env.ADMIN_JS_SKIP_BUNDLE;
+      process.env.ADMIN_JS_SKIP_BUNDLE = 'true';
+      try {
+        router = AdminJSExpress.buildRouter(admin);
+      } finally {
+        if (prevSkip === undefined) delete process.env.ADMIN_JS_SKIP_BUNDLE;
+        else process.env.ADMIN_JS_SKIP_BUNDLE = prevSkip;
+      }
+      await admin.initialize();
+    } else {
+      router = AdminJSExpress.buildRouter(admin);
+    }
+
     cachedRouter = router;
     return router;
   })();
