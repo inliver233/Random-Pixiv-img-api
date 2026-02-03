@@ -19,6 +19,12 @@ services:
       nofile:
         soft: ${BACKEND_ULIMIT_NOFILE_SOFT:-65535}
         hard: ${BACKEND_ULIMIT_NOFILE_HARD:-65535}
+    # Optional hardening: cap Docker json-file logs (host-side rotation).
+    logging:
+      driver: json-file
+      options:
+        max-size: "${BACKEND_LOG_MAX_SIZE:-10m}"
+        max-file: "${BACKEND_LOG_MAX_FILE:-3}"
     healthcheck:
       test:
         - CMD

@@ -22,6 +22,12 @@ BACKEND_READ_ONLY=true docker compose -f docker-compose.yml -f docker-compose.pr
 BACKEND_LIMIT_CPUS=1.0 BACKEND_LIMIT_MEMORY=1024M BACKEND_ULIMIT_NOFILE_SOFT=65535 BACKEND_ULIMIT_NOFILE_HARD=65535 docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
 ```
 
+（可选）配置 backend 容器日志轮转（Docker json-file driver 的宿主轮转）：
+
+```bash
+BACKEND_LOG_MAX_SIZE=10m BACKEND_LOG_MAX_FILE=3 docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+```
+
 在提交/部署前，可用以下命令校验合并后的配置是否可生成：
 
 ```bash
@@ -34,4 +40,5 @@ docker compose -f docker-compose.yml -f docker-compose.prod.yml config
 - 生产镜像构建建议使用 `.dockerignore`（本仓库已提供）来避免把 `.env*` 等敏感文件打包进 build context。
 - 启用只读文件系统时，本仓库 overlay 会通过 `tmpfs` 提供 `/tmp` 与 `/app/.adminjs`（AdminJS bundler 输出）等必要写路径。
 - backend 的资源限制/ulimit 默认有推荐值，可通过 `BACKEND_LIMIT_CPUS` / `BACKEND_LIMIT_MEMORY` / `BACKEND_ULIMIT_NOFILE_*` 覆盖。
+- backend 日志默认输出到 stdout；生产环境建议由宿主侧（Docker logging driver / 日志采集）负责轮转与归档。
 - 如需进一步缩小暴露面（例如只暴露反代端口），请在此 overlay 基础上继续收紧。
