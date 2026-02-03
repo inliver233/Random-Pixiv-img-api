@@ -15,3 +15,7 @@
 2. 发起一个会触发 job 的请求（例如请求一个已 broken 的 `/i/:id.:ext` 以触发 `heal_url`，或通过 `/admin/images/import` 导入触发 `hydrate_metadata`）。
 3. 检查 stdout 日志：应能看到同一个 `request_id` 同时出现在 request 日志与对应 job 的 done/failed 日志中。
 
+## origin_url masking
+
+- 任何输出到**日志/错误响应**的 URL（尤其是 `origin_url`）默认会移除 query/hash（例如 `?token=...`），避免泄漏敏感信息。
+- 对于上游请求类错误（例如 Axios error），日志会尽量输出 `origin_url` 的 **scheme/host/path** 部分，便于定位资源但不暴露 query。
