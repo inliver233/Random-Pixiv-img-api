@@ -13,6 +13,20 @@ function booleanFromEnv(value: unknown): unknown {
 
 const booleanSchema = z.preprocess(booleanFromEnv, z.boolean());
 
+function trustProxyFromEnv(value: unknown): unknown {
+  if (value === undefined) return undefined;
+  if (typeof value === 'number' && Number.isFinite(value)) return Math.trunc(value);
+  if (typeof value !== 'string') return value;
+
+  const normalized = value.trim().toLowerCase();
+  if (['1', 'true', 'yes', 'y', 'on'].includes(normalized)) return 1;
+  if (['0', 'false', 'no', 'n', 'off'].includes(normalized)) return 0;
+  if (/^\d+$/.test(normalized)) return Number(normalized);
+  return value;
+}
+
+const trustProxySchema = z.preprocess(trustProxyFromEnv, z.number().int().min(0));
+
 export function parseRefreshTokensValue(value: string): string[] {
   const trimmed = value.trim();
   if (!trimmed) return [];
@@ -56,6 +70,7 @@ const envSchema = z.object({
 
   HOST: z.string().min(1).default('127.0.0.1'),
   PORT: z.coerce.number().int().min(1).max(65535).default(3000),
+  TRUST_PROXY: trustProxySchema.optional().default(0),
 
   PIXIV_TOKEN_STRATEGY: z.enum(['round_robin', 'random']).optional().default('round_robin'),
   PIXIV_DETAIL_CACHE_ENABLED: booleanSchema.optional().default(true),

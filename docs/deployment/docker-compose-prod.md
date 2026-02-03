@@ -6,6 +6,19 @@
 - 不对公网暴露 Postgres/Memcached（仅容器网络可达）。
 - backend 增加更贴近生产的运行参数（如 `NODE_ENV=production`）。
 
+首次部署/升级建议流程（包含 DB 迁移）：
+
+```bash
+# 1) 起 Postgres/Memcached
+docker compose up -d postgres memcached
+
+# 2) 跑 Prisma migrate（one-off）
+docker compose --profile tools run --rm migrate
+
+# 3) 起 backend（prod overlay）
+docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build backend
+```
+
 ```bash
 docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
 ```

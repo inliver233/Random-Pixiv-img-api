@@ -13,6 +13,7 @@
     "dev": "nodemon app.js",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
+    "prisma:migrate:deploy": "prisma migrate deploy",
     "test": "vitest run",
     "smoke": "vitest run test/smoke.test.ts",
     "test:all": "npm run lint && npm test && npm run smoke",

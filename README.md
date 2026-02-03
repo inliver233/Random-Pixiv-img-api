@@ -97,6 +97,12 @@ npm run dev
 - `npm run dev` 使用 `app.js`（CJS 入口）；当存在 `dist/` 时会优先委托到 `dist` 下的 TS 路由实现。
 - 生产启动推荐：`npm run start:prod`（运行 `dist/app.js`）。
 
+## 部署（Ubuntu 22 / 云服务器）
+
+- Ubuntu 22.04 生产部署与使用教程：`docs/deployment/ubuntu22.md`
+- Docker Compose 生产 overlay：`docs/deployment/docker-compose-prod.md`
+- 部署安全清单：`docs/deployment/security-checklist.md`
+
 ## 环境变量（后续按 Issues 增量补齐）
 
 最小（legacy 路由仍依赖 Pixiv token 轮换 + memcached）：

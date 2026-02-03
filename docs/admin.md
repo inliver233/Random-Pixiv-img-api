@@ -124,6 +124,6 @@ ADMIN_IP_ALLOWLIST=10.0.0.0/8,192.168.0.0/16,172.16.0.0/12
      - `curl -i -X POST -H "Content-Type: application/x-www-form-urlencoded" -d "username=admin&password=pass" http://127.0.0.1:3000/admin/login`
 
 7) 审计日志查看（可选验收）：
-   - 启动 Postgres（需要 `AdminAudit` 表存在；如未创建则先 `npm run prisma:migrate`）
+   - 启动 Postgres（需要 `AdminAudit` 表存在；如未创建则先执行迁移：开发用 `npm run prisma:migrate`，生产用 `npm run prisma:migrate:deploy`）
    - 访问 `/admin` 并执行一次后台动作（例如导入/disable/enable/delete）
    - 在 AdminJS 左侧选择 `AdminAudit`，应能看到新增记录，并可按 `actor/createdAt/action` 过滤

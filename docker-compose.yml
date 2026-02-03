@@ -3,25 +3,55 @@ services:
     build:
       context: .
     ports:
-      - "3000:3000"
+      - "${BACKEND_PORT:-3000}:3000"
     environment:
-      HOST: 0.0.0.0
-      PORT: 3000
-      REFRESH_TOKENS: '["please_set_refresh_token"]'
-      MEMCACHED_HOST: memcached
-      MEMCACHED_PORT: 11211
-      MEMCACHED_NAMESPACE: pixiv
-      DATABASE_URL: postgresql://pixivcat:pixivcat@postgres:5432/pixivcat
+      HOST: "${HOST:-0.0.0.0}"
+      PORT: "3000"
+      TRUST_PROXY: "${TRUST_PROXY:-0}"
+      REFRESH_TOKENS: '${REFRESH_TOKENS:-["please_set_refresh_token"]}'
+      MEMCACHED_HOST: "${MEMCACHED_HOST:-memcached}"
+      MEMCACHED_PORT: "${MEMCACHED_PORT:-11211}"
+      MEMCACHED_NAMESPACE: "${MEMCACHED_NAMESPACE:-pixiv}"
+      DATABASE_URL: 'postgresql://${POSTGRES_USER:-pixivcat}:${POSTGRES_PASSWORD:-pixivcat}@postgres:5432/${POSTGRES_DB:-pixivcat}'
+      ADMIN_TOKEN: "${ADMIN_TOKEN:-}"
+      ADMIN_IP_ALLOWLIST: "${ADMIN_IP_ALLOWLIST:-}"
+      ADMIN_SESSION_AUTH_ENABLED: "${ADMIN_SESSION_AUTH_ENABLED:-0}"
+      ADMIN_SESSION_SECRET: "${ADMIN_SESSION_SECRET:-}"
+      ADMIN_SESSION_USER: "${ADMIN_SESSION_USER:-}"
+      ADMIN_SESSION_PASS: "${ADMIN_SESSION_PASS:-}"
+      ADMIN_CSRF_ENABLED: "${ADMIN_CSRF_ENABLED:-0}"
+      ADMIN_CSRF_ALLOWED_ORIGINS: "${ADMIN_CSRF_ALLOWED_ORIGINS:-}"
+      ADMIN_RATE_LIMIT_ENABLED: "${ADMIN_RATE_LIMIT_ENABLED:-0}"
+      ADMIN_RATE_LIMIT_WINDOW_MS: "${ADMIN_RATE_LIMIT_WINDOW_MS:-}"
+      ADMIN_RATE_LIMIT_MAX: "${ADMIN_RATE_LIMIT_MAX:-}"
+      RATE_LIMIT_ENABLED: "${RATE_LIMIT_ENABLED:-0}"
+      RATE_LIMIT_WINDOW_MS: "${RATE_LIMIT_WINDOW_MS:-}"
+      RATE_LIMIT_MAX: "${RATE_LIMIT_MAX:-}"
+      RATE_LIMIT_MAX_API_KEY: "${RATE_LIMIT_MAX_API_KEY:-}"
+      RATE_LIMIT_API_KEYS: "${RATE_LIMIT_API_KEYS:-}"
+      METRICS_ENABLED: "${METRICS_ENABLED:-1}"
+      METRICS_ROUTE: "${METRICS_ROUTE:-/metrics}"
     depends_on:
       - postgres
       - memcached
 
+  migrate:
+    build:
+      context: .
+      target: migrator
+    profiles:
+      - tools
+    environment:
+      DATABASE_URL: 'postgresql://${POSTGRES_USER:-pixivcat}:${POSTGRES_PASSWORD:-pixivcat}@postgres:5432/${POSTGRES_DB:-pixivcat}'
+    depends_on:
+      - postgres
+
   postgres:
     image: postgres:17-alpine
     environment:
-      POSTGRES_USER: pixivcat
-      POSTGRES_PASSWORD: pixivcat
-      POSTGRES_DB: pixivcat
+      POSTGRES_USER: "${POSTGRES_USER:-pixivcat}"
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:-pixivcat}"
+      POSTGRES_DB: "${POSTGRES_DB:-pixivcat}"
     volumes:
       - pgdata:/var/lib/postgresql/data
 
