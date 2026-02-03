@@ -66,6 +66,29 @@ describe('enqueueHealUrl', () => {
     expect(id).toBeNull();
   });
 
+  it('propagates request_id into job payload when provided', async () => {
+    mockEnsureQueue.mockResolvedValueOnce({
+      sendThrottled: mockBossSendThrottled,
+    });
+    mockBossSendThrottled.mockResolvedValueOnce('job_3');
+
+    const id = await enqueueHealUrl(123n, ' req-123 ');
+
+    expect(id).toBe('job_3');
+    expect(mockBossSendThrottled).toHaveBeenCalledWith(
+      'heal_url',
+      { illust_id: '123', request_id: 'req-123' },
+      {
+        retryLimit: 5,
+        retryDelay: 60,
+        retryBackoff: true,
+        retryDelayMax: 3600,
+      },
+      600,
+      '123',
+    );
+  });
+
   it('respects retry/backoff env overrides', async () => {
     process.env.HEAL_RETRY_LIMIT = '9';
     process.env.HEAL_RETRY_DELAY_SECONDS = '10';

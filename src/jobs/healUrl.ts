@@ -9,7 +9,14 @@ export const HEAL_URL_JOB = 'heal_url';
 
 export type HealUrlJobData = {
   illust_id: string;
+  request_id?: string;
 };
+
+function normalizeRequestId(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined;
+  const trimmed = value.trim();
+  return trimmed ? trimmed : undefined;
+}
 
 function toBigInt(value: unknown): bigint {
   if (typeof value === 'bigint') return value;
@@ -43,7 +50,7 @@ export async function healUrl(illustId: bigint): Promise<{ updated: number; page
   return { updated, pages: normalized.length };
 }
 
-export async function enqueueHealUrl(illustId: bigint): Promise<string | null> {
+export async function enqueueHealUrl(illustId: bigint, requestId?: string): Promise<string | null> {
   const env = getEnv();
   const options = {
     retryLimit: env.HEAL_RETRY_LIMIT,
@@ -52,15 +59,19 @@ export async function enqueueHealUrl(illustId: bigint): Promise<string | null> {
     retryDelayMax: env.HEAL_RETRY_DELAY_MAX_SECONDS,
   };
 
+  const payload: HealUrlJobData = { illust_id: illustId.toString() };
+  const normalizedRequestId = normalizeRequestId(requestId);
+  if (normalizedRequestId) payload.request_id = normalizedRequestId;
+
   const debounceSeconds = Math.max(0, Math.trunc(env.HEAL_DEBOUNCE_SECONDS));
   if (debounceSeconds === 0) {
-    return enqueue<HealUrlJobData>(HEAL_URL_JOB, { illust_id: illustId.toString() }, options);
+    return enqueue<HealUrlJobData>(HEAL_URL_JOB, payload, options);
   }
 
   const boss = await ensureQueue(HEAL_URL_JOB);
   const jobId = await boss.sendThrottled(
     HEAL_URL_JOB,
-    { illust_id: illustId.toString() },
+    payload,
     options,
     debounceSeconds,
     illustId.toString(),
@@ -74,6 +85,7 @@ export async function registerHealUrlWorker(): Promise<void> {
     for (const job of jobs) {
       const jobData: any = job?.data ?? {};
       const illustId = toBigInt(jobData.illust_id ?? jobData.illustId ?? jobData.illust_id);
+      const requestId = normalizeRequestId(jobData.request_id ?? jobData.requestId);
 
       const startedAt = process.hrtime.bigint();
       try {
@@ -83,6 +95,7 @@ export async function registerHealUrlWorker(): Promise<void> {
 
         logger.info(
           {
+            request_id: requestId,
             job: { name: HEAL_URL_JOB, id: job.id },
             illust_id: illustId.toString(),
             pages: result.pages,
@@ -95,7 +108,13 @@ export async function registerHealUrlWorker(): Promise<void> {
         const durationSeconds = Number(process.hrtime.bigint() - startedAt) / 1e9;
         recordJobFail({ job: HEAL_URL_JOB, illustId: illustId.toString(), durationSeconds });
         logger.warn(
-          { job: { name: HEAL_URL_JOB, id: job.id }, illust_id: illustId.toString(), duration_seconds: durationSeconds, err },
+          {
+            request_id: requestId,
+            job: { name: HEAL_URL_JOB, id: job.id },
+            illust_id: illustId.toString(),
+            duration_seconds: durationSeconds,
+            err,
+          },
           'heal_url failed',
         );
         throw err;

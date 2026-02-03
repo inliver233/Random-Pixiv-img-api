@@ -11,6 +11,7 @@ export const HYDRATE_METADATA_JOB = 'hydrate_metadata';
 
 export type HydrateMetadataJobData = {
   illust_id: string;
+  request_id?: string;
 };
 
 export type HydrateMetadataPage = {
@@ -40,6 +41,12 @@ function toBigInt(value: unknown): bigint {
   if (typeof value === 'number' && Number.isFinite(value)) return BigInt(Math.trunc(value));
   if (typeof value === 'string' && value.trim() && /^\\d+$/.test(value.trim())) return BigInt(value.trim());
   throw new Error('Invalid illust_id');
+}
+
+function normalizeRequestId(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined;
+  const trimmed = value.trim();
+  return trimmed ? trimmed : undefined;
 }
 
 function normalizeOriginalUrls(pixivDetail: any): string[] {
@@ -286,8 +293,11 @@ export async function persistHydratedMetadata(illustId: bigint, pages: HydrateMe
   return updated;
 }
 
-export async function enqueueHydrateMetadata(illustId: bigint): Promise<string> {
-  return enqueue<HydrateMetadataJobData>(HYDRATE_METADATA_JOB, { illust_id: illustId.toString() });
+export async function enqueueHydrateMetadata(illustId: bigint, requestId?: string): Promise<string> {
+  const payload: HydrateMetadataJobData = { illust_id: illustId.toString() };
+  const normalizedRequestId = normalizeRequestId(requestId);
+  if (normalizedRequestId) payload.request_id = normalizedRequestId;
+  return enqueue<HydrateMetadataJobData>(HYDRATE_METADATA_JOB, payload);
 }
 
 export async function registerHydrateMetadataWorker(): Promise<void> {
@@ -295,6 +305,7 @@ export async function registerHydrateMetadataWorker(): Promise<void> {
     for (const job of jobs) {
       const jobData: any = job?.data ?? {};
       const illustId = toBigInt(jobData.illust_id ?? jobData.illustId ?? jobData.illust_id);
+      const requestId = normalizeRequestId(jobData.request_id ?? jobData.requestId);
 
       const startedAt = process.hrtime.bigint();
       try {
@@ -305,6 +316,7 @@ export async function registerHydrateMetadataWorker(): Promise<void> {
 
         logger.info(
           {
+            request_id: requestId,
             job: { name: HYDRATE_METADATA_JOB, id: job.id },
             illust_id: illustId.toString(),
             pages: pages.length,
@@ -318,6 +330,7 @@ export async function registerHydrateMetadataWorker(): Promise<void> {
         recordJobFail({ job: HYDRATE_METADATA_JOB, illustId: illustId.toString(), durationSeconds });
         logger.warn(
           {
+            request_id: requestId,
             job: { name: HYDRATE_METADATA_JOB, id: job.id },
             illust_id: illustId.toString(),
             duration_seconds: durationSeconds,

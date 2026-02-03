@@ -182,7 +182,10 @@ async function getImageById(req: Request, res: Response) {
     });
 
     if (shouldHeal) {
-      void enqueueHealUrl(image.illustId).catch(() => undefined);
+      const requestIdRaw = (req as any).request_id;
+      const requestId = typeof requestIdRaw === 'string' && requestIdRaw.trim() ? requestIdRaw.trim() : undefined;
+      const promise = requestId ? enqueueHealUrl(image.illustId, requestId) : enqueueHealUrl(image.illustId);
+      void promise.catch(() => undefined);
     }
 
     if (res.headersSent) {

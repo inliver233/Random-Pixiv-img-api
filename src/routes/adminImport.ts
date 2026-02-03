@@ -351,11 +351,17 @@ router.post(
 
       let enqueuedHydrateMetadata = 0;
       let enqueueNote = dryRun ? 'dry_run: queue not enqueued' : 'ok';
+      const requestIdRaw = (req as any).request_id;
+      const requestId = typeof requestIdRaw === 'string' && requestIdRaw.trim() ? requestIdRaw.trim() : undefined;
 
       if (!dryRun && illustIdsToHydrate.size > 0) {
         try {
           for (const rawIllustId of illustIdsToHydrate) {
-            await enqueueHydrateMetadata(BigInt(rawIllustId));
+            if (requestId) {
+              await enqueueHydrateMetadata(BigInt(rawIllustId), requestId);
+            } else {
+              await enqueueHydrateMetadata(BigInt(rawIllustId));
+            }
             enqueuedHydrateMetadata += 1;
           }
         } catch (err: unknown) {
