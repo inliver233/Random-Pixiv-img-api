@@ -12,6 +12,8 @@
 - [ ] `REFRESH_TOKENS` 不进 git（使用部署平台 secret 注入或服务器本地 `.env`）
 - [ ] （可选）后台鉴权 `ADMIN_TOKEN` 不进 git
 - [ ] 数据库口令（`POSTGRES_PASSWORD` 等）不进 git
+- [ ] `.dockerignore` 已忽略 `.env*` 等敏感文件，避免被打包进 build context
+- [ ] Docker 镜像构建过程不复制 `.env`/secrets（仅通过运行时环境变量注入）
 - [ ] 日志/响应不得输出明文 token
 
 ## 2) 端口暴露 / 网络隔离

@@ -19,4 +19,5 @@ docker compose -f docker-compose.yml -f docker-compose.prod.yml config
 注意：
 - `.env` / `.env.docker` 属于本机/部署平台配置，不要提交到 git。
 - `REFRESH_TOKENS` / `ADMIN_TOKEN` 属于敏感信息，必须用部署平台 secret 注入（或手工维护在服务器上）。
+- 生产镜像构建建议使用 `.dockerignore`（本仓库已提供）来避免把 `.env*` 等敏感文件打包进 build context。
 - 如需进一步缩小暴露面（例如只暴露反代端口），请在此 overlay 基础上继续收紧。

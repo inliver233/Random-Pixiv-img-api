@@ -1,0 +1,14 @@
+.env
+.env.*
+!.env.example
+
+node_modules
+dist
+
+.git
+.github
+
+.adminjs
+.codex
+plan
+issues

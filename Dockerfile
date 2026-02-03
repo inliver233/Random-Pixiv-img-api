@@ -2,7 +2,12 @@ FROM node:24-alpine AS builder
 
 WORKDIR /app
 
-COPY package.json package-lock.json ./
+# Prisma v6 loads prisma.config.ts during postinstall/generate and requires DATABASE_URL.
+# The value is only used for schema parsing during build (no DB connection is required here).
+ENV DATABASE_URL=postgresql://postgres:postgres@localhost:5432/pixivcat?schema=public
+
+COPY package.json package-lock.json prisma.config.ts ./
+COPY prisma ./prisma
 RUN npm ci
 
 COPY tsconfig.json app.ts ./
@@ -28,4 +33,3 @@ USER node
 EXPOSE 3000
 
 CMD ["node", "dist/app.js"]
-
