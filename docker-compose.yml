@@ -15,7 +15,15 @@ services:
       MEMCACHED_HOST: "${MEMCACHED_HOST:-memcached}"
       MEMCACHED_PORT: "${MEMCACHED_PORT:-11211}"
       MEMCACHED_NAMESPACE: "${MEMCACHED_NAMESPACE:-pixiv}"
-      DATABASE_URL: 'postgresql://${POSTGRES_USER:-pixivcat}:${POSTGRES_PASSWORD:-pixivcat}@postgres:5432/${POSTGRES_DB:-pixivcat}'
+      # Postgres connection. Prefer building DATABASE_URL at runtime (with URL-encoding)
+      # to support special characters in POSTGRES_PASSWORD.
+      POSTGRES_HOST: "postgres"
+      POSTGRES_PORT: "5432"
+      POSTGRES_USER: "${POSTGRES_USER:-pixivcat}"
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:-pixivcat}"
+      POSTGRES_DB: "${POSTGRES_DB:-pixivcat}"
+      # Optional override: set DATABASE_URL directly if you want to fully control it.
+      DATABASE_URL: "${DATABASE_URL:-}"
       ADMIN_TOKEN: "${ADMIN_TOKEN:-}"
       ADMIN_IP_ALLOWLIST: "${ADMIN_IP_ALLOWLIST:-}"
       ADMIN_SESSION_AUTH_ENABLED: "${ADMIN_SESSION_AUTH_ENABLED:-0}"
@@ -79,7 +87,12 @@ services:
       context: .
       target: migrator
     environment:
-      DATABASE_URL: 'postgresql://${POSTGRES_USER:-pixivcat}:${POSTGRES_PASSWORD:-pixivcat}@postgres:5432/${POSTGRES_DB:-pixivcat}'
+      POSTGRES_HOST: "postgres"
+      POSTGRES_PORT: "5432"
+      POSTGRES_USER: "${POSTGRES_USER:-pixivcat}"
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:-pixivcat}"
+      POSTGRES_DB: "${POSTGRES_DB:-pixivcat}"
+      DATABASE_URL: "${DATABASE_URL:-}"
     depends_on:
       postgres:
         condition: service_healthy

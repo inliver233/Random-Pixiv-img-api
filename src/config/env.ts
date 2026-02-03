@@ -34,19 +34,21 @@ function trustProxyFromEnv(value: unknown): unknown {
 
 const trustProxySchema = z.preprocess(trustProxyFromEnv, z.number().int().min(0));
 
-const optionalNonEmptyString = z.preprocess(emptyStringToUndefined, z.string().min(1)).optional();
-const optionalUrlString = z.preprocess(emptyStringToUndefined, z.string().url()).optional();
+const optionalNonEmptyString = z.preprocess(emptyStringToUndefined, z.string().min(1).optional());
+const optionalUrlString = z.preprocess(emptyStringToUndefined, z.string().url().optional());
 
 function optionalStringWithDefault(defaultValue: string) {
-  return z.preprocess(emptyStringToUndefined, z.string()).optional().default(defaultValue);
+  return z
+    .preprocess(emptyStringToUndefined, z.string().optional())
+    .transform((value) => value ?? defaultValue);
 }
 
 function optionalCoercedInt(schema: z.ZodNumber) {
-  return z.preprocess(emptyStringToUndefined, z.coerce.number().pipe(schema)).optional();
+  return z.preprocess(emptyStringToUndefined, z.coerce.number().pipe(schema).optional());
 }
 
 function optionalCoercedIntWithDefault(schema: z.ZodNumber, defaultValue: number) {
-  return optionalCoercedInt(schema).default(defaultValue);
+  return optionalCoercedInt(schema).transform((value) => value ?? defaultValue);
 }
 
 export function parseRefreshTokensValue(value: string): string[] {
@@ -117,7 +119,7 @@ const envSchema = z.object({
   RATE_LIMIT_WINDOW_MS: optionalCoercedIntWithDefault(z.number().int().positive(), 60_000),
   RATE_LIMIT_MAX: optionalCoercedIntWithDefault(z.number().int().positive(), 60),
   RATE_LIMIT_MAX_API_KEY: optionalCoercedIntWithDefault(z.number().int().positive(), 300),
-  RATE_LIMIT_API_KEYS: z.preprocess(emptyStringToUndefined, z.string()).optional(),
+  RATE_LIMIT_API_KEYS: z.preprocess(emptyStringToUndefined, z.string().optional()),
 
   METRICS_ENABLED: booleanSchema.optional().default(true),
   METRICS_ROUTE: optionalStringWithDefault('/metrics'),
