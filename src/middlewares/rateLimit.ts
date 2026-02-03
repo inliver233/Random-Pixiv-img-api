@@ -51,7 +51,8 @@ function createLimiter(env: ReturnType<typeof getEnv>): RateLimitRequestHandler 
     keyGenerator: (req: Request) => {
       const apiKey = getApiKey(req);
       if (apiKey && apiKeys.has(apiKey)) return `key:${apiKey}`;
-      return `ip:${ipKeyGenerator(req.ip)}`;
+      const ip = req.ip ?? req.socket?.remoteAddress ?? 'unknown';
+      return `ip:${ipKeyGenerator(ip)}`;
     },
     standardHeaders: 'draft-7',
     legacyHeaders: false,

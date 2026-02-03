@@ -7,6 +7,11 @@ type PixivCircuitState = {
   listenersAttached: boolean;
 };
 
+declare global {
+  // eslint-disable-next-line no-var
+  var __pixivcatPixivApiCircuit: PixivCircuitState | undefined;
+}
+
 function numberFromEnv(name: string, fallback: number): number {
   const raw = process.env[name];
   if (!raw) return fallback;
@@ -89,4 +94,3 @@ export function resetPixivApiCircuitForTest(): void {
   state.breaker = null;
   state.listenersAttached = false;
 }
-

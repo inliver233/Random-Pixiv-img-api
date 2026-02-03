@@ -4,7 +4,7 @@ import { PrismaClient } from '@prisma/client';
 
 import { observeDbQueryDurationSeconds } from '../metrics/dbMetrics';
 
-type PrismaClientInstance = InstanceType<typeof PrismaClient>;
+type PrismaClientInstance = PrismaClient;
 
 declare global {
   // eslint-disable-next-line no-var
@@ -30,17 +30,21 @@ function createPrismaClient(): PrismaClientInstance {
   const metricsEnabled = !['0', 'false', 'no', 'n', 'off'].includes(metricsEnabledValue);
 
   if (metricsEnabled) {
-    client.$use(async (params, next) => {
-      const start = process.hrtime.bigint();
+    return client.$extends({
+      query: {
+        async $allOperations({ model, operation, args, query }) {
+          const start = process.hrtime.bigint();
 
-      try {
-        return await next(params);
-      } finally {
-        const durationSeconds = Number(process.hrtime.bigint() - start) / 1e9;
-        const queryName = params.model ? `${params.model}.${params.action}` : `raw.${params.action}`;
-        observeDbQueryDurationSeconds(queryName, durationSeconds);
-      }
-    });
+          try {
+            return await query(args);
+          } finally {
+            const durationSeconds = Number(process.hrtime.bigint() - start) / 1e9;
+            const queryName = model ? `${model}.${operation}` : `raw.${operation}`;
+            observeDbQueryDurationSeconds(queryName, durationSeconds);
+          }
+        },
+      },
+    }) as unknown as PrismaClientInstance;
   }
 
   return client;
