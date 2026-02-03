@@ -450,11 +450,19 @@ export async function getAdminJsRouter(): Promise<Router> {
           // eslint-disable-next-line @typescript-eslint/no-var-requires
           const { getEnv } = require('../config/env') as { getEnv: () => { METRICS_ENABLED: boolean; PROMETHEUS_URL?: string } };
           // eslint-disable-next-line @typescript-eslint/no-var-requires
-          const { getMetricsRegistry } = require('../metrics/registry') as { getMetricsRegistry: () => { getMetricsAsJSON: () => any[] } };
+          const { getMetricsRegistry } = require('../metrics/registry') as { getMetricsRegistry: () => { getMetricsAsJSON: () => Promise<any[]> } };
 
           const env = getEnv();
           const registry = getMetricsRegistry();
-          const metricNames = registry.getMetricsAsJSON().map((metric) => metric.name).sort();
+          let metricNames: string[] = [];
+          try {
+            const metricsJson = await registry.getMetricsAsJSON();
+            metricNames = Array.isArray(metricsJson)
+              ? metricsJson.map((metric) => metric?.name).filter((name) => typeof name === 'string').sort()
+              : [];
+          } catch {
+            metricNames = [];
+          }
 
           const prometheus: any = {
             configured: Boolean(env.PROMETHEUS_URL),
