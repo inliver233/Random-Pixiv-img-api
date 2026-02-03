@@ -78,6 +78,17 @@ ADMIN_IP_ALLOWLIST=10.0.0.0/8,192.168.0.0/16,172.16.0.0/12
 - `ADMIN_RATE_LIMIT_WINDOW_MS`：窗口大小（默认 `60000`）
 - `ADMIN_RATE_LIMIT_MAX`：窗口内最大写请求数（默认 `20`）
 
+## 审计日志查看（AdminAudit）
+后台会记录关键操作的审计日志（见 `AdminAudit` 资源），用于合规追溯与排障：
+- who：`actor`
+- when：`createdAt`
+- action：`action`
+
+默认在 AdminJS 中启用该资源，支持按 `actor/createdAt/action` 等字段过滤。
+
+### 环境变量
+- `ADMIN_AUDIT_VIEW_ENABLED`：是否在 AdminJS 中显示 `AdminAudit` 资源（默认 `true`）
+
 ## 手动验收步骤
 1) 设置：
    - `ADMIN_TOKEN=test_admin_token`
@@ -111,3 +122,8 @@ ADMIN_IP_ALLOWLIST=10.0.0.0/8,192.168.0.0/16,172.16.0.0/12
    - 连续两次登录请求（第 2 次应返回 429）：
      - `curl -i -X POST -H "Content-Type: application/x-www-form-urlencoded" -d "username=admin&password=pass" http://127.0.0.1:3000/admin/login`
      - `curl -i -X POST -H "Content-Type: application/x-www-form-urlencoded" -d "username=admin&password=pass" http://127.0.0.1:3000/admin/login`
+
+7) 审计日志查看（可选验收）：
+   - 启动 Postgres（需要 `AdminAudit` 表存在；如未创建则先 `npm run prisma:migrate`）
+   - 访问 `/admin` 并执行一次后台动作（例如导入/disable/enable/delete）
+   - 在 AdminJS 左侧选择 `AdminAudit`，应能看到新增记录，并可按 `actor/createdAt/action` 过滤

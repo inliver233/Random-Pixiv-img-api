@@ -13,6 +13,14 @@ import { adminAuditResourceOptions } from './resources/adminAudits';
 let cachedRouter: Router | null = null;
 let cachedPromise: Promise<Router> | null = null;
 
+function parseBooleanEnv(value: unknown, defaultValue: boolean): boolean {
+  if (typeof value !== 'string') return defaultValue;
+  const normalized = value.trim().toLowerCase();
+  if (['1', 'true', 'yes', 'y', 'on'].includes(normalized)) return true;
+  if (['0', 'false', 'no', 'n', 'off'].includes(normalized)) return false;
+  return defaultValue;
+}
+
 export async function getAdminJsRouter(): Promise<Router> {
   if (cachedRouter) return cachedRouter;
   if (cachedPromise) return cachedPromise;
@@ -302,6 +310,7 @@ export async function getAdminJsRouter(): Promise<Router> {
     }
 
     const prisma = getPrismaClient();
+    const auditViewEnabled = parseBooleanEnv(process.env.ADMIN_AUDIT_VIEW_ENABLED, true);
 
     const ComponentLoader = (adminJSImport as any).ComponentLoader as new () => any;
     const componentLoader = new ComponentLoader();
@@ -483,24 +492,32 @@ export async function getAdminJsRouter(): Promise<Router> {
           };
         },
       },
-      resources: [
-        {
-          resource: { model: getModelByName('Image', prismaClientModule), client: prisma, clientModule: prismaClientModule },
-          options: imageResourceOptions,
-        },
-        {
-          resource: { model: getModelByName('Tag', prismaClientModule), client: prisma, clientModule: prismaClientModule },
-          options: {},
-        },
-        {
-          resource: { model: getModelByName('AdminAudit', prismaClientModule), client: prisma, clientModule: prismaClientModule },
-          options: adminAuditResourceOptions,
-        },
-        {
+      resources: (() => {
+        const resources = [
+          {
+            resource: { model: getModelByName('Image', prismaClientModule), client: prisma, clientModule: prismaClientModule },
+            options: imageResourceOptions,
+          },
+          {
+            resource: { model: getModelByName('Tag', prismaClientModule), client: prisma, clientModule: prismaClientModule },
+            options: {},
+          },
+        ] as any[];
+
+        if (auditViewEnabled) {
+          resources.push({
+            resource: { model: getModelByName('AdminAudit', prismaClientModule), client: prisma, clientModule: prismaClientModule },
+            options: adminAuditResourceOptions,
+          });
+        }
+
+        resources.push({
           resource: { model: getModelByName('Import', prismaClientModule), client: prisma, clientModule: prismaClientModule },
           options: importResourceOptions,
-        },
-      ],
+        });
+
+        return resources;
+      })(),
     });
 
     const router = AdminJSExpress.buildRouter(admin);
