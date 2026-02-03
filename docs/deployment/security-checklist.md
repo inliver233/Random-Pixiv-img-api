@@ -26,6 +26,7 @@
 
 - [ ] 容器尽可能以非 root 用户运行（本仓库 Dockerfile 使用 `USER node`）
 - [ ] 生产镜像仅包含 `dist/` 与生产依赖（多阶段构建）
+- [ ] Docker HEALTHCHECK 已启用并调用 `/healthz`（用于容器编排的健康探测）
 
 ## 4) 自查（一次执行就够）
 

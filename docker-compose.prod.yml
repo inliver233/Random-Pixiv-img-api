@@ -3,6 +3,16 @@ services:
     restart: unless-stopped
     environment:
       NODE_ENV: production
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - 'fetch("http://127.0.0.1:" + (process.env.PORT || 3000) + "/healthz").then(r => { if (!r.ok) process.exit(1) }).catch(() => process.exit(1))'
+      interval: 30s
+      timeout: 5s
+      start_period: 20s
+      retries: 3
 
   postgres:
     restart: unless-stopped
@@ -11,4 +21,3 @@ services:
   memcached:
     restart: unless-stopped
     ports: []
-
