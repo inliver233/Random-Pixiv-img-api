@@ -109,8 +109,8 @@ TRUST_PROXY=1
 - 升级/回滚/备份流程清晰
 
 你将使用的文件：
-- `docker-compose.yml`（dev 默认配置）
-- `docker-compose.prod.yml`（生产 overlay：重启策略、只读 FS 可选、资源限制、healthcheck、日志轮转）
+- `docker-compose.yml`（单文件：生产推荐配置 + 内置 `migrate` 一次性任务）
+- `docker-compose.prod.yml`（可选/历史 overlay：保留兼容旧脚本；新部署不需要）
 - `Dockerfile`（多阶段构建 + `migrator` stage）
 
 ### 方案 B：裸机部署（不使用 Docker）
@@ -267,39 +267,34 @@ POSTGRES_DB=pixivcat
 EOF
 ```
 
-### 4.5 启动 Postgres / Memcached
+### 4.5 一键启动（包含 DB 迁移）
+
+> 一条命令启动：Postgres + Memcached + migrate（Prisma migrate deploy）+ backend。
 
 ```bash
-docker compose up -d postgres memcached
+docker compose up -d --build
 docker compose ps
 ```
 
-确认 Postgres ready（可选）：
+说明：
+- `migrate` 是一次性任务容器：跑完迁移会正常退出（`Exited (0)`），这是预期行为。
+- 你可以反复执行 `docker compose up -d --build`（升级/重启时也安全）。
+
+### 4.6（可选）确认 Postgres / 手动执行迁移
+
+确认 Postgres ready：
 
 ```bash
 docker compose exec -T postgres pg_isready -U "${POSTGRES_USER:-pixivcat}"
 ```
 
-### 4.6 初始化 / 升级数据库（Prisma migrate deploy）
-
-本仓库提供 `migrate` one-off 服务（compose profile：`tools`）：
+只手动执行迁移（通常不需要，因为 `up` 会自动执行）：
 
 ```bash
-docker compose --profile tools run --rm migrate
+docker compose run --rm migrate
 ```
 
-你应该在：
-- **首次部署**：执行一次
-- **每次升级**（git pull 后）：执行一次
-
-### 4.7 启动 Backend（生产 overlay）
-
-```bash
-docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build backend
-docker compose ps
-```
-
-查看日志：
+### 4.7 查看日志
 
 ```bash
 docker compose logs -f backend
@@ -955,14 +950,7 @@ docker compose exec postgres sh
 git checkout test
 git pull
 
-# 先构建（可选，但建议）
-docker compose -f docker-compose.yml -f docker-compose.prod.yml build backend migrate
-
-# 先迁移 DB
-docker compose --profile tools run --rm migrate
-
-# 再更新 backend
-docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d backend
+docker compose up -d --build
 ```
 
 ### 9.3 回滚（最简单方法：回到旧 commit）
@@ -972,8 +960,7 @@ git checkout test
 git log --oneline -n 20
 git checkout <某个旧commit>
 
-docker compose -f docker-compose.yml -f docker-compose.prod.yml build backend
-docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d backend
+docker compose up -d --build
 ```
 
 注意：如果你回滚到了旧 schema 版本，DB 迁移可能需要额外处理；建议生产升级前做备份。

@@ -80,12 +80,18 @@ POSTGRES_DB=pixivcat
 EOF
 ```
 
-### 1.4 启动依赖（Postgres / Memcached）
+### 1.4 一键启动（包含 DB 迁移）
+
+> 一条命令启动：Postgres + Memcached + migrate（Prisma migrate deploy）+ backend。
 
 ```bash
-docker compose up -d postgres memcached
+docker compose up -d --build
 docker compose ps
 ```
+
+说明：
+- `migrate` 是一次性任务容器：跑完迁移会正常退出（`Exited (0)`），这是预期行为。
+- 你可以反复执行 `docker compose up -d --build`（升级/重启时也安全）。
 
 （可选）确认 Postgres 就绪：
 
@@ -93,23 +99,10 @@ docker compose ps
 docker compose exec -T postgres pg_isready -U "${POSTGRES_USER:-pixivcat}"
 ```
 
-### 1.5 初始化 / 升级数据库（Prisma migrate deploy）
-
-本仓库提供 `migrate` one-off 服务（Dockerfile `migrator` stage），用于在容器网络内执行迁移：
+（可选）只手动执行迁移（通常不需要）：
 
 ```bash
-docker compose --profile tools run --rm migrate
-```
-
-建议：
-- 首次部署：执行一次。
-- `git pull` 更新后：先跑一遍（即使无迁移也安全），再重启 backend。
-
-### 1.6 启动 backend（生产 overlay）
-
-```bash
-docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build backend
-docker compose ps
+docker compose run --rm migrate
 ```
 
 健康检查（应返回 200）：
@@ -187,9 +180,7 @@ TRUST_PROXY=1
 git checkout test
 git pull
 
-docker compose -f docker-compose.yml -f docker-compose.prod.yml build backend migrate
-docker compose --profile tools run --rm migrate
-docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d backend
+docker compose up -d --build
 ```
 
 ## 2) 方案 B：裸机部署（不使用 Docker）
@@ -235,5 +226,4 @@ npm run start:prod
 - 反代场景务必设置 `TRUST_PROXY=1`。
 
 5) Docker 部署迁移失败：
-- 先确认 Postgres 容器已 ready（`pg_isready`），再跑 `docker compose --profile tools run --rm migrate`。
-
+- 先确认 Postgres 容器已 ready（`pg_isready`），再跑 `docker compose run --rm migrate`（通常无需单独跑，`up` 会自动跑）。

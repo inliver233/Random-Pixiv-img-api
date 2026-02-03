@@ -2,9 +2,12 @@ services:
   backend:
     build:
       context: .
+      target: runner
+    restart: unless-stopped
     ports:
       - "${BACKEND_PORT:-3000}:3000"
     environment:
+      NODE_ENV: production
       HOST: "${HOST:-0.0.0.0}"
       PORT: "3000"
       TRUST_PROXY: "${TRUST_PROXY:-0}"
@@ -31,32 +34,77 @@ services:
       RATE_LIMIT_API_KEYS: "${RATE_LIMIT_API_KEYS:-}"
       METRICS_ENABLED: "${METRICS_ENABLED:-1}"
       METRICS_ROUTE: "${METRICS_ROUTE:-/metrics}"
+    # Optional hardening: enable with BACKEND_READ_ONLY=true
+    # When read-only, allow runtime temp writes via tmpfs mounts.
+    read_only: ${BACKEND_READ_ONLY:-false}
+    tmpfs:
+      - /tmp
+      - /app/.adminjs
+    # Optional hardening: resource limits (tune per host).
+    deploy:
+      resources:
+        limits:
+          cpus: "${BACKEND_LIMIT_CPUS:-1.0}"
+          memory: "${BACKEND_LIMIT_MEMORY:-1024M}"
+    ulimits:
+      nofile:
+        soft: ${BACKEND_ULIMIT_NOFILE_SOFT:-65535}
+        hard: ${BACKEND_ULIMIT_NOFILE_HARD:-65535}
+    # Optional hardening: cap Docker json-file logs (host-side rotation).
+    logging:
+      driver: json-file
+      options:
+        max-size: "${BACKEND_LOG_MAX_SIZE:-10m}"
+        max-file: "${BACKEND_LOG_MAX_FILE:-3}"
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - 'fetch("http://127.0.0.1:" + (process.env.PORT || 3000) + "/healthz").then(r => { if (!r.ok) process.exit(1) }).catch(() => process.exit(1))'
+      interval: 30s
+      timeout: 5s
+      start_period: 20s
+      retries: 3
     depends_on:
-      - postgres
-      - memcached
+      postgres:
+        condition: service_healthy
+      memcached:
+        condition: service_started
+      migrate:
+        condition: service_completed_successfully
 
   migrate:
     build:
       context: .
       target: migrator
-    profiles:
-      - tools
     environment:
       DATABASE_URL: 'postgresql://${POSTGRES_USER:-pixivcat}:${POSTGRES_PASSWORD:-pixivcat}@postgres:5432/${POSTGRES_DB:-pixivcat}'
     depends_on:
-      - postgres
+      postgres:
+        condition: service_healthy
 
   postgres:
     image: postgres:17-alpine
+    restart: unless-stopped
     environment:
       POSTGRES_USER: "${POSTGRES_USER:-pixivcat}"
       POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:-pixivcat}"
       POSTGRES_DB: "${POSTGRES_DB:-pixivcat}"
     volumes:
       - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - 'pg_isready -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}"'
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
 
   memcached:
     image: memcached:1.6-alpine
+    restart: unless-stopped
 
 volumes:
   pgdata:
