@@ -100,6 +100,7 @@ npm run dev
 ## 部署（Ubuntu 22 / 云服务器）
 
 - Ubuntu 22.04 生产部署与使用教程：`docs/deployment/ubuntu22.md`
+- 超详细使用手册（部署→使用→后台全流程）：`docs/usage/handbook.md`
 - Docker Compose 生产 overlay：`docs/deployment/docker-compose-prod.md`
 - 部署安全清单：`docs/deployment/security-checklist.md`
 

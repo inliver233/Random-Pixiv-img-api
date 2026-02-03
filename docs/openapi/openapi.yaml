@@ -623,19 +623,72 @@ components:
 
     RandomJsonResponse:
       type: object
-      required: [image]
+      required: [id, illust_id, page_index, r18, width, height, orientation, tags, author, urls, cache, debug]
       properties:
-        image:
-          $ref: '#/components/schemas/ImageRecord'
+        id:
+          type: integer
+          description: Image record id (DB bigint, returned as JSON number within JS safe range)
+        illust_id:
+          type: integer
+          description: Pixiv illust_id (returned as JSON number within JS safe range)
+        page_index:
+          type: integer
+          minimum: 0
+        r18:
+          type: boolean
+          description: Derived from xRestrict (>0 => true)
+        width:
+          type: integer
+          nullable: true
+        height:
+          type: integer
+          nullable: true
+        orientation:
+          type: string
+          enum: [portrait, landscape, square, unknown]
+        tags:
+          type: array
+          items: { type: string }
+        author:
+          type: object
+          required: [user_id, name]
+          properties:
+            user_id:
+              type: integer
+              nullable: true
+            name:
+              type: string
+              nullable: true
         urls:
           type: object
+          required: [proxy, origin]
           properties:
             proxy:
               type: string
               description: Stable proxy URL (e.g. /i/:id.:ext)
-            original:
+            origin:
               type: string
               description: Pixiv original_url (may be masked)
+            imgproxy:
+              type: string
+              description: Optional signed imgproxy URL when IMGPROXY_* are configured
+        cache:
+          type: object
+          required: [max_age]
+          properties:
+            max_age:
+              type: integer
+              description: Stable image cache max-age seconds (for /i)
+        debug:
+          type: object
+          required: [picked_by, attempt]
+          properties:
+            picked_by:
+              type: string
+              enum: [random_key, tablesample]
+            attempt:
+              type: integer
+              description: Requested attempts value (clamped 1..10)
 
     ImageRecord:
       type: object
