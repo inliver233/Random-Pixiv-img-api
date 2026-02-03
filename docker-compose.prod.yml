@@ -3,6 +3,12 @@ services:
     restart: unless-stopped
     environment:
       NODE_ENV: production
+    # Optional hardening: enable with BACKEND_READ_ONLY=true
+    # When read-only, allow runtime temp writes via tmpfs mounts.
+    read_only: ${BACKEND_READ_ONLY:-false}
+    tmpfs:
+      - /tmp
+      - /app/.adminjs
     healthcheck:
       test:
         - CMD

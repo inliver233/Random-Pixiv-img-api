@@ -10,6 +10,12 @@
 docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
 ```
 
+（可选）进一步收紧 backend 的运行时写权限（只读文件系统）：
+
+```bash
+BACKEND_READ_ONLY=true docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+```
+
 在提交/部署前，可用以下命令校验合并后的配置是否可生成：
 
 ```bash
@@ -20,4 +26,5 @@ docker compose -f docker-compose.yml -f docker-compose.prod.yml config
 - `.env` / `.env.docker` 属于本机/部署平台配置，不要提交到 git。
 - `REFRESH_TOKENS` / `ADMIN_TOKEN` 属于敏感信息，必须用部署平台 secret 注入（或手工维护在服务器上）。
 - 生产镜像构建建议使用 `.dockerignore`（本仓库已提供）来避免把 `.env*` 等敏感文件打包进 build context。
+- 启用只读文件系统时，本仓库 overlay 会通过 `tmpfs` 提供 `/tmp` 与 `/app/.adminjs`（AdminJS bundler 输出）等必要写路径。
 - 如需进一步缩小暴露面（例如只暴露反代端口），请在此 overlay 基础上继续收紧。

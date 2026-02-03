@@ -27,11 +27,13 @@
 - [ ] 容器尽可能以非 root 用户运行（本仓库 Dockerfile 使用 `USER node`）
 - [ ] 生产镜像仅包含 `dist/` 与生产依赖（多阶段构建）
 - [ ] Docker HEALTHCHECK 已启用并调用 `/healthz`（用于容器编排的健康探测）
+- [ ] （可选）启用 backend 只读文件系统（`BACKEND_READ_ONLY=true`）；并确认 `tmpfs` 已挂载 `/tmp` 与 `/app/.adminjs`
 
 ## 4) 自查（一次执行就够）
 
 1. [ ] 运行 `docker compose -f docker-compose.yml -f docker-compose.prod.yml config`，确认 `postgres/memcached` 没有 `ports`
 2. [ ] 启动后确认仅 backend 端口对外可达（数据库/缓存端口不可直连）
+3. [ ] （可选）启用 `BACKEND_READ_ONLY=true` 后启动，确认 `/healthz` 正常并可访问 `/admin`
 
 ## 5) 相关文件（本仓库）
 
