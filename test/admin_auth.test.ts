@@ -4,6 +4,7 @@ import request from 'supertest';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import adminRoute from '../src/routes/admin.ts';
+import adminAuth from '../src/middlewares/adminAuth.ts';
 
 const require = createRequire(import.meta.url);
 
@@ -164,5 +165,33 @@ describe('Admin auth (/admin)', () => {
       .expect(200);
 
     expect(res.body).toEqual({ ok: true });
+  });
+
+  it('does not allow session auth when enabled but secret is missing', async () => {
+    process.env.ADMIN_SESSION_AUTH_ENABLED = 'true';
+    delete process.env.ADMIN_SESSION_SECRET;
+    delete process.env.ADMIN_TOKEN;
+
+    const app = express();
+    app.use(requestIdMiddleware);
+
+    // Simulate a forged/mis-set session object.
+    app.use((req, _res, next) => {
+      (req as any).session = { admin: true };
+      next();
+    });
+
+    app.get('/admin', adminAuth, (_req, res) => res.json({ ok: true }));
+
+    const res = await request(app)
+      .get('/admin')
+      .set('x-request-id', 'req-admin-session-misconfigured')
+      .expect(401);
+
+    expect(res.body).toEqual({
+      code: 'UNAUTHORIZED',
+      message: 'Unauthorized',
+      request_id: 'req-admin-session-misconfigured',
+    });
   });
 });

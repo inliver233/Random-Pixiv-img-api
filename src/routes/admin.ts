@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import { Router } from 'express';
 import session from 'express-session';
 
@@ -17,7 +18,8 @@ function parseBooleanEnv(value: unknown, defaultValue: boolean): boolean {
   return defaultValue;
 }
 
-const sessionSecret = String(process.env.ADMIN_SESSION_SECRET || process.env.ADMIN_TOKEN || 'pixivcat_admin_session').trim();
+const sessionSecret = String(process.env.ADMIN_SESSION_SECRET || process.env.ADMIN_TOKEN || '').trim()
+  || crypto.randomBytes(32).toString('hex');
 router.use(session({
   name: 'pixivcat_admin_sid',
   secret: sessionSecret,

@@ -40,8 +40,14 @@ function parseBooleanEnv(value: unknown, defaultValue: boolean): boolean {
   return defaultValue;
 }
 
+function hasAdminSessionSecret(): boolean {
+  const secret = String(process.env.ADMIN_SESSION_SECRET || process.env.ADMIN_TOKEN || '').trim();
+  return secret.length > 0;
+}
+
 function isAdminSessionAuthEnabled(): boolean {
-  return parseBooleanEnv(process.env.ADMIN_SESSION_AUTH_ENABLED, false);
+  if (!parseBooleanEnv(process.env.ADMIN_SESSION_AUTH_ENABLED, false)) return false;
+  return hasAdminSessionSecret();
 }
 
 function isAdminSessionAuthenticated(req: Request): boolean {
