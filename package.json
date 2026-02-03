@@ -9,7 +9,7 @@
   "scripts": {
     "start": "node app.js",
     "start:prod": "node dist/app.js",
-    "build": "tsc -p tsconfig.json && node -e \"const fs=require('fs'); fs.mkdirSync('dist/views',{recursive:true}); fs.copyFileSync('views/error.ejs','dist/views/error.ejs');\"",
+    "build": "tsc -p tsconfig.json && node -e \"const fs=require('fs'); const path=require('path'); const copy=(src,dst)=>{ fs.mkdirSync(path.dirname(dst),{recursive:true}); fs.copyFileSync(src,dst); }; copy('views/error.ejs','dist/views/error.ejs'); const dash='src/admin/pages/dashboard.jsx'; if (fs.existsSync(dash)) copy(dash,'dist/src/admin/pages/dashboard.jsx');\"",
     "dev": "nodemon app.js",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",

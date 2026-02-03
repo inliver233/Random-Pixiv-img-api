@@ -47,7 +47,9 @@ export default function Dashboard() {
         setError(err?.message || String(err));
       });
 
-    return () => { mounted = false; };
+    return () => {
+      mounted = false;
+    };
   }, []);
 
   const summary = useMemo(() => {
@@ -137,20 +139,16 @@ export default function Dashboard() {
               </tr>
               <tr>
                 <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee', fontWeight: 600 }}>broken</td>
-                <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee' }}>{data.images.broken}</td>
-              </tr>
-              <tr>
-                <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee', fontWeight: 600 }}>broken_ratio</td>
-                <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee' }}>{formatPercent(data.images.broken_ratio)}</td>
+                <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee' }}>
+                  {data.images.broken} ({formatPercent(data.images.broken_ratio)})
+                </td>
               </tr>
             </tbody>
           </table>
-        </div>
 
-        <div style={{ border: '1px solid #e5e7eb', borderRadius: 12, padding: 12 }}>
-          <h3 style={{ marginTop: 0 }}>Top errors (Image.last_error_code)</h3>
-          {data.top_errors.length === 0 ? (
-            <p style={{ color: '#666' }}>No error codes recorded.</p>
+          <h4 style={{ marginBottom: 8, marginTop: 16 }}>top_errors (db)</h4>
+          {(data.images.top_errors || []).length === 0 ? (
+            <p style={{ marginTop: 0, color: '#666' }}>No data.</p>
           ) : (
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
@@ -160,7 +158,7 @@ export default function Dashboard() {
                 </tr>
               </thead>
               <tbody>
-                {data.top_errors.map((row) => (
+                {data.images.top_errors.map((row) => (
                   <tr key={row.code}>
                     <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee' }}>{row.code}</td>
                     <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee', textAlign: 'right' }}>{row.count}</td>
@@ -170,9 +168,7 @@ export default function Dashboard() {
             </table>
           )}
         </div>
-      </div>
 
-      <div style={{ marginTop: 16, display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: 12 }}>
         <div style={{ border: '1px solid #e5e7eb', borderRadius: 12, padding: 12 }}>
           <h3 style={{ marginTop: 0 }}>Imports</h3>
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
@@ -186,33 +182,24 @@ export default function Dashboard() {
                 <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee' }}>{data.imports.last_24h}</td>
               </tr>
               <tr>
-                <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee', fontWeight: 600 }}>last_at</td>
-                <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee' }}>{data.imports.last_at || 'N/A'}</td>
+                <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee', fontWeight: 600 }}>last_import_at</td>
+                <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee' }}>{String(data.imports.last_import_at || 'N/A')}</td>
               </tr>
             </tbody>
           </table>
         </div>
+      </div>
 
+      <div style={{ marginTop: 16, display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: 12 }}>
         <div style={{ border: '1px solid #e5e7eb', borderRadius: 12, padding: 12 }}>
-          <h3 style={{ marginTop: 0 }}>Metrics (in-process)</h3>
+          <h3 style={{ marginTop: 0 }}>Metrics</h3>
           <p style={{ marginTop: 0, color: '#666' }}>
-            Data source: prom-client Registry. Key app metrics will appear after related issues are implemented.
+            configured: <b>{String(Boolean(data.metrics?.configured))}</b>
+            {data.metrics?.fetched_at ? <span style={{ color: '#666' }}> · fetched_at: {data.metrics.fetched_at}</span> : null}
           </p>
-          <p style={{ marginTop: 0 }}>
-            enabled: <b>{String(data.metrics.enabled)}</b> · metrics_count: <b>{data.metrics.metric_names.length}</b>
-          </p>
-          <p style={{ marginTop: 0 }}>
-            prometheus_query: <b>{data.prometheus?.configured ? (data.prometheus.ok ? 'OK' : 'ERROR') : 'N/A'}</b>
-            {data.prometheus?.configured && data.prometheus?.fetched_at ? (
-              <span style={{ color: '#666' }}> · fetched_at: {data.prometheus.fetched_at}</span>
-            ) : null}
-          </p>
-          {data.prometheus?.configured && !data.prometheus?.ok && data.prometheus?.error ? (
-            <p style={{ marginTop: 0, color: '#b91c1c' }}>prometheus_error: {String(data.prometheus.error)}</p>
-          ) : null}
           <details>
             <summary>metric names</summary>
-            <pre style={{ whiteSpace: 'pre-wrap' }}>{data.metrics.metric_names.join('\n')}</pre>
+            <pre style={{ whiteSpace: 'pre-wrap' }}>{(data.metrics?.metric_names || []).join('\n')}</pre>
           </details>
         </div>
 
@@ -299,3 +286,4 @@ export default function Dashboard() {
     </div>
   );
 }
+

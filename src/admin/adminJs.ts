@@ -314,7 +314,8 @@ export async function getAdminJsRouter(): Promise<Router> {
 
     const ComponentLoader = (adminJSImport as any).ComponentLoader as new () => any;
     const componentLoader = new ComponentLoader();
-    const Dashboard = componentLoader.add('Dashboard', path.join(__dirname, 'pages', 'dashboard'));
+    // AdminJS bundler parses JSX reliably from .jsx/.tsx but not from plain .js in some environments.
+    const Dashboard = componentLoader.add('Dashboard', path.join(__dirname, 'pages', 'dashboard.jsx'));
 
     const admin = new AdminJS({
       rootPath: '/admin',
