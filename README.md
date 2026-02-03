@@ -85,12 +85,17 @@ curl "http://127.0.0.1:3000/random?format=json&excluded_tags=ai_generated|gore"
 要求：
 - Node.js `>=24`
 
-启动（当前仓库会在后续 Issues 中补齐完整脚本与 TS build）：
+启动（完整功能）：
 
 ```bash
 npm ci
+npm run build
 npm run dev
 ```
+
+说明：
+- `npm run dev` 使用 `app.js`（CJS 入口）；当存在 `dist/` 时会优先委托到 `dist` 下的 TS 路由实现。
+- 生产启动推荐：`npm run start:prod`（运行 `dist/app.js`）。
 
 ## 环境变量（后续按 Issues 增量补齐）
 
@@ -101,4 +106,3 @@ npm run dev
 升级后（随机 API / 后台 / 队列）将引入：
 - `DATABASE_URL`（PostgreSQL）
 - `ADMIN_TOKEN`（后台鉴权）
-
