@@ -199,6 +199,65 @@ export type EnsurePrimaryBindingsResult = {
   unchanged: number;
 };
 
+export type TokenProxyBindingOverride = {
+  overrideProxyId: string;
+  overrideExpiresAt: Date;
+  reason: string;
+};
+
+export type TokenProxyBindingLike = {
+  primaryProxyId: string;
+  overrideProxyId?: string | null;
+  overrideExpiresAt?: Date | null;
+};
+
+export function resolveEffectiveProxy(binding: TokenProxyBindingLike, now: Date = new Date()): {
+  proxyId: string;
+  mode: 'primary' | 'override';
+} {
+  const primaryProxyId = normalizeId(binding.primaryProxyId, 'primaryProxyId');
+  const overrideProxyId = binding.overrideProxyId ? normalizeId(binding.overrideProxyId, 'overrideProxyId') : null;
+  const overrideExpiresAt = binding.overrideExpiresAt ?? null;
+
+  if (overrideProxyId && overrideExpiresAt instanceof Date && Number.isFinite(overrideExpiresAt.getTime())) {
+    if (overrideExpiresAt.getTime() > now.getTime()) {
+      return { proxyId: overrideProxyId, mode: 'override' };
+    }
+  }
+
+  return { proxyId: primaryProxyId, mode: 'primary' };
+}
+
+export function planOverride(params: {
+  tokenId: string;
+  poolSalt: string;
+  failedProxyId: string;
+  availableProxyIds: string[];
+  ttlMs: number;
+  now?: Date;
+  reason?: string;
+}): TokenProxyBindingOverride | null {
+  const tokenId = normalizeId(params.tokenId, 'tokenId');
+  const failedProxyId = normalizeId(params.failedProxyId, 'failedProxyId');
+  const poolSalt = String(params.poolSalt ?? '').trim();
+  const ttlMs = Number(params.ttlMs);
+  if (!Number.isFinite(ttlMs) || ttlMs <= 0) throw new Error('ttlMs must be a positive number.');
+
+  const now = params.now ?? new Date();
+  const candidates = (params.availableProxyIds ?? [])
+    .map((p) => normalizeId(p, 'proxyId'))
+    .filter((p) => p !== failedProxyId);
+
+  if (candidates.length === 0) return null;
+
+  const picked = pickPrimaryProxyRendezvous(tokenId, candidates, poolSalt);
+  return {
+    overrideProxyId: picked,
+    overrideExpiresAt: new Date(now.getTime() + ttlMs),
+    reason: params.reason ?? 'proxy_failure',
+  };
+}
+
 export async function ensurePrimaryBindings(params: {
   poolId: bigint;
   tokenIds: bigint[];
