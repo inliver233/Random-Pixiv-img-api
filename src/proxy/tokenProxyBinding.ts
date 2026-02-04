@@ -66,6 +66,133 @@ export function computePrimaryBindings(params: {
   }));
 }
 
+function scoreTokenProxyPair(tokenId: string, proxyId: string, salt: string): bigint {
+  return fnv1a64(`${tokenId}|${proxyId}|${salt}`);
+}
+
+function rankProxiesForToken(tokenId: string, proxyIds: string[], salt: string): string[] {
+  return proxyIds
+    .map((proxyId) => ({ proxyId, score: scoreTokenProxyPair(tokenId, proxyId, salt) }))
+    .sort((a, b) => {
+      if (a.score > b.score) return -1;
+      if (a.score < b.score) return 1;
+      if (a.proxyId < b.proxyId) return -1;
+      if (a.proxyId > b.proxyId) return 1;
+      return 0;
+    })
+    .map((entry) => entry.proxyId);
+}
+
+export type ComputeScaledBindingsResult = {
+  bindings: PrimaryTokenProxyBinding[];
+  maxTokensPerProxy: number;
+  proxyLoads: Record<string, number>;
+  idleProxyIds: string[];
+};
+
+export function computeScaledPrimaryBindings(params: {
+  tokenIds: string[];
+  proxyIds: string[];
+  currentBindings?: PrimaryTokenProxyBinding[];
+  salt?: string;
+  maxTokensPerProxy?: number;
+}): ComputeScaledBindingsResult {
+  const tokenIds = (params.tokenIds ?? []).map((t) => normalizeId(t, 'tokenId'));
+  const proxyIds = (params.proxyIds ?? []).map((p) => normalizeId(p, 'proxyId'));
+  if (proxyIds.length === 0) throw new Error('proxyIds must be a non-empty array.');
+
+  const salt = params.salt ?? '';
+  const targetMaxTokensPerProxy =
+    params.maxTokensPerProxy ??
+    (proxyIds.length >= tokenIds.length ? 1 : Math.max(1, Math.ceil(tokenIds.length / proxyIds.length)));
+
+  const bindingsByToken = new Map<string, string>();
+  const loads = new Map<string, number>();
+  for (const proxyId of proxyIds) loads.set(proxyId, 0);
+
+  const current = params.currentBindings ?? [];
+  for (const binding of current) {
+    if (!binding) continue;
+    const tokenId = normalizeId(binding.tokenId, 'tokenId');
+    const proxyId = normalizeId(binding.proxyId, 'proxyId');
+    if (!tokenIds.includes(tokenId)) continue;
+    if (!loads.has(proxyId)) continue;
+    if (bindingsByToken.has(tokenId)) continue;
+
+    bindingsByToken.set(tokenId, proxyId);
+    loads.set(proxyId, (loads.get(proxyId) ?? 0) + 1);
+  }
+
+  const tokensNeedingAssign: string[] = [];
+  for (const tokenId of tokenIds) {
+    if (!bindingsByToken.has(tokenId)) tokensNeedingAssign.push(tokenId);
+  }
+
+  // Enforce per-proxy upper bound: keep the most "affine" tokens, move the rest.
+  if (targetMaxTokensPerProxy > 0) {
+    const tokensByProxy = new Map<string, string[]>();
+    for (const [tokenId, proxyId] of bindingsByToken.entries()) {
+      const list = tokensByProxy.get(proxyId) ?? [];
+      list.push(tokenId);
+      tokensByProxy.set(proxyId, list);
+    }
+
+    for (const proxyId of proxyIds) {
+      const assigned = tokensByProxy.get(proxyId) ?? [];
+      if (assigned.length <= targetMaxTokensPerProxy) continue;
+
+      const rankedTokens = assigned
+        .map((tokenId) => ({ tokenId, score: scoreTokenProxyPair(tokenId, proxyId, salt) }))
+        .sort((a, b) => {
+          if (a.score > b.score) return -1;
+          if (a.score < b.score) return 1;
+          if (a.tokenId < b.tokenId) return -1;
+          if (a.tokenId > b.tokenId) return 1;
+          return 0;
+        })
+        .map((entry) => entry.tokenId);
+
+      const toKeep = new Set(rankedTokens.slice(0, targetMaxTokensPerProxy));
+      for (const tokenId of rankedTokens.slice(targetMaxTokensPerProxy)) {
+        bindingsByToken.delete(tokenId);
+        tokensNeedingAssign.push(tokenId);
+      }
+      tokensByProxy.set(proxyId, rankedTokens.filter((t) => toKeep.has(t)));
+      loads.set(proxyId, targetMaxTokensPerProxy);
+    }
+  }
+
+  tokensNeedingAssign.sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
+  for (const tokenId of tokensNeedingAssign) {
+    const ranked = rankProxiesForToken(tokenId, proxyIds, salt);
+    let picked = ranked[0]!;
+    for (const proxyId of ranked) {
+      const load = loads.get(proxyId) ?? 0;
+      if (load < targetMaxTokensPerProxy) {
+        picked = proxyId;
+        break;
+      }
+    }
+    bindingsByToken.set(tokenId, picked);
+    loads.set(picked, (loads.get(picked) ?? 0) + 1);
+  }
+
+  const proxyLoads: Record<string, number> = {};
+  const idleProxyIds: string[] = [];
+  for (const proxyId of proxyIds) {
+    const load = loads.get(proxyId) ?? 0;
+    proxyLoads[proxyId] = load;
+    if (load === 0) idleProxyIds.push(proxyId);
+  }
+
+  return {
+    bindings: tokenIds.map((tokenId) => ({ tokenId, proxyId: bindingsByToken.get(tokenId)! })),
+    maxTokensPerProxy: targetMaxTokensPerProxy,
+    proxyLoads,
+    idleProxyIds,
+  };
+}
+
 export type EnsurePrimaryBindingsResult = {
   created: number;
   updated: number;
@@ -138,4 +265,3 @@ export async function ensurePrimaryBindings(params: {
 
   return { created, updated, unchanged };
 }
-
