@@ -2,6 +2,7 @@ import axios, { type AxiosRequestConfig, type AxiosResponse, type RawAxiosReques
 import axiosRetry from 'axios-retry';
 
 import { getDirectAgentPair, getProxyAgentPair, type AgentFactoryOptions } from '../proxy/agentFactory';
+import { shouldProxyUrl } from '../proxy/routing';
 
 export type PixivAxiosRequestConfig = AxiosRequestConfig & {
   proxyUri?: string;
@@ -87,14 +88,23 @@ function ensureRetryConfigured(): void {
 
 ensureRetryConfigured();
 
-function buildPixivConfig(base: AxiosRequestConfig, override?: PixivAxiosRequestConfig): AxiosRequestConfig {
+function buildPixivConfig(
+  base: AxiosRequestConfig,
+  requestUrl: string | undefined,
+  override?: PixivAxiosRequestConfig,
+): AxiosRequestConfig {
   if (!override) return base;
 
   const { proxyUri, proxyAgentOptions, ...axiosOverride } = override as any;
   const merged = mergeConfig(base, axiosOverride);
 
   const hasExplicitAgents = Boolean((axiosOverride as any).httpAgent || (axiosOverride as any).httpsAgent);
-  const shouldApplyProxyUri = typeof proxyUri === 'string' && proxyUri.trim().length > 0 && !hasExplicitAgents;
+  const shouldApplyProxyUri =
+    typeof proxyUri === 'string' &&
+    proxyUri.trim().length > 0 &&
+    !hasExplicitAgents &&
+    typeof requestUrl === 'string' &&
+    shouldProxyUrl(requestUrl);
 
   if (shouldApplyProxyUri) {
     const agents = getProxyAgentPair(proxyUri, proxyAgentOptions);
@@ -108,14 +118,14 @@ function buildPixivConfig(base: AxiosRequestConfig, override?: PixivAxiosRequest
 }
 
 export async function pixivApiGet<T = any>(url: string, config?: PixivAxiosRequestConfig): Promise<AxiosResponse<T>> {
-  return axios.get<T>(url, buildPixivConfig(PIXIV_API_DEFAULTS, config));
+  return axios.get<T>(url, buildPixivConfig(PIXIV_API_DEFAULTS, url, config));
 }
 
 export async function pixivApiRequest<T = any>(config: PixivAxiosRequestConfig): Promise<AxiosResponse<T>> {
   const { url, ...rest } = config;
-  return axios.request<T>({ url, ...buildPixivConfig(PIXIV_API_DEFAULTS, rest) });
+  return axios.request<T>({ url, ...buildPixivConfig(PIXIV_API_DEFAULTS, url, rest) });
 }
 
 export async function pixivImageGet<T = any>(url: string, config?: PixivAxiosRequestConfig): Promise<AxiosResponse<T>> {
-  return axios.get<T>(url, buildPixivConfig(PIXIV_IMAGE_DEFAULTS, config));
+  return axios.get<T>(url, buildPixivConfig(PIXIV_IMAGE_DEFAULTS, url, config));
 }
