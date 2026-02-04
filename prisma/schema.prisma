@@ -149,6 +149,8 @@ model PixivToken {
   refreshToken       String @map("refresh_token") @db.Text
   refreshTokenMasked String @map("refresh_token_masked") @db.Text
 
+  bindings TokenProxyBinding[]
+
   @@index([enabled], map: "pixiv_tokens_enabled")
   @@map("pixiv_tokens")
 }
@@ -169,8 +171,72 @@ model ProxyEndpoint {
   source    String  @default("manual") @db.Text
   sourceRef String? @map("source_ref") @db.Text
 
+  pools           ProxyPoolEndpoint[]
+  primaryBindings TokenProxyBinding[] @relation("binding_primary_proxy")
+  overrideBindings TokenProxyBinding[] @relation("binding_override_proxy")
+
   @@unique([scheme, host, port, username], map: "proxy_endpoints_identity")
   @@index([enabled], map: "proxy_endpoints_enabled")
   @@index([source], map: "proxy_endpoints_source")
   @@map("proxy_endpoints")
+}
+
+model ProxyPool {
+  id        BigInt   @id @default(autoincrement())
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+
+  name        String  @db.Text
+  description String? @db.Text
+  enabled     Boolean @default(true)
+
+  endpoints ProxyPoolEndpoint[]
+  bindings  TokenProxyBinding[]
+
+  @@unique([name], map: "proxy_pools_name_uniq")
+  @@index([enabled], map: "proxy_pools_enabled")
+  @@map("proxy_pools")
+}
+
+model ProxyPoolEndpoint {
+  poolId     BigInt @map("pool_id") @db.BigInt
+  endpointId BigInt @map("endpoint_id") @db.BigInt
+
+  enabled Boolean @default(true)
+  weight  Int     @default(1)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+
+  pool     ProxyPool     @relation(fields: [poolId], references: [id], onDelete: Cascade)
+  endpoint ProxyEndpoint @relation(fields: [endpointId], references: [id], onDelete: Cascade)
+
+  @@id([poolId, endpointId])
+  @@index([endpointId, poolId], map: "proxy_pool_endpoints_endpoint")
+  @@index([poolId, enabled], map: "proxy_pool_endpoints_enabled")
+  @@map("proxy_pool_endpoints")
+}
+
+model TokenProxyBinding {
+  id        BigInt   @id @default(autoincrement())
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+
+  tokenId BigInt @map("token_id") @db.BigInt
+  poolId  BigInt @map("pool_id") @db.BigInt
+
+  primaryProxyId     BigInt   @map("primary_proxy_id") @db.BigInt
+  overrideProxyId    BigInt?  @map("override_proxy_id") @db.BigInt
+  overrideExpiresAt  DateTime? @map("override_expires_at")
+
+  token        PixivToken    @relation(fields: [tokenId], references: [id], onDelete: Cascade)
+  pool         ProxyPool     @relation(fields: [poolId], references: [id], onDelete: Cascade)
+  primaryProxy ProxyEndpoint @relation("binding_primary_proxy", fields: [primaryProxyId], references: [id], onDelete: Restrict)
+  overrideProxy ProxyEndpoint? @relation("binding_override_proxy", fields: [overrideProxyId], references: [id], onDelete: SetNull)
+
+  @@unique([tokenId, poolId], map: "token_proxy_bindings_token_pool_uniq")
+  @@index([poolId], map: "token_proxy_bindings_pool")
+  @@index([primaryProxyId], map: "token_proxy_bindings_primary_proxy")
+  @@index([overrideProxyId], map: "token_proxy_bindings_override_proxy")
+  @@map("token_proxy_bindings")
 }
