@@ -118,6 +118,19 @@ curl -i "http://127.0.0.1:3000/random?r18=1"
 - `r18` 仅支持 `0/1/2`；空值或其他值会返回 400（`message=Invalid r18.`）。
 - `r18` 越严格，可用候选越少；若出现频繁 `NO_MATCH`，可考虑减少其他过滤条件或提高 `attempts`。
 
+## `r18_strict`（可选）
+
+为了解决“刚导入、元数据尚未补全（`xRestrict` 为空）时 `/random` 频繁 `NO_MATCH`”的问题：
+
+- 默认行为：当 `r18=0` 时，**允许** `xRestrict IS NULL` 的图片参与随机（把“未知”当作全年龄）。
+- 严格模式：设置 `r18_strict=1`（或环境变量 `RANDOM_R18_STRICT=true`）后，当 `r18=0` 时 **只** 返回 `xRestrict=0` 的图片（不包含 `NULL`）。
+
+### 示例
+
+```bash
+curl -i "http://127.0.0.1:3000/random?r18=0&r18_strict=1"
+```
+
 ## `orientation`
 
 `orientation` 用于筛选图片方向：

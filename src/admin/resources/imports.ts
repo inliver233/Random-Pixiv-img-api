@@ -1,4 +1,6 @@
 export const importResourceOptions = {
+  navigation: { name: '数据', icon: 'Database' },
+  label: '导入记录',
   listProperties: [
     'id',
     'createdAt',
@@ -37,4 +39,3 @@ export const importResourceOptions = {
     },
   },
 } as const;
-

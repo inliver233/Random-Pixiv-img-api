@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { resetEnvForTest } from '../src/config/env';
 import { setPrismaClientForTest } from '../src/db/prismaClient';
 import { IMAGE_STATUS_ACTIVE, IMAGE_STATUS_BROKEN, getById, markFail, markOk, pickRandom, upsert } from '../src/repositories/imagesRepo';
 
@@ -161,5 +162,31 @@ describe('imagesRepo', () => {
 
     expect(prisma.image.findUnique).toHaveBeenCalledWith({ where: { id: 5n } });
     expect(res).toEqual({ id: 5n });
+  });
+
+  it('pickRandom respects xRestrictAllowUnknown=false (does not include NULL for r18=0)', async () => {
+    const prevCooldown = process.env.RANDOM_FAIL_COOLDOWN_MS;
+    process.env.RANDOM_FAIL_COOLDOWN_MS = '0';
+    resetEnvForTest();
+
+    prisma.image.findFirst.mockResolvedValueOnce({ id: 6n });
+
+    try {
+      const res = await pickRandom({ xRestrict: 0, xRestrictAllowUnknown: false }, 0.5);
+
+      expect(prisma.image.findFirst).toHaveBeenCalledWith({
+        where: {
+          status: IMAGE_STATUS_ACTIVE,
+          xRestrict: 0,
+          randomKey: { gte: 0.5 },
+        },
+        orderBy: { randomKey: 'asc' },
+      });
+      expect(res).toEqual({ id: 6n });
+    } finally {
+      if (prevCooldown === undefined) delete process.env.RANDOM_FAIL_COOLDOWN_MS;
+      else process.env.RANDOM_FAIL_COOLDOWN_MS = prevCooldown;
+      resetEnvForTest();
+    }
   });
 });

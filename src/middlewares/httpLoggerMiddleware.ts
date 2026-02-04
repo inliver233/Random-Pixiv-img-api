@@ -15,12 +15,13 @@ export default function httpLoggerMiddleware(req: Request, res: Response, next: 
   res.on('finish', () => {
     const durationMs = Number(process.hrtime.bigint() - start) / 1e6;
     const requestId = (req as any).request_id || res.locals.request_id;
+    const routeLabel = getRouteLabel(req);
 
     logger.info(
       {
         request_id: requestId,
         method: req.method,
-        route: getRouteLabel(req),
+        route: routeLabel,
         status: res.statusCode,
         latency_ms: Math.round(durationMs),
       },
@@ -35,6 +36,17 @@ export default function httpLoggerMiddleware(req: Request, res: Response, next: 
       observeRequestDurationSeconds(req, res, durationMs / 1000);
     } catch (err: unknown) {
       logger.warn({ err: { message: err instanceof Error ? err.message : String(err) } }, 'metrics http_requests_total failed');
+    }
+
+    const requestLogEnabled = String(process.env.REQUEST_LOG_ENABLED || '').trim().toLowerCase();
+    if (['1', 'true', 'yes', 'y', 'on'].includes(requestLogEnabled)) {
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-var-requires
+        const { maybeRecordRequestLog } = require('../services/requestLogService') as typeof import('../services/requestLogService');
+        void maybeRecordRequestLog({ req, res, routeLabel, durationMs: Math.round(durationMs) });
+      } catch (err: unknown) {
+        logger.warn({ err }, 'request_log init failed');
+      }
     }
   });
 

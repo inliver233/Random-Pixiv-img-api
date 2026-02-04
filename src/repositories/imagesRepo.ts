@@ -201,6 +201,9 @@ export async function healOriginalUrlsForIllust(illustId: bigint, pages: HealOri
 
 export type PickRandomFilters = {
   xRestrict?: number | null;
+  // When xRestrict=0, whether to also include xRestrict=NULL rows (imported but not hydrated yet).
+  // Default: true (so freshly imported images can be served without metadata hydration).
+  xRestrictAllowUnknown?: boolean | null;
   orientation?: number | null;
   minWidth?: number | null;
   minHeight?: number | null;
@@ -228,10 +231,15 @@ function buildPickRandomBaseWhere(filters: PickRandomFilters) {
 
   if (filters.xRestrict !== undefined && filters.xRestrict !== null) {
     if (filters.xRestrict === 0) {
-      // Imported images may not have metadata yet (xRestrict is NULL).
-      // When r18=0 we still want to serve these images.
-      where.AND ??= [];
-      where.AND.push({ OR: [{ xRestrict: 0 }, { xRestrict: null }] });
+      const allowUnknown = filters.xRestrictAllowUnknown !== false;
+      if (allowUnknown) {
+        // Imported images may not have metadata yet (xRestrict is NULL).
+        // When r18=0 we still want to serve these images.
+        where.AND ??= [];
+        where.AND.push({ OR: [{ xRestrict: 0 }, { xRestrict: null }] });
+      } else {
+        where.xRestrict = 0;
+      }
     } else {
       where.xRestrict = filters.xRestrict;
     }
@@ -326,7 +334,12 @@ function buildPickRandomSqlConditions(filters: PickRandomFilters): Prisma.Sql[] 
 
   if (filters.xRestrict !== undefined && filters.xRestrict !== null) {
     if (filters.xRestrict === 0) {
-      conditions.push(Prisma.sql`(x_restrict = ${filters.xRestrict} OR x_restrict IS NULL)`);
+      const allowUnknown = filters.xRestrictAllowUnknown !== false;
+      if (allowUnknown) {
+        conditions.push(Prisma.sql`(x_restrict = ${filters.xRestrict} OR x_restrict IS NULL)`);
+      } else {
+        conditions.push(Prisma.sql`x_restrict = 0`);
+      }
     } else {
       conditions.push(Prisma.sql`x_restrict = ${filters.xRestrict}`);
     }

@@ -104,6 +104,12 @@ export default function Dashboard() {
                 <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee' }}>{Math.round(data.process.uptime_s)}s</td>
               </tr>
               <tr>
+                <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee', fontWeight: 600 }}>队列</td>
+                <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee' }}>
+                  {data.queue?.ok ? 'ok' : 'error'}{data.queue?.message ? ` (${String(data.queue.message)})` : ''}
+                </td>
+              </tr>
+              <tr>
                 <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee', fontWeight: 600 }}>RSS</td>
                 <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee' }}>{formatBytes(data.process.rss_bytes)}</td>
               </tr>

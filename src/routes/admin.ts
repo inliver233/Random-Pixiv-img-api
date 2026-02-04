@@ -66,13 +66,13 @@ router.get('/login', (req, res) => {
     return;
   }
 
-    res.setHeader('Cache-Control', 'no-store');
-    res.status(200).type('html').send(`<!doctype html>
-<html lang="en">
+  res.setHeader('Cache-Control', 'no-store');
+  res.status(200).type('html').send(`<!doctype html>
+<html lang="zh-CN">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Admin Login</title>
+    <title>后台登录</title>
     <style>
       body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; margin: 2rem; line-height: 1.4; }
       .box { max-width: 420px; padding: 1rem 1.25rem; border: 1px solid #e4e4e7; border-radius: 10px; }
@@ -84,17 +84,17 @@ router.get('/login', (req, res) => {
   </head>
   <body>
     <div class="box">
-      <h1 style="margin-top:0">Admin Login</h1>
+      <h1 style="margin-top:0">后台登录</h1>
       <form method="post" action="/admin/login">
-        <label>Username
+        <label>用户名
           <input name="username" autocomplete="username" />
         </label>
-        <label>Password
+        <label>密码
           <input name="password" type="password" autocomplete="current-password" />
         </label>
-        <button type="submit">Sign in</button>
+        <button type="submit">登录</button>
       </form>
-      <p class="hint">This form requires ADMIN_SESSION_* env to be configured.</p>
+      <p class="hint">需配置 <code>ADMIN_SESSION_AUTH_ENABLED</code> 与 <code>ADMIN_SESSION_USER/PASS</code>。</p>
     </div>
   </body>
 </html>`);
@@ -107,40 +107,40 @@ router.post('/login', (req, res) => {
     return;
   }
 
-    const expectedUser = String(process.env.ADMIN_SESSION_USER || '').trim();
-    const expectedPass = String(process.env.ADMIN_SESSION_PASS || '').trim();
-    const secret = String(process.env.ADMIN_SESSION_SECRET || process.env.ADMIN_TOKEN || '').trim();
+  const expectedUser = String(process.env.ADMIN_SESSION_USER || '').trim();
+  const expectedPass = String(process.env.ADMIN_SESSION_PASS || '').trim();
+  const secret = String(process.env.ADMIN_SESSION_SECRET || process.env.ADMIN_TOKEN || '').trim();
 
-    res.setHeader('Cache-Control', 'no-store');
+  res.setHeader('Cache-Control', 'no-store');
 
-    if (!secret) {
-      res.status(503).json({ code: 'ADMIN_SESSION_MISCONFIGURED', message: 'Missing ADMIN_SESSION_SECRET.' });
-      return;
-    }
+  if (!secret) {
+    res.status(503).json({ code: 'ADMIN_SESSION_MISCONFIGURED', message: 'Missing ADMIN_SESSION_SECRET.' });
+    return;
+  }
 
-    if (!expectedUser || !expectedPass) {
-      res.status(503).json({ code: 'ADMIN_SESSION_MISCONFIGURED', message: 'Missing ADMIN_SESSION_USER/ADMIN_SESSION_PASS.' });
-      return;
-    }
+  if (!expectedUser || !expectedPass) {
+    res.status(503).json({ code: 'ADMIN_SESSION_MISCONFIGURED', message: 'Missing ADMIN_SESSION_USER/ADMIN_SESSION_PASS.' });
+    return;
+  }
 
-    const username = String((req as any).body?.username ?? '').trim();
-    const password = String((req as any).body?.password ?? '').trim();
+  const username = String((req as any).body?.username ?? '').trim();
+  const password = String((req as any).body?.password ?? '').trim();
 
-    if (!username || !password || username !== expectedUser || password !== expectedPass) {
-      res.status(401).json({ code: 'UNAUTHORIZED', message: 'Invalid credentials.' });
-      return;
-    }
+  if (!username || !password || username !== expectedUser || password !== expectedPass) {
+    res.status(401).json({ code: 'UNAUTHORIZED', message: 'Invalid credentials.' });
+    return;
+  }
 
-    const sessionObj = (req as any).session;
-    if (!sessionObj) {
-      res.status(503).json({ code: 'ADMIN_SESSION_MISCONFIGURED', message: 'Session middleware not available.' });
-      return;
-    }
+  const sessionObj = (req as any).session;
+  if (!sessionObj) {
+    res.status(503).json({ code: 'ADMIN_SESSION_MISCONFIGURED', message: 'Session middleware not available.' });
+    return;
+  }
 
-    sessionObj.admin = true;
-    sessionObj.admin_user = username;
+  sessionObj.admin = true;
+  sessionObj.admin_user = username;
 
-    res.redirect(302, '/admin');
+  res.redirect(302, '/admin');
 });
 
 router.post('/logout', (req, res) => {
@@ -150,16 +150,16 @@ router.post('/logout', (req, res) => {
     return;
   }
 
-    res.setHeader('Cache-Control', 'no-store');
-    const sessionObj = (req as any).session;
-    if (!sessionObj || typeof sessionObj.destroy !== 'function') {
-      res.redirect(302, '/admin/login');
-      return;
-    }
+  res.setHeader('Cache-Control', 'no-store');
+  const sessionObj = (req as any).session;
+  if (!sessionObj || typeof sessionObj.destroy !== 'function') {
+    res.redirect(302, '/admin/login');
+    return;
+  }
 
-    sessionObj.destroy(() => {
-      res.redirect(302, '/admin/login');
-    });
+  sessionObj.destroy(() => {
+    res.redirect(302, '/admin/login');
+  });
 });
 
 router.use(adminImportRouter);

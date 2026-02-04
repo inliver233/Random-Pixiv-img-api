@@ -16,6 +16,8 @@ function toNumberOrNull(value: any): number | null {
 }
 
 export const imageResourceOptions = {
+  navigation: { name: '数据', icon: 'Database' },
+  label: '图片',
   listProperties: [
     'id',
     'illustId',

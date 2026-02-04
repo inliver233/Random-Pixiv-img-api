@@ -113,6 +113,26 @@ function parseR18(value: unknown): number {
   throw err;
 }
 
+function parseR18Strict(value: unknown): boolean | undefined {
+  if (value === undefined || value === null) return undefined;
+
+  const raw = Array.isArray(value) ? String(value[0] || '') : String(value ?? '');
+  const normalized = raw.trim().toLowerCase();
+
+  if (!normalized) {
+    const err = new Error('Invalid r18_strict.');
+    (err as any).status = 400;
+    throw err;
+  }
+
+  if (['1', 'true', 'yes', 'y', 'on'].includes(normalized)) return true;
+  if (['0', 'false', 'no', 'n', 'off'].includes(normalized)) return false;
+
+  const err = new Error('Invalid r18_strict.');
+  (err as any).status = 400;
+  throw err;
+}
+
 function parseOrientation(value: unknown): number | undefined {
   if (value === undefined || value === null) return undefined;
 
@@ -319,12 +339,16 @@ router.get('/', (req, res, next) => {
   (async () => {
     res.setHeader('Cache-Control', 'no-store');
 
+    const env = getEnv();
+
     const format = parseFormat((req.query as any).format);
     const redirect = parseRedirect((req.query as any).redirect);
     const attempts = parseAttempts((req.query as any).attempts);
     const seed = parseSeed((req.query as any).seed);
     const random = seed ? mulberry32(fnv1a32(seed)) : Math.random;
     const xRestrict = parseR18((req.query as any).r18);
+    const strictParam = parseR18Strict((req.query as any).r18_strict ?? (req.query as any).r18Strict);
+    const r18Strict = strictParam ?? env.RANDOM_R18_STRICT;
     const orientation = parseOrientation((req.query as any).orientation);
     const minWidth = parseMinWidth((req.query as any).min_width);
     const minHeight = parseMinHeight((req.query as any).min_height);
@@ -336,6 +360,7 @@ router.get('/', (req, res, next) => {
 
     const filters: any = {};
     if (xRestrict !== undefined) filters.xRestrict = xRestrict;
+    if (xRestrict === 0 && r18Strict) filters.xRestrictAllowUnknown = false;
     if (orientation !== undefined) filters.orientation = orientation;
     if (minWidth !== undefined) filters.minWidth = minWidth;
     if (minHeight !== undefined) filters.minHeight = minHeight;
@@ -376,7 +401,6 @@ router.get('/', (req, res, next) => {
       const proxyUrl = `/i/${image.id.toString()}.${String(image.ext || 'jpg')}`;
       const originUrl = String(image.originalUrl || '');
 
-      const env = getEnv();
       const imgproxyUrl = env.IMGPROXY_URL && env.IMGPROXY_KEY && env.IMGPROXY_SALT && originUrl
         ? buildSignedImgproxyUrl({
           baseUrl: env.IMGPROXY_URL,

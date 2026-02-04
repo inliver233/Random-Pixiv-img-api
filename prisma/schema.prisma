@@ -107,3 +107,26 @@ model AdminAudit {
   @@index([recordId], map: "admin_audit_record_id")
   @@map("admin_audit")
 }
+
+model RequestLog {
+  id        BigInt   @id @default(autoincrement())
+  createdAt DateTime @default(now()) @map("created_at")
+
+  requestId String? @map("request_id") @db.Text
+  method    String  @db.Text
+  route     String  @db.Text
+  url       String? @db.Text
+
+  status     Int @db.SmallInt
+  durationMs Int @map("duration_ms")
+
+  ip        String? @db.Text
+  userAgent String? @map("user_agent") @db.Text
+
+  sampleRate Float? @map("sample_rate") @db.Real
+
+  @@index([createdAt], map: "request_log_created_at")
+  @@index([route], map: "request_log_route")
+  @@index([status], map: "request_log_status")
+  @@map("request_log")
+}

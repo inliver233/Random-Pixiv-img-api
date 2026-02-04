@@ -103,6 +103,11 @@ const envSchema = z
     METRICS_ENABLED: booleanSchema.optional().default(true),
     METRICS_ROUTE: z.string().min(1).optional().default('/metrics'),
 
+    REQUEST_LOG_ENABLED: booleanSchema.optional().default(false),
+    REQUEST_LOG_SAMPLE_RATE: z.coerce.number().min(0).max(1).optional().default(0.01),
+    REQUEST_LOG_PATH_PREFIXES: z.string().optional().default('/random,/i,/images'),
+    REQUEST_LOG_RETENTION_DAYS: z.coerce.number().int().min(0).optional().default(7),
+
     PROMETHEUS_URL: z.string().url().optional(),
 
     QUEUE_DEAD_LETTER_ENABLED: booleanSchema.optional().default(true),
@@ -122,6 +127,7 @@ const envSchema = z
     HYDRATE_RATE_LIMIT_PER_TOKEN_MS: z.coerce.number().int().min(0).optional().default(1000),
 
     RANDOM_FAIL_COOLDOWN_MS: z.coerce.number().int().min(0).optional().default(600_000),
+    RANDOM_R18_STRICT: booleanSchema.optional().default(false),
 
     IMGPROXY_URL: z.string().url().optional(),
     IMGPROXY_KEY: z.string().min(1).optional(),

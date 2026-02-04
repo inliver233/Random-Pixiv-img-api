@@ -131,6 +131,14 @@ const envSchema = z.object({
   METRICS_ENABLED: booleanSchema.optional().default(true),
   METRICS_ROUTE: optionalStringWithDefault('/metrics'),
 
+  // Optional sampled request logs (DB). Disabled by default to avoid overhead.
+  REQUEST_LOG_ENABLED: booleanSchema.optional().default(false),
+  REQUEST_LOG_SAMPLE_RATE: optionalCoercedIntWithDefault(z.number().min(0).max(1), 0.01),
+  // Comma-separated prefixes; empty means "log all (except internal excludes)".
+  REQUEST_LOG_PATH_PREFIXES: optionalStringWithDefault('/random,/i,/images'),
+  // 0 means keep forever.
+  REQUEST_LOG_RETENTION_DAYS: optionalCoercedIntWithDefault(z.number().int().min(0), 7),
+
   PROMETHEUS_URL: optionalUrlString,
 
   QUEUE_DEAD_LETTER_ENABLED: booleanSchema.optional().default(true),
@@ -150,6 +158,9 @@ const envSchema = z.object({
   HYDRATE_RATE_LIMIT_PER_TOKEN_MS: optionalCoercedIntWithDefault(z.number().int().min(0), 1000),
 
   RANDOM_FAIL_COOLDOWN_MS: optionalCoercedIntWithDefault(z.number().int().min(0), 600_000),
+  // When enabled and r18=0, do NOT treat xRestrict=NULL as all-ages.
+  // This is a "strict" mode for callers who do not want unknown metadata to leak into r18=0.
+  RANDOM_R18_STRICT: booleanSchema.optional().default(false),
 
   IMGPROXY_URL: optionalUrlString,
   IMGPROXY_KEY: optionalNonEmptyString,

@@ -9,6 +9,7 @@ import { Prisma } from '@prisma/client';
 import { imageResourceOptions } from './resources/images';
 import { importResourceOptions } from './resources/imports';
 import { adminAuditResourceOptions } from './resources/adminAudits';
+import { requestLogResourceOptions } from './resources/requestLogs';
 
 let cachedRouter: Router | null = null;
 let cachedPromise: Promise<Router> | null = null;
@@ -320,6 +321,10 @@ export async function getAdminJsRouter(): Promise<Router> {
 
     const admin = new AdminJS({
       rootPath: '/admin',
+      locale: {
+        language: 'zh-CN',
+        availableLanguages: ['zh-CN', 'en'],
+      },
       componentLoader,
       pages: {
         importUrls: {
@@ -399,6 +404,15 @@ export async function getAdminJsRouter(): Promise<Router> {
           }
 
           const brokenRatio = imagesTotal > 0 ? imagesBroken / imagesTotal : 0;
+
+          let queue: { ok: boolean; message: string | null } = { ok: false, message: 'unknown' };
+          try {
+            // eslint-disable-next-line @typescript-eslint/no-var-requires
+            const { getQueueHealth } = require('../queue/queue') as typeof import('../queue/queue');
+            queue = await getQueueHealth();
+          } catch (err: unknown) {
+            queue = { ok: false, message: err instanceof Error ? err.message : String(err) };
+          }
 
           let traffic: any = { ok: false };
           try {
@@ -557,6 +571,7 @@ export async function getAdminJsRouter(): Promise<Router> {
               external_bytes: mem.external,
               array_buffers_bytes: (mem as any).arrayBuffers ?? 0,
             },
+            queue,
             metrics: {
               enabled: env.METRICS_ENABLED,
               metric_names: metricNames,
@@ -577,7 +592,7 @@ export async function getAdminJsRouter(): Promise<Router> {
           },
           {
             resource: { model: getModelByName('Tag', prismaClientModule), client: prisma, clientModule: prismaClientModule },
-            options: {},
+            options: { navigation: { name: '数据', icon: 'Database' }, label: '标签' },
           },
         ] as any[];
 
@@ -587,6 +602,11 @@ export async function getAdminJsRouter(): Promise<Router> {
             options: adminAuditResourceOptions,
           });
         }
+
+        resources.push({
+          resource: { model: getModelByName('RequestLog', prismaClientModule), client: prisma, clientModule: prismaClientModule },
+          options: requestLogResourceOptions,
+        });
 
         resources.push({
           resource: { model: getModelByName('Import', prismaClientModule), client: prisma, clientModule: prismaClientModule },

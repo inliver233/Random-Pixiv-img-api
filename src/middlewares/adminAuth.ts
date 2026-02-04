@@ -251,11 +251,11 @@ export default function adminAuth(req: Request, res: Response, next: NextFunctio
 
     if (wantsHtml) {
       res.status(ipCheck.code === 'ADMIN_IP_DENIED' ? 403 : 503).type('html').send(`<!doctype html>
-<html lang="en">
+<html lang="zh-CN">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Admin Forbidden</title>
+    <title>后台访问受限</title>
     <style>
       body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; margin: 2rem; line-height: 1.4; }
       code { background: #f4f4f5; padding: 0.1rem 0.3rem; border-radius: 4px; }
@@ -264,7 +264,7 @@ export default function adminAuth(req: Request, res: Response, next: NextFunctio
   </head>
   <body>
     <div class="box">
-      <h1>${ipCheck.code === 'ADMIN_IP_DENIED' ? 'Forbidden' : 'Admin misconfigured'}</h1>
+      <h1>${ipCheck.code === 'ADMIN_IP_DENIED' ? '禁止访问' : '后台配置错误'}</h1>
       <p>${ipCheck.message}</p>
     </div>
   </body>
@@ -305,11 +305,11 @@ export default function adminAuth(req: Request, res: Response, next: NextFunctio
 
     if (wantsHtml) {
       res.status(401).type('html').send(`<!doctype html>
-<html lang="en">
+<html lang="zh-CN">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Admin Unauthorized</title>
+    <title>后台未授权</title>
     <style>
       body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; margin: 2rem; line-height: 1.4; }
       code { background: #f4f4f5; padding: 0.1rem 0.3rem; border-radius: 4px; }
@@ -318,8 +318,8 @@ export default function adminAuth(req: Request, res: Response, next: NextFunctio
   </head>
   <body>
     <div class="box">
-      <h1>Unauthorized</h1>
-      <p>This endpoint is protected. Provide <code>Authorization: Bearer &lt;ADMIN_TOKEN&gt;</code> or open:</p>
+      <h1>未授权</h1>
+      <p>该页面受保护。请在请求中携带 <code>Authorization: Bearer &lt;ADMIN_TOKEN&gt;</code>，或先打开：</p>
       <p><code>/admin?token=&lt;ADMIN_TOKEN&gt;</code></p>
     </div>
   </body>
