@@ -130,3 +130,18 @@ model RequestLog {
   @@index([status], map: "request_log_status")
   @@map("request_log")
 }
+
+model PixivToken {
+  id        BigInt   @id @default(autoincrement())
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+
+  label   String? @db.Text
+  enabled Boolean @default(true)
+
+  refreshToken       String @map("refresh_token") @db.Text
+  refreshTokenMasked String @map("refresh_token_masked") @db.Text
+
+  @@index([enabled], map: "pixiv_tokens_enabled")
+  @@map("pixiv_tokens")
+}
