@@ -4,17 +4,17 @@ import qs from 'qs';
 import { getEnv } from '../config/env';
 import { pixivApiRequest } from '../http/axiosClient';
 import logger from '../logger/logger';
+import { getTokenStoreSnapshot } from './tokenStore';
 
 const AUTH_TOKEN_URL = 'https://oauth.secure.pixiv.net/auth/token';
 
 type PixivAuthEntry = {
+  tokenId: string;
   refreshToken: string;
   accessToken: string;
   expireTimestamp: number;
   refreshing: boolean;
 };
-
-type RefreshTokensEnv = string[];
 
 type PixivAuthRefreshResponse = {
   access_token: string;
@@ -22,6 +22,7 @@ type PixivAuthRefreshResponse = {
   expires_in: number;
 };
 
+let pixivAuthById = new Map<string, PixivAuthEntry>();
 let pixivAuth: PixivAuthEntry[] | null = null;
 let currentTokenIndex = 0;
 
@@ -77,10 +78,14 @@ async function ensureAccessTokenReady(auth: PixivAuthEntry[], tokenIndex: number
       auth[tokenIndex].accessToken = refreshRes.access_token;
       auth[tokenIndex].refreshToken = refreshRes.refresh_token;
       auth[tokenIndex].expireTimestamp = Date.now() + refreshRes.expires_in * 0.9 * 1000;
-      logger.info({ token_index: tokenIndex }, 'Pixiv access token refreshed');
+      logger.info({ token_index: tokenIndex, token_id: auth[tokenIndex].tokenId }, 'Pixiv access token refreshed');
     } catch (err: any) {
       logger.warn(
-        { token_index: tokenIndex, err: { message: err?.message, code: err?.code, status: err?.response?.status } },
+        {
+          token_index: tokenIndex,
+          token_id: auth[tokenIndex].tokenId,
+          err: { message: err?.message, code: err?.code, status: err?.response?.status },
+        },
         'Pixiv refresh token failed',
       );
     } finally {
@@ -100,31 +105,53 @@ async function ensureAccessTokenReady(auth: PixivAuthEntry[], tokenIndex: number
   });
 }
 
-const ensurePixivAuthInitialized = (): PixivAuthEntry[] => {
-  if (pixivAuth) return pixivAuth;
-
-  const env = getEnv();
-  pixivAuth = (env.REFRESH_TOKENS as RefreshTokensEnv).map((token) => ({
-    refreshToken: token,
+function buildPixivAuthEntry(tokenId: string, refreshToken: string): PixivAuthEntry {
+  return {
+    tokenId,
+    refreshToken,
     accessToken: '',
     expireTimestamp: 0,
     refreshing: false,
-  }));
+  };
+}
 
+const ensurePixivAuthInitialized = async (): Promise<PixivAuthEntry[]> => {
+  const snapshot = await getTokenStoreSnapshot();
+  const tokens = snapshot.tokens;
+  if (tokens.length === 0) {
+    throw new Error('No Pixiv refresh tokens available. Configure REFRESH_TOKENS or create enabled PixivToken rows.');
+  }
+
+  const nextById = new Map<string, PixivAuthEntry>();
+  const nextAuth: PixivAuthEntry[] = [];
+
+  for (const token of tokens) {
+    const existing = pixivAuthById.get(token.id);
+    if (existing) {
+      nextById.set(token.id, existing);
+      nextAuth.push(existing);
+      continue;
+    }
+
+    const entry = buildPixivAuthEntry(token.id, token.refreshToken);
+    nextById.set(token.id, entry);
+    nextAuth.push(entry);
+  }
+
+  pixivAuthById = nextById;
+  pixivAuth = nextAuth;
   return pixivAuth;
 };
 
-const getAccessTokenIndex = () => {
+const getAccessTokenIndex = (auth: PixivAuthEntry[]) => {
   const env = getEnv();
-  const auth = ensurePixivAuthInitialized();
-
   currentTokenIndex = selectTokenIndex(env.PIXIV_TOKEN_STRATEGY, auth.length, currentTokenIndex);
   return currentTokenIndex;
 };
 
 export const getAccessToken = async (): Promise<string> => {
-  const auth = ensurePixivAuthInitialized();
-  const tokenIndex = getAccessTokenIndex();
+  const auth = await ensurePixivAuthInitialized();
+  const tokenIndex = getAccessTokenIndex(auth);
 
   await ensureAccessTokenReady(auth, tokenIndex);
 
@@ -132,8 +159,8 @@ export const getAccessToken = async (): Promise<string> => {
 };
 
 export const getAccessTokenWithMeta = async (): Promise<{ accessToken: string; tokenIndex: number }> => {
-  const auth = ensurePixivAuthInitialized();
-  const tokenIndex = getAccessTokenIndex();
+  const auth = await ensurePixivAuthInitialized();
+  const tokenIndex = getAccessTokenIndex(auth);
   await ensureAccessTokenReady(auth, tokenIndex);
   return { accessToken: auth[tokenIndex].accessToken, tokenIndex };
 };
