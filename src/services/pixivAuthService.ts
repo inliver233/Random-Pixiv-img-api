@@ -248,9 +248,9 @@ export const getAccessToken = async (): Promise<string> => {
   return auth[tokenIndex].accessToken;
 };
 
-export const getAccessTokenWithMeta = async (): Promise<{ accessToken: string; tokenIndex: number }> => {
+export const getAccessTokenWithMeta = async (): Promise<{ accessToken: string; tokenIndex: number; tokenId: string }> => {
   const auth = await ensurePixivAuthInitialized();
   const tokenIndex = getAccessTokenIndex(auth);
   await ensureAccessTokenReady(auth, tokenIndex);
-  return { accessToken: auth[tokenIndex].accessToken, tokenIndex };
+  return { accessToken: auth[tokenIndex].accessToken, tokenIndex, tokenId: auth[tokenIndex].tokenId };
 };

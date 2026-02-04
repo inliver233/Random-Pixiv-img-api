@@ -8,8 +8,10 @@ const mockIsCircuitOpenError = vi.hoisted(() => vi.fn(() => false));
 const mockIncrementUpstreamError = vi.hoisted(() => vi.fn());
 const mockMemcachedGet = vi.hoisted(() => vi.fn());
 const mockMemcachedSet = vi.hoisted(() => vi.fn());
-const mockGetAccessToken = vi.hoisted(() => vi.fn(async () => 'token123'));
-const mockGetAccessTokenWithMeta = vi.hoisted(() => vi.fn(async () => ({ accessToken: 'token123', tokenIndex: 0 })));
+const mockGetAccessTokenWithMeta = vi.hoisted(() =>
+  vi.fn(async () => ({ accessToken: 'token123', tokenIndex: 0, tokenId: 't1' })),
+);
+const mockLoadEnabledProxyCandidates = vi.hoisted(() => vi.fn(async () => []));
 
 vi.mock('../src/http/axiosClient', () => ({
   pixivApiGet: mockPixivApiGet,
@@ -32,9 +34,12 @@ vi.mock('../src/services/memcachedService', () => ({
 }));
 
 vi.mock('../src/services/pixivAuthService', () => ({
-  getAccessToken: mockGetAccessToken,
   getAccessTokenWithMeta: mockGetAccessTokenWithMeta,
   maskHeader: { 'User-Agent': 'test-agent' },
+}));
+
+vi.mock('../src/proxy/proxyEndpointStore', () => ({
+  loadEnabledProxyCandidates: mockLoadEnabledProxyCandidates,
 }));
 
 import pixivService from '../src/services/pixivService.ts';
@@ -48,8 +53,8 @@ describe('pixiv API retry (same token+proxy combo)', () => {
     mockIncrementUpstreamError.mockReset();
     mockMemcachedGet.mockReset();
     mockMemcachedSet.mockReset();
-    mockGetAccessToken.mockReset();
     mockGetAccessTokenWithMeta.mockReset();
+    mockLoadEnabledProxyCandidates.mockReset();
     mockPixivApiCircuitFire.mockImplementation(async (fn: any) => fn());
     mockIsCircuitOpenError.mockReturnValue(false);
   });
@@ -66,7 +71,7 @@ describe('pixiv API retry (same token+proxy combo)', () => {
     await vi.runAllTimersAsync();
 
     await expect(promise).resolves.toEqual({ ok: true });
-    expect(mockGetAccessToken).toHaveBeenCalledTimes(1);
+    expect(mockGetAccessTokenWithMeta).toHaveBeenCalledTimes(1);
     expect(mockPixivApiGet).toHaveBeenCalledTimes(3);
   });
 
@@ -101,4 +106,3 @@ describe('computeExponentialBackoffDelayMs', () => {
     expect(computeExponentialBackoffDelayMs({ attempt: 4, baseDelayMs: 200, factor: 2, maxDelayMs: 2000 })).toBe(2000);
   });
 });
-

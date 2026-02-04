@@ -5,8 +5,10 @@ import { retryWithBackoff } from '../resilience/retry';
 import { incrementUpstreamError } from '../metrics/upstreamMetrics';
 import { getEnv } from '../config/env';
 import logger from '../logger/logger';
+import { runWithTokenProxyFailover } from '../proxy/proxyFailover';
+import { loadEnabledProxyCandidates } from '../proxy/proxyEndpointStore';
 
-import { getAccessToken, getAccessTokenWithMeta, maskHeader } from './pixivAuthService';
+import { getAccessTokenWithMeta, maskHeader } from './pixivAuthService';
 import memcachedService from './memcachedService';
 
 const PIXIV_BASE_URL = 'https://app-api.pixiv.net/v1';
@@ -136,7 +138,7 @@ const getPixivIllustIdData = async (illustId: string | number, cache = true, opt
   try {
     logger.info({ illust_id: String(illustId) }, 'Fetching Pixiv API data for illust ID');
 
-    const fetchOnce = async (accessToken: string) =>
+    const fetchOnce = async (accessToken: string, proxyUri?: string) =>
       pixivApiCircuitFire(async () =>
         pixivApiGet(`${PIXIV_BASE_URL}/illust/detail?illust_id=${illustId}`, {
           headers: {
@@ -144,17 +146,18 @@ const getPixivIllustIdData = async (illustId: string | number, cache = true, opt
             Authorization: `Bearer ${accessToken}`,
             ...maskHeader,
           },
+          proxyUri,
           validateStatus: (status) => (status >= 200 && status < 300) || status === 404,
         }),
       );
 
-    const fetchWithRetry = async (accessToken: string, tokenIndex?: number) =>
+    const fetchWithRetry = async (accessToken: string, proxyUri?: string, tokenIndex?: number) =>
       retryWithBackoff(
         async () => {
           if (typeof tokenIndex === 'number') {
-            return withHydrateRateLimit(tokenIndex, () => fetchOnce(accessToken));
+            return withHydrateRateLimit(tokenIndex, () => fetchOnce(accessToken, proxyUri));
           }
-          return fetchOnce(accessToken);
+          return fetchOnce(accessToken, proxyUri);
         },
         {
           retries: 2,
@@ -173,12 +176,29 @@ const getPixivIllustIdData = async (illustId: string | number, cache = true, opt
         },
       );
 
-    const response = options.rateLimit
-      ? await (async () => {
-        const { accessToken, tokenIndex } = await getAccessTokenWithMeta();
-        return fetchWithRetry(accessToken, tokenIndex);
-      })()
-      : await fetchWithRetry(await getAccessToken());
+    const getToken = async () => getAccessTokenWithMeta();
+    const proxies = await loadEnabledProxyCandidates();
+
+    const response = proxies.length > 0
+      ? (await runWithTokenProxyFailover({
+        getToken,
+        proxies,
+        request: async ({ accessToken, tokenIndex, proxyUri }) => {
+          const limiterIndex = options.rateLimit ? tokenIndex : undefined;
+          return fetchWithRetry(accessToken, proxyUri, limiterIndex);
+        },
+        options: {
+          poolSalt: 'pool:default',
+          overrideTtlMs: 20 * 60 * 1000,
+          maxProxySwitches: 2,
+          maxTokenSwitches: 1,
+        },
+      })).value
+      : await (async () => {
+        const { accessToken, tokenIndex } = await getToken();
+        const limiterIndex = options.rateLimit ? tokenIndex : undefined;
+        return fetchWithRetry(accessToken, undefined, limiterIndex);
+      })();
 
     const status = Number((response as any)?.status);
     const ok = Number.isFinite(status) ? status >= 200 && status < 300 : false;
