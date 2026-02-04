@@ -96,7 +96,10 @@ const envSchema = z.object({
   PORT: z.coerce.number().int().min(1).max(65535).default(3000),
   TRUST_PROXY: trustProxySchema.optional().default(0),
 
-  PIXIV_TOKEN_STRATEGY: z.enum(['round_robin', 'random']).optional().default('round_robin'),
+  PIXIV_TOKEN_STRATEGY: z.enum(['round_robin', 'random', 'least_error', 'weighted']).optional().default('round_robin'),
+  // Comma-separated integer weights aligned with token order (env tokens, or DB token id asc).
+  // e.g. "2,1,1" means the 1st token is selected ~2x more often.
+  PIXIV_TOKEN_WEIGHTS: z.string().optional(),
   PIXIV_DETAIL_CACHE_ENABLED: booleanSchema.optional().default(true),
   PIXIV_DETAIL_CACHE_TTL_SECONDS: optionalCoercedIntWithDefault(z.number().int().positive(), 3600),
 

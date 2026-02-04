@@ -14,6 +14,7 @@ type PixivAuthEntry = {
   accessToken: string;
   expireTimestamp: number;
   refreshing: boolean;
+  errors: number;
 };
 
 type PixivAuthRefreshResponse = {
@@ -58,11 +59,63 @@ const refreshAccessToken = async (refreshToken: string): Promise<PixivAuthRefres
   return response.data.response;
 };
 
-export type PixivTokenStrategy = 'round_robin' | 'random';
+export type PixivTokenStrategy = 'round_robin' | 'random' | 'least_error' | 'weighted';
 
-export function selectTokenIndex(strategy: PixivTokenStrategy, tokenCount: number, prevIndex: number): number {
+export function selectTokenIndex(
+  strategy: PixivTokenStrategy,
+  tokenCount: number,
+  prevIndex: number,
+  options: { errors?: number[]; weights?: number[]; random?: () => number } = {},
+): number {
   if (tokenCount <= 0) return 0;
-  if (strategy === 'random') return Math.floor(Math.random() * tokenCount);
+
+  const random = options.random ?? (() => Math.random());
+
+  if (strategy === 'random') {
+    return Math.floor(random() * tokenCount);
+  }
+
+  if (strategy === 'least_error') {
+    const errors = options.errors ?? [];
+    if (errors.length !== tokenCount) {
+      return (prevIndex + 1) % tokenCount;
+    }
+
+    let minError = Number.POSITIVE_INFINITY;
+    for (const e of errors) {
+      const n = typeof e === 'number' && Number.isFinite(e) ? e : 0;
+      if (n < minError) minError = n;
+    }
+
+    // Tie-breaker: keep round-robin over the least-error set for stability.
+    for (let offset = 1; offset <= tokenCount; offset += 1) {
+      const idx = (prevIndex + offset) % tokenCount;
+      const n = typeof errors[idx] === 'number' && Number.isFinite(errors[idx]) ? errors[idx] : 0;
+      if (n === minError) return idx;
+    }
+
+    return 0;
+  }
+
+  if (strategy === 'weighted') {
+    const weights = options.weights ?? [];
+    if (weights.length !== tokenCount) {
+      return (prevIndex + 1) % tokenCount;
+    }
+
+    const normalized = weights.map((w) => (typeof w === 'number' && Number.isFinite(w) ? Math.max(0, w) : 0));
+    const total = normalized.reduce((acc, w) => acc + w, 0);
+    if (total <= 0) return (prevIndex + 1) % tokenCount;
+
+    const r = random() * total;
+    let cursor = 0;
+    for (let i = 0; i < normalized.length; i += 1) {
+      cursor += normalized[i]!;
+      if (r < cursor) return i;
+    }
+    return normalized.length - 1;
+  }
+
   return (prevIndex + 1) % tokenCount;
 }
 
@@ -78,8 +131,10 @@ async function ensureAccessTokenReady(auth: PixivAuthEntry[], tokenIndex: number
       auth[tokenIndex].accessToken = refreshRes.access_token;
       auth[tokenIndex].refreshToken = refreshRes.refresh_token;
       auth[tokenIndex].expireTimestamp = Date.now() + refreshRes.expires_in * 0.9 * 1000;
+      auth[tokenIndex].errors = 0;
       logger.info({ token_index: tokenIndex, token_id: auth[tokenIndex].tokenId }, 'Pixiv access token refreshed');
     } catch (err: any) {
+      auth[tokenIndex].errors = (auth[tokenIndex].errors ?? 0) + 1;
       logger.warn(
         {
           token_index: tokenIndex,
@@ -112,6 +167,7 @@ function buildPixivAuthEntry(tokenId: string, refreshToken: string): PixivAuthEn
     accessToken: '',
     expireTimestamp: 0,
     refreshing: false,
+    errors: 0,
   };
 }
 
@@ -143,9 +199,43 @@ const ensurePixivAuthInitialized = async (): Promise<PixivAuthEntry[]> => {
   return pixivAuth;
 };
 
+function parseTokenWeights(value: unknown, tokenCount: number): number[] {
+  if (tokenCount <= 0) return [];
+
+  if (typeof value !== 'string') {
+    return Array.from({ length: tokenCount }, () => 1);
+  }
+
+  const parts = value
+    .split(',')
+    .map((part) => part.trim())
+    .filter(Boolean);
+  if (parts.length === 0) {
+    return Array.from({ length: tokenCount }, () => 1);
+  }
+
+  const parsed = parts.map((part) => {
+    const n = Number(part);
+    if (!Number.isFinite(n)) return 0;
+    return Math.max(0, n);
+  });
+
+  while (parsed.length < tokenCount) parsed.push(1);
+  if (parsed.length > tokenCount) parsed.length = tokenCount;
+
+  const total = parsed.reduce((acc, w) => acc + w, 0);
+  if (total <= 0) {
+    return Array.from({ length: tokenCount }, () => 1);
+  }
+
+  return parsed;
+}
+
 const getAccessTokenIndex = (auth: PixivAuthEntry[]) => {
   const env = getEnv();
-  currentTokenIndex = selectTokenIndex(env.PIXIV_TOKEN_STRATEGY, auth.length, currentTokenIndex);
+  const errors = auth.map((entry) => entry.errors ?? 0);
+  const weights = parseTokenWeights(env.PIXIV_TOKEN_WEIGHTS, auth.length);
+  currentTokenIndex = selectTokenIndex(env.PIXIV_TOKEN_STRATEGY, auth.length, currentTokenIndex, { errors, weights });
   return currentTokenIndex;
 };
 

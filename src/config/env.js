@@ -73,7 +73,8 @@ const envSchema = z
     PORT: z.coerce.number().int().min(1).max(65535).default(3000),
     TRUST_PROXY: trustProxySchema.optional().default(0),
 
-    PIXIV_TOKEN_STRATEGY: z.enum(['round_robin', 'random']).optional().default('round_robin'),
+    PIXIV_TOKEN_STRATEGY: z.enum(['round_robin', 'random', 'least_error', 'weighted']).optional().default('round_robin'),
+    PIXIV_TOKEN_WEIGHTS: z.string().optional(),
     PIXIV_DETAIL_CACHE_ENABLED: booleanSchema.optional().default(true),
     PIXIV_DETAIL_CACHE_TTL_SECONDS: z.coerce.number().int().positive().optional().default(3600),
 
