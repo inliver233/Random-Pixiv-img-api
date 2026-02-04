@@ -66,6 +66,8 @@ model Image {
 
   @@unique([illustId, pageIndex], map: "images_uniq")
   @@index([status, xRestrict, orientation, width, height, randomKey], map: "images_filter_idx")
+  @@index([status, userId, randomKey], map: "images_user_random_idx")
+  @@index([createdAtPixiv], map: "images_created_at_pixiv_idx")
   @@map("images")
 }
 
