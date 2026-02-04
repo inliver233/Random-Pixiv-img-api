@@ -7,6 +7,13 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum ProxyScheme {
+  http
+  https
+  socks4
+  socks5
+}
+
 model Image {
   id            BigInt   @id @default(autoincrement())
   illustId       BigInt   @map("illust_id") @db.BigInt
@@ -144,4 +151,26 @@ model PixivToken {
 
   @@index([enabled], map: "pixiv_tokens_enabled")
   @@map("pixiv_tokens")
+}
+
+model ProxyEndpoint {
+  id        BigInt   @id @default(autoincrement())
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+
+  scheme ProxyScheme
+  host   String      @db.Text
+  port   Int
+
+  username String @default("") @db.Text
+  password String @default("") @db.Text
+
+  enabled   Boolean @default(true)
+  source    String  @default("manual") @db.Text
+  sourceRef String? @map("source_ref") @db.Text
+
+  @@unique([scheme, host, port, username], map: "proxy_endpoints_identity")
+  @@index([enabled], map: "proxy_endpoints_enabled")
+  @@index([source], map: "proxy_endpoints_source")
+  @@map("proxy_endpoints")
 }

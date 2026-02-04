@@ -594,6 +594,20 @@ export async function getAdminJsRouter(): Promise<Router> {
             resource: { model: getModelByName('Tag', prismaClientModule), client: prisma, clientModule: prismaClientModule },
             options: { navigation: { name: '数据', icon: 'Database' }, label: '标签' },
           },
+          {
+            resource: {
+              model: getModelByName('ProxyEndpoint', prismaClientModule),
+              client: prisma,
+              clientModule: prismaClientModule,
+            },
+            options: {
+              navigation: { name: '代理', icon: 'Network' },
+              label: '代理端点',
+              properties: {
+                password: { isVisible: { list: false, filter: false, show: false, edit: true } },
+              },
+            },
+          },
         ] as any[];
 
         if (auditViewEnabled) {
