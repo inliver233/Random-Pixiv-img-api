@@ -240,3 +240,20 @@ model TokenProxyBinding {
   @@index([overrideProxyId], map: "token_proxy_bindings_override_proxy")
   @@map("token_proxy_bindings")
 }
+
+model RuntimeSetting {
+  key String @id @db.Text
+
+  value       Json    @db.JsonB
+  description String? @db.Text
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+
+  updatedBy        String? @map("updated_by") @db.Text
+  updatedFromIp    String? @map("updated_from_ip") @db.Text
+  updatedRequestId String? @map("updated_request_id") @db.Text
+
+  @@index([updatedAt], map: "runtime_settings_updated_at")
+  @@map("runtime_settings")
+}
