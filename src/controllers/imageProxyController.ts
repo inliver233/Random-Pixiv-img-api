@@ -1,4 +1,3 @@
-import axios from 'axios';
 import type { Request, Response } from 'express';
 import type { Readable } from 'node:stream';
 import { Pool } from 'pg';
@@ -6,12 +5,7 @@ import { Pool } from 'pg';
 import pixivService from '../services/pixivService';
 import logger from '../logger/logger';
 import { getImageContentTypeFromFilename } from '../utils/contentType';
-
-const imageHeaders = {
-  Referer: 'https://www.pixiv.net/',
-  'User-Agent':
-    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.36',
-};
+import { fetchPixivImageStream } from '../http/pixivImageHttp';
 
 const responseHeaders = {
   'Cache-Control': 'max-age=31536000, public',
@@ -72,10 +66,20 @@ async function hasMultiplePagesInDb(illustId: string): Promise<boolean> {
 }
 
 async function streamImageByUrl(imageURL: string, res: Response): Promise<void> {
-  const imageResponse = await axios.get<Readable>(imageURL, {
-    headers: imageHeaders,
-    responseType: 'stream',
+  const abortController = new AbortController();
+  let sourceStream: Readable | null = null;
+
+  // Handle client disconnect - abort upstream and destroy source stream to prevent memory leak
+  res.on('close', () => {
+    if (!abortController.signal.aborted) abortController.abort();
+
+    if (sourceStream && !sourceStream.destroyed) {
+      logger.info('Client closed connection, destroying stream');
+      sourceStream.destroy();
+    }
   });
+
+  const imageResponse = await fetchPixivImageStream(imageURL, abortController.signal);
 
   const imageFilename = imageURL.substring(imageURL.lastIndexOf('/') + 1);
   res.writeHead(200, {
@@ -86,12 +90,13 @@ async function streamImageByUrl(imageURL: string, res: Response): Promise<void> 
     ...responseHeaders,
   });
 
-  const sourceStream = imageResponse.data;
+  const stream = imageResponse.data;
+  sourceStream = stream;
 
   // Handle source stream errors
-  sourceStream.on('error', (err) => {
+  stream.on('error', (err) => {
     logger.error({ err }, 'Source stream error');
-    sourceStream.destroy();
+    stream.destroy();
     // Can't send error page after headers are sent, just end the response
     if (!res.headersSent) {
       res.status(500).render('error', {
@@ -104,16 +109,8 @@ async function streamImageByUrl(imageURL: string, res: Response): Promise<void> 
     }
   });
 
-  // Handle client disconnect - destroy source stream to prevent memory leak
-  res.on('close', () => {
-    if (!sourceStream.destroyed) {
-      logger.info('Client closed connection, destroying stream');
-      sourceStream.destroy();
-    }
-  });
-
   // Pipe the stream
-  sourceStream.pipe(res);
+  stream.pipe(res);
 }
 
 type RenderErrorViewModel = {
