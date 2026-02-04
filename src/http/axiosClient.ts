@@ -1,10 +1,14 @@
 import axios, { type AxiosRequestConfig, type AxiosResponse, type RawAxiosRequestHeaders } from 'axios';
 import axiosRetry from 'axios-retry';
-import http from 'node:http';
-import https from 'node:https';
 
-const httpAgent = new http.Agent({ keepAlive: true });
-const httpsAgent = new https.Agent({ keepAlive: true });
+import { getDirectAgentPair, getProxyAgentPair, type AgentFactoryOptions } from '../proxy/agentFactory';
+
+export type PixivAxiosRequestConfig = AxiosRequestConfig & {
+  proxyUri?: string;
+  proxyAgentOptions?: AgentFactoryOptions;
+};
+
+const directAgents = getDirectAgentPair({ keepAlive: true });
 
 function mergeHeaders(
   base: AxiosRequestConfig['headers'] | undefined,
@@ -30,16 +34,16 @@ const MB = 1024 * 1024;
 
 const PIXIV_API_DEFAULTS: AxiosRequestConfig = {
   timeout: 10_000,
-  httpAgent,
-  httpsAgent,
+  httpAgent: directAgents.httpAgent,
+  httpsAgent: directAgents.httpsAgent,
   maxContentLength: 2 * MB,
   maxBodyLength: 2 * MB,
 };
 
 const PIXIV_IMAGE_DEFAULTS: AxiosRequestConfig = {
   timeout: 20_000,
-  httpAgent,
-  httpsAgent,
+  httpAgent: directAgents.httpAgent,
+  httpsAgent: directAgents.httpsAgent,
   maxContentLength: 50 * MB,
   maxBodyLength: 50 * MB,
 };
@@ -83,14 +87,35 @@ function ensureRetryConfigured(): void {
 
 ensureRetryConfigured();
 
-export async function pixivApiGet<T = any>(url: string, config?: AxiosRequestConfig): Promise<AxiosResponse<T>> {
-  return axios.get<T>(url, mergeConfig(PIXIV_API_DEFAULTS, config));
+function buildPixivConfig(base: AxiosRequestConfig, override?: PixivAxiosRequestConfig): AxiosRequestConfig {
+  if (!override) return base;
+
+  const { proxyUri, proxyAgentOptions, ...axiosOverride } = override as any;
+  const merged = mergeConfig(base, axiosOverride);
+
+  const hasExplicitAgents = Boolean((axiosOverride as any).httpAgent || (axiosOverride as any).httpsAgent);
+  const shouldApplyProxyUri = typeof proxyUri === 'string' && proxyUri.trim().length > 0 && !hasExplicitAgents;
+
+  if (shouldApplyProxyUri) {
+    const agents = getProxyAgentPair(proxyUri, proxyAgentOptions);
+    merged.httpAgent = agents.httpAgent;
+    merged.httpsAgent = agents.httpsAgent;
+    // Ensure axios doesn't attempt to apply its own proxy handling when custom agents are used.
+    (merged as any).proxy = false;
+  }
+
+  return merged;
 }
 
-export async function pixivApiRequest<T = any>(config: AxiosRequestConfig): Promise<AxiosResponse<T>> {
-  return axios.request<T>(mergeConfig(PIXIV_API_DEFAULTS, config));
+export async function pixivApiGet<T = any>(url: string, config?: PixivAxiosRequestConfig): Promise<AxiosResponse<T>> {
+  return axios.get<T>(url, buildPixivConfig(PIXIV_API_DEFAULTS, config));
 }
 
-export async function pixivImageGet<T = any>(url: string, config?: AxiosRequestConfig): Promise<AxiosResponse<T>> {
-  return axios.get<T>(url, mergeConfig(PIXIV_IMAGE_DEFAULTS, config));
+export async function pixivApiRequest<T = any>(config: PixivAxiosRequestConfig): Promise<AxiosResponse<T>> {
+  const { url, ...rest } = config;
+  return axios.request<T>({ url, ...buildPixivConfig(PIXIV_API_DEFAULTS, rest) });
+}
+
+export async function pixivImageGet<T = any>(url: string, config?: PixivAxiosRequestConfig): Promise<AxiosResponse<T>> {
+  return axios.get<T>(url, buildPixivConfig(PIXIV_IMAGE_DEFAULTS, config));
 }
