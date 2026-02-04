@@ -112,6 +112,8 @@ function buildPixivConfig(
     merged.httpsAgent = agents.httpsAgent;
     // Ensure axios doesn't attempt to apply its own proxy handling when custom agents are used.
     (merged as any).proxy = false;
+    // Used by retry/error-classification logic (do not attach full proxy URI to avoid leaking credentials).
+    (merged as any).__pixivcat_usedProxy = true;
   }
 
   return merged;

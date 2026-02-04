@@ -1,5 +1,7 @@
 import { pixivApiGet } from '../http/axiosClient';
 import { isCircuitOpenError, pixivApiCircuitFire } from '../resilience/circuit';
+import { classifyOutboundError } from '../resilience/outboundErrors';
+import { retryWithBackoff } from '../resilience/retry';
 import { incrementUpstreamError } from '../metrics/upstreamMetrics';
 import { getEnv } from '../config/env';
 import logger from '../logger/logger';
@@ -134,21 +136,49 @@ const getPixivIllustIdData = async (illustId: string | number, cache = true, opt
   try {
     logger.info({ illust_id: String(illustId) }, 'Fetching Pixiv API data for illust ID');
 
-    const fetch = async (accessToken: string) => pixivApiCircuitFire(async () => pixivApiGet(`${PIXIV_BASE_URL}/illust/detail?illust_id=${illustId}`, {
-      headers: {
-        Accept: 'application/json',
-        Authorization: `Bearer ${accessToken}`,
-        ...maskHeader,
-      },
-      validateStatus: (status) => (status >= 200 && status < 300) || status === 404,
-    }));
+    const fetchOnce = async (accessToken: string) =>
+      pixivApiCircuitFire(async () =>
+        pixivApiGet(`${PIXIV_BASE_URL}/illust/detail?illust_id=${illustId}`, {
+          headers: {
+            Accept: 'application/json',
+            Authorization: `Bearer ${accessToken}`,
+            ...maskHeader,
+          },
+          validateStatus: (status) => (status >= 200 && status < 300) || status === 404,
+        }),
+      );
+
+    const fetchWithRetry = async (accessToken: string, tokenIndex?: number) =>
+      retryWithBackoff(
+        async () => {
+          if (typeof tokenIndex === 'number') {
+            return withHydrateRateLimit(tokenIndex, () => fetchOnce(accessToken));
+          }
+          return fetchOnce(accessToken);
+        },
+        {
+          retries: 2,
+          baseDelayMs: 200,
+          maxDelayMs: 2000,
+          shouldRetry: (err) => {
+            if (isCircuitOpenError(err)) return false;
+            if ((err as any)?.config?.responseType === 'stream') return false;
+
+            const usedProxy = Boolean((err as any)?.config?.__pixivcat_usedProxy);
+            const classification = classifyOutboundError(err, { usedProxy });
+            // Avoid amplifying rate limit signals; let the caller handle it explicitly.
+            if (classification.type === 'pixiv_rate_limit') return false;
+            return classification.retryable;
+          },
+        },
+      );
 
     const response = options.rateLimit
       ? await (async () => {
         const { accessToken, tokenIndex } = await getAccessTokenWithMeta();
-        return withHydrateRateLimit(tokenIndex, () => fetch(accessToken));
+        return fetchWithRetry(accessToken, tokenIndex);
       })()
-      : await fetch(await getAccessToken());
+      : await fetchWithRetry(await getAccessToken());
 
     const status = Number((response as any)?.status);
     const ok = Number.isFinite(status) ? status >= 200 && status < 300 : false;
