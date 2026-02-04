@@ -14,6 +14,20 @@ enum ProxyScheme {
   socks5
 }
 
+enum HydrationRunType {
+  manual
+  backfill
+}
+
+enum HydrationRunStatus {
+  pending
+  running
+  paused
+  canceled
+  completed
+  failed
+}
+
 model Image {
   id            BigInt   @id @default(autoincrement())
   illustId       BigInt   @map("illust_id") @db.BigInt
@@ -256,4 +270,51 @@ model RuntimeSetting {
 
   @@index([updatedAt], map: "runtime_settings_updated_at")
   @@map("runtime_settings")
+}
+
+model HydrationPolicy {
+  id        BigInt   @id @default(autoincrement())
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+
+  name    String  @db.Text
+  enabled Boolean @default(true)
+
+  hydrateOnImport         Boolean @default(false) @map("hydrate_on_import")
+  opportunisticHydrate    Boolean @default(false) @map("opportunistic_hydrate")
+
+  note String? @db.Text
+
+  @@unique([name], map: "hydration_policies_name_uniq")
+  @@index([enabled], map: "hydration_policies_enabled")
+  @@map("hydration_policies")
+}
+
+model HydrationRun {
+  id        BigInt   @id @default(autoincrement())
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+
+  type   HydrationRunType
+  status HydrationRunStatus @default(pending)
+
+  requestedBy String? @map("requested_by") @db.Text
+
+  criteria Json? @db.JsonB
+  cursor   Json? @db.JsonB
+
+  total        Int? @map("total")
+  processed    Int  @default(0) @map("processed")
+  success      Int  @default(0) @map("success")
+  failed       Int  @default(0) @map("failed")
+
+  startedAt  DateTime? @map("started_at")
+  finishedAt DateTime? @map("finished_at")
+
+  lastErrorCode String? @map("last_error_code") @db.Text
+  lastErrorMsg  String? @map("last_error_msg") @db.Text
+
+  @@index([status, updatedAt], map: "hydration_runs_status_updated_at")
+  @@index([type, createdAt], map: "hydration_runs_type_created_at")
+  @@map("hydration_runs")
 }
