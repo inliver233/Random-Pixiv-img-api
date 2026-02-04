@@ -4,6 +4,7 @@ import path from 'node:path';
 import { getPrismaClient } from '../db/prismaClient';
 import { auditAdminModelChange } from '../audit/adminAudit';
 import { extractFirstSampleValue, extractVectorSamples, queryPrometheusInstant } from '../metrics/prometheusQueryClient';
+import { importProxyEndpointsFromEasyProxies } from '../proxy/easyProxiesImporter';
 import * as PrismaModule from '@prisma/client';
 import { Prisma } from '@prisma/client';
 
@@ -605,6 +606,62 @@ export async function getAdminJsRouter(): Promise<Router> {
               navigation: { name: '代理', icon: 'Network' },
               label: '代理端点',
               actions: {
+                easyProxiesImport: {
+                  actionType: 'resource',
+                  icon: 'Download',
+                  label: 'easy_proxies 导入',
+                  guard: 'Import proxies from easy_proxies /api/export?',
+                  handler: async (request: any, _res: any, context: any) => {
+                    if (String(request?.method || '').toLowerCase() === 'get') {
+                      return {};
+                    }
+
+                    const baseUrl = String(process.env.EASY_PROXIES_BASE_URL || '').trim();
+                    const password = String(process.env.EASY_PROXIES_PASSWORD || '').trim() || undefined;
+                    if (!baseUrl) {
+                      return {
+                        notice: { type: 'error', message: 'Missing EASY_PROXIES_BASE_URL.' },
+                        redirectUrl: context.h.resourceUrl({ resourceId: context.resource.id() }),
+                      };
+                    }
+
+                    try {
+                      const result = await importProxyEndpointsFromEasyProxies({ baseUrl, password });
+                      if (!result.ok) {
+                        return {
+                          notice: { type: 'error', message: `easy_proxies import failed: ${result.status}` },
+                          redirectUrl: context.h.resourceUrl({ resourceId: context.resource.id() }),
+                        };
+                      }
+
+                      auditAdminModelChange({
+                        action: 'easy_proxies_import',
+                        resource: 'ProxyEndpoint',
+                        req: request,
+                        detail: {
+                          baseUrl: result.baseUrl,
+                          total_lines: result.total_lines,
+                          imported: result.imported,
+                          invalid: result.invalid,
+                          token_used: result.token_used,
+                        },
+                      });
+
+                      return {
+                        notice: {
+                          type: 'success',
+                          message: `Imported: ${result.imported}/${result.total_lines} (invalid:${result.invalid})`,
+                        },
+                        redirectUrl: context.h.resourceUrl({ resourceId: context.resource.id() }),
+                      };
+                    } catch (err: unknown) {
+                      return {
+                        notice: { type: 'error', message: err instanceof Error ? err.message : String(err) },
+                        redirectUrl: context.h.resourceUrl({ resourceId: context.resource.id() }),
+                      };
+                    }
+                  },
+                },
                 new: {
                   after: async (response: any, request: any, context: any) => {
                     if (String(request?.method || '').toLowerCase() === 'get') return response;
