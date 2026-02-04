@@ -2,6 +2,7 @@ import type { Router } from 'express';
 import path from 'node:path';
 
 import { getPrismaClient } from '../db/prismaClient';
+import { auditAdminModelChange } from '../audit/adminAudit';
 import { extractFirstSampleValue, extractVectorSamples, queryPrometheusInstant } from '../metrics/prometheusQueryClient';
 import * as PrismaModule from '@prisma/client';
 import { Prisma } from '@prisma/client';
@@ -603,6 +604,109 @@ export async function getAdminJsRouter(): Promise<Router> {
             options: {
               navigation: { name: '代理', icon: 'Network' },
               label: '代理端点',
+              actions: {
+                new: {
+                  after: async (response: any, request: any, context: any) => {
+                    if (String(request?.method || '').toLowerCase() === 'get') return response;
+
+                    const recordId = context?.record?.id?.() ?? context?.record?.params?.id;
+                    const payload = request?.payload && typeof request.payload === 'object' ? { ...request.payload } : undefined;
+                    if (payload && typeof payload === 'object') {
+                      delete (payload as any).password;
+                    }
+
+                    auditAdminModelChange({
+                      action: 'proxy_endpoint_create',
+                      resource: 'ProxyEndpoint',
+                      record_id: recordId === undefined || recordId === null ? undefined : String(recordId),
+                      req: request,
+                      detail: {
+                        payload,
+                        record: context?.record?.params
+                          ? {
+                              scheme: context.record.params.scheme,
+                              host: context.record.params.host,
+                              port: context.record.params.port,
+                              username: context.record.params.username,
+                              enabled: context.record.params.enabled,
+                              source: context.record.params.source,
+                              sourceRef: context.record.params.sourceRef,
+                            }
+                          : undefined,
+                      },
+                    });
+
+                    return response;
+                  },
+                },
+                edit: {
+                  after: async (response: any, request: any, context: any) => {
+                    if (String(request?.method || '').toLowerCase() === 'get') return response;
+
+                    const recordId = context?.record?.id?.() ?? context?.record?.params?.id;
+                    const payload = request?.payload && typeof request.payload === 'object' ? { ...request.payload } : undefined;
+                    if (payload && typeof payload === 'object') {
+                      delete (payload as any).password;
+                    }
+
+                    auditAdminModelChange({
+                      action: 'proxy_endpoint_update',
+                      resource: 'ProxyEndpoint',
+                      record_id: recordId === undefined || recordId === null ? undefined : String(recordId),
+                      req: request,
+                      detail: {
+                        payload,
+                        record: context?.record?.params
+                          ? {
+                              scheme: context.record.params.scheme,
+                              host: context.record.params.host,
+                              port: context.record.params.port,
+                              username: context.record.params.username,
+                              enabled: context.record.params.enabled,
+                              source: context.record.params.source,
+                              sourceRef: context.record.params.sourceRef,
+                            }
+                          : undefined,
+                      },
+                    });
+
+                    return response;
+                  },
+                },
+                delete: {
+                  after: async (response: any, request: any, context: any) => {
+                    if (String(request?.method || '').toLowerCase() === 'get') return response;
+
+                    const recordId =
+                      context?.record?.id?.()
+                      ?? context?.record?.params?.id
+                      ?? response?.record?.params?.id
+                      ?? request?.payload?.recordId;
+
+                    auditAdminModelChange({
+                      action: 'proxy_endpoint_delete',
+                      resource: 'ProxyEndpoint',
+                      record_id: recordId === undefined || recordId === null ? undefined : String(recordId),
+                      req: request,
+                      detail: {
+                        record: context?.record?.params
+                          ? {
+                              scheme: context.record.params.scheme,
+                              host: context.record.params.host,
+                              port: context.record.params.port,
+                              username: context.record.params.username,
+                              enabled: context.record.params.enabled,
+                              source: context.record.params.source,
+                              sourceRef: context.record.params.sourceRef,
+                            }
+                          : undefined,
+                      },
+                    });
+
+                    return response;
+                  },
+                },
+              },
               properties: {
                 password: { isVisible: { list: false, filter: false, show: false, edit: true } },
               },
