@@ -7,6 +7,7 @@ import { fetchPixivImageStream } from '../http/pixivImageHttp';
 import { enqueueHealUrl } from '../jobs/healUrl';
 import { IMAGE_STATUS_BROKEN, getById, markFail } from '../repositories/imagesRepo';
 import { getImageContentTypeFromExt, isAllowedImageExt, normalizeImageExtension } from '../utils/contentType';
+import { isOpportunisticHydrateCandidate, scheduleOpportunisticHydrate } from '../hydration/opportunisticHydrate';
 
 const responseHeaders = {
   'Cache-Control': 'max-age=31536000, public',
@@ -116,6 +117,12 @@ async function getImageById(req: Request, res: Response) {
   if (String(image.ext || '').toLowerCase() !== ext) {
     renderError(res, 404, '404 Not Found', 'Not Found');
     return;
+  }
+
+  if (isOpportunisticHydrateCandidate(image)) {
+    const requestIdRaw = (req as any).request_id;
+    const requestId = typeof requestIdRaw === 'string' && requestIdRaw.trim() ? requestIdRaw.trim() : undefined;
+    void scheduleOpportunisticHydrate({ illustId: image.illustId, requestId });
   }
 
   const originalUrl = image.originalUrl;

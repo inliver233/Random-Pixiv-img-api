@@ -8,6 +8,7 @@ import { incrementRandomFailTotal, incrementRandomSuccessTotal, observeRandomAtt
 import { getImageContentTypeFromFilename } from '../utils/contentType';
 import { pickRandomImageRecord, pickRandomImageStream } from '../services/randomService';
 import { IMAGE_STATUS_BROKEN, markFail } from '../repositories/imagesRepo';
+import { isOpportunisticHydrateCandidate, scheduleOpportunisticHydrate } from '../hydration/opportunisticHydrate';
 
 const router = Router();
 
@@ -340,6 +341,8 @@ router.get('/', (req, res, next) => {
     res.setHeader('Cache-Control', 'no-store');
 
     const env = getEnv();
+    const requestIdRaw = (req as any).request_id;
+    const requestId = typeof requestIdRaw === 'string' && requestIdRaw.trim() ? requestIdRaw.trim() : undefined;
 
     const format = parseFormat((req.query as any).format);
     const redirect = parseRedirect((req.query as any).redirect);
@@ -380,6 +383,9 @@ router.get('/', (req, res, next) => {
       }
 
       incrementRandomSuccessTotal();
+      if (isOpportunisticHydrateCandidate(image)) {
+        void scheduleOpportunisticHydrate({ illustId: image.illustId, requestId });
+      }
       res.redirect(302, `/i/${image.id.toString()}.${String(image.ext || 'jpg')}`);
       return;
     }
@@ -413,6 +419,9 @@ router.get('/', (req, res, next) => {
         : undefined;
 
       incrementRandomSuccessTotal();
+      if (isOpportunisticHydrateCandidate(image)) {
+        void scheduleOpportunisticHydrate({ illustId: image.illustId, requestId });
+      }
       res.json(
         buildRandomJsonResponse({
           image,
@@ -443,6 +452,9 @@ router.get('/', (req, res, next) => {
 
     observeRandomAttemptsHistogram(attemptsUsed);
     incrementRandomSuccessTotal();
+    if (isOpportunisticHydrateCandidate(image)) {
+      void scheduleOpportunisticHydrate({ illustId: image.illustId, requestId });
+    }
     res.writeHead(200, {
       'Content-Type': getImageContentTypeFromFilename(filename) || 'application/octet-stream',
       'Content-Disposition': `filename="${filename}"`,
