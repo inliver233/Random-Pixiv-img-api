@@ -8,12 +8,22 @@ import { getTokenStoreSnapshot } from './tokenStore';
 
 const AUTH_TOKEN_URL = 'https://oauth.secure.pixiv.net/auth/token';
 
+let pixivApiRequestOverride: typeof pixivApiRequest | null = null;
+
+export function setPixivApiRequestOverrideForTest(fn: typeof pixivApiRequest | null): void {
+  pixivApiRequestOverride = fn;
+}
+
 type PixivAuthEntry = {
   tokenId: string;
   refreshToken: string;
   accessToken: string;
   expireTimestamp: number;
   refreshing: boolean;
+  backoffUntilMs: number;
+  lastOkAtMs: number;
+  lastFailAtMs: number;
+  lastError: { message: string | null; code: string | null; status: number | null } | null;
   errors: number;
 };
 
@@ -36,7 +46,8 @@ export const maskHeader: Record<string, string> = {
 
 const refreshAccessToken = async (refreshToken: string): Promise<PixivAuthRefreshResponse> => {
   const localTime = `${new Date().toISOString().replace(/\..+/, '')}+00:00`;
-  const response = await pixivApiRequest({
+  const request = pixivApiRequestOverride ?? pixivApiRequest;
+  const response = await request({
     method: 'post',
     url: AUTH_TOKEN_URL,
     headers: {
@@ -119,45 +130,110 @@ export function selectTokenIndex(
   return (prevIndex + 1) % tokenCount;
 }
 
-async function ensureAccessTokenReady(auth: PixivAuthEntry[], tokenIndex: number): Promise<void> {
-  if (auth[tokenIndex].expireTimestamp >= Date.now()) {
-    return;
+const REFRESH_BACKOFF_BASE_MS = 30_000;
+const REFRESH_BACKOFF_MAX_MS = 30 * 60_000;
+const BAD_TOKEN_BACKOFF_MS = 6 * 60 * 60_000;
+
+function computeRefreshBackoffMs(params: { failCount: number; status: number | null }): number {
+  const failCount = Math.max(1, Math.trunc(params.failCount || 1));
+  const status = params.status;
+
+  if (status === 400 || status === 401 || status === 403) {
+    return BAD_TOKEN_BACKOFF_MS;
   }
 
-  if (!auth[tokenIndex].refreshing) {
-    auth[tokenIndex].refreshing = true;
+  const exp = Math.min(failCount - 1, 10);
+  return Math.min(REFRESH_BACKOFF_MAX_MS, REFRESH_BACKOFF_BASE_MS * 2 ** exp);
+}
+
+async function ensureAccessTokenReady(auth: PixivAuthEntry[], tokenIndex: number): Promise<boolean> {
+  const entry = auth[tokenIndex];
+  const now = Date.now();
+
+  if (entry.expireTimestamp >= now) {
+    return true;
+  }
+
+  if (entry.backoffUntilMs > now) {
+    return false;
+  }
+
+  if (!entry.refreshing) {
+    entry.refreshing = true;
     try {
-      const refreshRes = await refreshAccessToken(auth[tokenIndex].refreshToken);
-      auth[tokenIndex].accessToken = refreshRes.access_token;
-      auth[tokenIndex].refreshToken = refreshRes.refresh_token;
-      auth[tokenIndex].expireTimestamp = Date.now() + refreshRes.expires_in * 0.9 * 1000;
-      auth[tokenIndex].errors = 0;
-      logger.info({ token_index: tokenIndex, token_id: auth[tokenIndex].tokenId }, 'Pixiv access token refreshed');
+      const refreshRes = await refreshAccessToken(entry.refreshToken);
+      const refreshedAt = Date.now();
+      entry.accessToken = refreshRes.access_token;
+      entry.refreshToken = refreshRes.refresh_token;
+      entry.expireTimestamp = refreshedAt + refreshRes.expires_in * 0.9 * 1000;
+      entry.errors = 0;
+      entry.backoffUntilMs = 0;
+      entry.lastOkAtMs = refreshedAt;
+      entry.lastError = null;
+
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-var-requires
+        const { recordPixivTokenRefreshSuccess } = require('../metrics/pixivTokenMetrics') as typeof import('../metrics/pixivTokenMetrics');
+        recordPixivTokenRefreshSuccess(entry.tokenId);
+      } catch {
+        // best-effort
+      }
+
+      logger.info({ token_index: tokenIndex, token_id: entry.tokenId }, 'Pixiv access token refreshed');
+      return true;
     } catch (err: any) {
-      auth[tokenIndex].errors = (auth[tokenIndex].errors ?? 0) + 1;
+      const failedAt = Date.now();
+      entry.errors = (entry.errors ?? 0) + 1;
+
+      const statusRaw = err?.response?.status;
+      const status = typeof statusRaw === 'number' && Number.isFinite(statusRaw) ? statusRaw : null;
+      const code = typeof err?.code === 'string' ? err.code : null;
+      const message = typeof err?.message === 'string' ? err.message : null;
+
+      entry.lastFailAtMs = failedAt;
+      entry.lastError = { message, code, status };
+
+      const backoffMs = computeRefreshBackoffMs({ failCount: entry.errors, status });
+      entry.backoffUntilMs = failedAt + backoffMs;
+
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-var-requires
+        const { recordPixivTokenRefreshFail } = require('../metrics/pixivTokenMetrics') as typeof import('../metrics/pixivTokenMetrics');
+        recordPixivTokenRefreshFail(entry.tokenId, entry.backoffUntilMs);
+      } catch {
+        // best-effort
+      }
+
       logger.warn(
         {
           token_index: tokenIndex,
-          token_id: auth[tokenIndex].tokenId,
-          err: { message: err?.message, code: err?.code, status: err?.response?.status },
+          token_id: entry.tokenId,
+          refresh_fail_count: entry.errors,
+          backoff_ms: backoffMs,
+          backoff_until: new Date(entry.backoffUntilMs).toISOString(),
+          err: { message, code, status },
         },
         'Pixiv refresh token failed',
       );
+      return false;
     } finally {
-      auth[tokenIndex].refreshing = false;
+      entry.refreshing = false;
     }
-
-    return;
   }
 
   await new Promise<void>((resolve) => {
     const interval = setInterval(() => {
-      if (!auth[tokenIndex].refreshing) {
+      if (!entry.refreshing) {
         clearInterval(interval);
         resolve();
       }
     }, 100);
   });
+
+  const doneAt = Date.now();
+  if (entry.expireTimestamp >= doneAt) return true;
+  if (entry.backoffUntilMs > doneAt) return false;
+  return false;
 }
 
 function buildPixivAuthEntry(tokenId: string, refreshToken: string): PixivAuthEntry {
@@ -167,6 +243,10 @@ function buildPixivAuthEntry(tokenId: string, refreshToken: string): PixivAuthEn
     accessToken: '',
     expireTimestamp: 0,
     refreshing: false,
+    backoffUntilMs: 0,
+    lastOkAtMs: 0,
+    lastFailAtMs: 0,
+    lastError: null,
     errors: 0,
   };
 }
@@ -233,24 +313,145 @@ function parseTokenWeights(value: unknown, tokenCount: number): number[] {
 
 const getAccessTokenIndex = (auth: PixivAuthEntry[]) => {
   const env = getEnv();
-  const errors = auth.map((entry) => entry.errors ?? 0);
-  const weights = parseTokenWeights(env.PIXIV_TOKEN_WEIGHTS, auth.length);
-  currentTokenIndex = selectTokenIndex(env.PIXIV_TOKEN_STRATEGY, auth.length, currentTokenIndex, { errors, weights });
+  const now = Date.now();
+  const eligible = auth
+    .map((_entry, idx) => idx)
+    .filter((idx) => auth[idx].backoffUntilMs <= now);
+  if (eligible.length === 0) return -1;
+
+  const errors = eligible.map((idx) => auth[idx].errors ?? 0);
+  const fullWeights = parseTokenWeights(env.PIXIV_TOKEN_WEIGHTS, auth.length);
+  const weights = eligible.map((idx) => fullWeights[idx] ?? 1);
+
+  const prevEligibleIndex = eligible.indexOf(currentTokenIndex);
+  const chosen = selectTokenIndex(env.PIXIV_TOKEN_STRATEGY, eligible.length, prevEligibleIndex, { errors, weights });
+  currentTokenIndex = eligible[chosen] ?? eligible[0] ?? 0;
   return currentTokenIndex;
 };
 
 export const getAccessToken = async (): Promise<string> => {
   const auth = await ensurePixivAuthInitialized();
-  const tokenIndex = getAccessTokenIndex(auth);
+  const attempted = new Set<number>();
 
-  await ensureAccessTokenReady(auth, tokenIndex);
+  for (let i = 0; i < auth.length; i += 1) {
+    const tokenIndex = getAccessTokenIndex(auth);
+    if (tokenIndex < 0 || attempted.has(tokenIndex)) break;
+    attempted.add(tokenIndex);
 
-  return auth[tokenIndex].accessToken;
+    const ok = await ensureAccessTokenReady(auth, tokenIndex);
+    if (!ok) continue;
+
+    const now = Date.now();
+    if (auth[tokenIndex].expireTimestamp >= now && auth[tokenIndex].accessToken) {
+      return auth[tokenIndex].accessToken;
+    }
+  }
+
+  const now = Date.now();
+  const nextRetryAt = auth.reduce<number | null>((min, entry) => {
+    if (entry.backoffUntilMs <= now) return min;
+    if (min === null || entry.backoffUntilMs < min) return entry.backoffUntilMs;
+    return min;
+  }, null);
+
+  if (nextRetryAt !== null) {
+    throw new Error(`No Pixiv access token available. All tokens are in backoff until ${new Date(nextRetryAt).toISOString()}.`);
+  }
+
+  throw new Error('No Pixiv access token available. All tokens failed to refresh.');
 };
 
 export const getAccessTokenWithMeta = async (): Promise<{ accessToken: string; tokenIndex: number; tokenId: string }> => {
   const auth = await ensurePixivAuthInitialized();
-  const tokenIndex = getAccessTokenIndex(auth);
-  await ensureAccessTokenReady(auth, tokenIndex);
-  return { accessToken: auth[tokenIndex].accessToken, tokenIndex, tokenId: auth[tokenIndex].tokenId };
+  const attempted = new Set<number>();
+
+  for (let i = 0; i < auth.length; i += 1) {
+    const tokenIndex = getAccessTokenIndex(auth);
+    if (tokenIndex < 0 || attempted.has(tokenIndex)) break;
+    attempted.add(tokenIndex);
+
+    const ok = await ensureAccessTokenReady(auth, tokenIndex);
+    if (!ok) continue;
+
+    const now = Date.now();
+    if (auth[tokenIndex].expireTimestamp >= now && auth[tokenIndex].accessToken) {
+      return { accessToken: auth[tokenIndex].accessToken, tokenIndex, tokenId: auth[tokenIndex].tokenId };
+    }
+  }
+
+  const now = Date.now();
+  const nextRetryAt = auth.reduce<number | null>((min, entry) => {
+    if (entry.backoffUntilMs <= now) return min;
+    if (min === null || entry.backoffUntilMs < min) return entry.backoffUntilMs;
+    return min;
+  }, null);
+
+  if (nextRetryAt !== null) {
+    throw new Error(`No Pixiv access token available. All tokens are in backoff until ${new Date(nextRetryAt).toISOString()}.`);
+  }
+
+  throw new Error('No Pixiv access token available. All tokens failed to refresh.');
 };
+
+export type PixivTokenRuntimeState = {
+  token_id: string;
+  refreshing: boolean;
+  refresh_fail_count: number;
+  access_token_expires_at: string | null;
+  backoff_until: string | null;
+  backoff_remaining_ms: number;
+  last_ok_at: string | null;
+  last_fail_at: string | null;
+  last_error: { message: string | null; code: string | null; status: number | null } | null;
+};
+
+export async function getPixivTokenRuntimeStates(): Promise<
+  { ok: true; source: 'db' | 'env'; tokens: PixivTokenRuntimeState[] }
+  | { ok: false; error: string }
+> {
+  try {
+    const [auth, snapshot] = await Promise.all([ensurePixivAuthInitialized(), getTokenStoreSnapshot()]);
+    const now = Date.now();
+
+    return {
+      ok: true,
+      source: snapshot.source,
+      tokens: auth.map((entry) => {
+        const backoffRemainingMs = entry.backoffUntilMs > now ? entry.backoffUntilMs - now : 0;
+        return {
+          token_id: entry.tokenId,
+          refreshing: entry.refreshing,
+          refresh_fail_count: entry.errors ?? 0,
+          access_token_expires_at: entry.expireTimestamp > 0 ? new Date(entry.expireTimestamp).toISOString() : null,
+          backoff_until: entry.backoffUntilMs > now ? new Date(entry.backoffUntilMs).toISOString() : null,
+          backoff_remaining_ms: backoffRemainingMs,
+          last_ok_at: entry.lastOkAtMs > 0 ? new Date(entry.lastOkAtMs).toISOString() : null,
+          last_fail_at: entry.lastFailAtMs > 0 ? new Date(entry.lastFailAtMs).toISOString() : null,
+          last_error: entry.lastError,
+        };
+      }),
+    };
+  } catch (err: unknown) {
+    return { ok: false, error: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+export function resetPixivTokenRefreshFailures(tokenId: string): { ok: true } | { ok: false; error: string } {
+  const entry = pixivAuthById.get(tokenId);
+  if (!entry) return { ok: false, error: 'token_not_found' };
+
+  entry.errors = 0;
+  entry.backoffUntilMs = 0;
+  entry.lastFailAtMs = 0;
+  entry.lastError = null;
+
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { setPixivTokenBackoffUntilMs } = require('../metrics/pixivTokenMetrics') as typeof import('../metrics/pixivTokenMetrics');
+    setPixivTokenBackoffUntilMs(entry.tokenId, 0);
+  } catch {
+    // best-effort
+  }
+
+  return { ok: true };
+}

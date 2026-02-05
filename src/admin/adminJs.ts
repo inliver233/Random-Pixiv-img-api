@@ -619,6 +619,15 @@ export async function getAdminJsRouter(): Promise<Router> {
             }
           }
 
+          let pixivTokens: any = { ok: false, error: null, source: null, tokens: [] };
+          try {
+            // eslint-disable-next-line @typescript-eslint/no-var-requires
+            const { getPixivTokenRuntimeStates } = require('../services/pixivAuthService') as typeof import('../services/pixivAuthService');
+            pixivTokens = await getPixivTokenRuntimeStates();
+          } catch (err: unknown) {
+            pixivTokens = { ok: false, error: err instanceof Error ? err.message : String(err), source: null, tokens: [] };
+          }
+
           return {
             generated_at: new Date().toISOString(),
             images: {
@@ -643,6 +652,7 @@ export async function getAdminJsRouter(): Promise<Router> {
               array_buffers_bytes: (mem as any).arrayBuffers ?? 0,
             },
             queue,
+            pixiv_tokens: pixivTokens,
             easy_proxies: easyProxies,
             metrics: {
               enabled: env.METRICS_ENABLED,

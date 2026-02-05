@@ -20,6 +20,29 @@ function formatPercent(value) {
   return `${(value * 100).toFixed(1)}%`;
 }
 
+function formatDurationMs(ms) {
+  if (!Number.isFinite(ms)) return String(ms);
+  if (ms <= 0) return '0s';
+
+  const totalSeconds = Math.ceil(ms / 1000);
+  if (totalSeconds < 60) return `${totalSeconds}s`;
+
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  if (minutes < 60) return `${minutes}m${seconds}s`;
+
+  const hours = Math.floor(minutes / 60);
+  const remMinutes = minutes % 60;
+  return `${hours}h${remMinutes}m`;
+}
+
+function clampText(value, maxLen) {
+  if (value === undefined || value === null) return '';
+  const s = String(value);
+  if (s.length <= maxLen) return s;
+  return `${s.slice(0, Math.max(0, maxLen - 1))}…`;
+}
+
 function renderKeyValueRows(obj) {
   if (!obj || typeof obj !== 'object') return null;
   return Object.entries(obj).map(([key, value]) => (
@@ -286,6 +309,55 @@ export default function Dashboard() {
                 <summary>区域统计</summary>
                 <pre style={{ whiteSpace: 'pre-wrap' }}>{JSON.stringify(data.easy_proxies.region_stats || {}, null, 2)}</pre>
               </details>
+            </>
+          )}
+        </div>
+
+        <div style={{ border: '1px solid #e5e7eb', borderRadius: 12, padding: 12 }}>
+          <h3 style={{ marginTop: 0 }}>Pixiv Tokens（运行时）</h3>
+          {!data.pixiv_tokens?.ok ? (
+            <p style={{ marginTop: 0, color: '#b91c1c' }}>pixiv_tokens_error: {String(data.pixiv_tokens?.error || 'unknown')}</p>
+          ) : (data.pixiv_tokens.tokens || []).length === 0 ? (
+            <p style={{ marginTop: 0, color: '#666' }}>无</p>
+          ) : (
+            <>
+              <p style={{ marginTop: 0, color: '#666' }}>
+                来源：<b>{String(data.pixiv_tokens.source || 'unknown')}</b>；可用：<b>{String((data.pixiv_tokens.tokens || []).length)}</b>
+              </p>
+              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr>
+                    <th style={{ textAlign: 'left', padding: '4px 8px', borderBottom: '1px solid #eee' }}>Token</th>
+                    <th style={{ textAlign: 'right', padding: '4px 8px', borderBottom: '1px solid #eee' }}>Fail</th>
+                    <th style={{ textAlign: 'right', padding: '4px 8px', borderBottom: '1px solid #eee' }}>Backoff</th>
+                    <th style={{ textAlign: 'left', padding: '4px 8px', borderBottom: '1px solid #eee' }}>Last Error</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.pixiv_tokens.tokens.slice(0, 20).map((t) => (
+                    <tr key={String(t.token_id)}>
+                      <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee' }}>{String(t.token_id)}</td>
+                      <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee', textAlign: 'right' }}>{String(t.refresh_fail_count || 0)}</td>
+                      <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee', textAlign: 'right' }}>
+                        {t.backoff_until ? formatDurationMs(Number(t.backoff_remaining_ms || 0)) : '无'}
+                      </td>
+                      <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee' }}>
+                        {!t.last_error ? (
+                          <span style={{ color: '#666' }}>无</span>
+                        ) : (
+                          <span>
+                            {t.last_error.status ? `HTTP ${t.last_error.status} ` : ''}
+                            {clampText(t.last_error.message || t.last_error.code || 'error', 72)}
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <p style={{ marginTop: 8, color: '#666' }}>
+                refresh_fail_count/backoff 仅表示“refresh_token 刷新”失败；不会展示 refresh_token 明文。
+              </p>
             </>
           )}
         </div>
