@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ApiClient } from 'adminjs';
+import { pageRootStyle } from './uiKit';
 
 const api = new ApiClient();
 
@@ -123,7 +124,7 @@ export default function EasyProxiesImportPage() {
   };
 
   return (
-    <div style={{ padding: 16, fontFamily: 'system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif' }}>
+    <div style={pageRootStyle}>
       <h2 style={{ marginTop: 0 }}>easy_proxies 导入/刷新</h2>
       <p style={{ marginTop: 0, color: '#666' }}>生成时间：{safeString(data?.generated_at || '')}</p>
 

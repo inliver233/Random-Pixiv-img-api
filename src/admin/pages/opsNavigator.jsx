@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { ApiClient } from 'adminjs';
+import { mutedTextStyle, pageRootStyle } from './uiKit';
 
 const api = new ApiClient();
 
@@ -69,13 +70,13 @@ export default function OpsNavigatorPage() {
   }, []);
 
   return (
-    <div style={{ padding: 16, fontFamily: 'system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif' }}>
+    <div style={pageRootStyle}>
       <h2 style={{ marginTop: 0 }}>操作导航（推荐从这里进入）</h2>
-      <p style={{ marginTop: 0, color: '#666' }}>
+      <p style={{ marginTop: 0, ...mutedTextStyle }}>
         目标：把「导入 / 补全 / 代理 / 令牌 / 统计」放到固定入口，降低误操作。
       </p>
       {meta?.generated_at ? (
-        <p style={{ marginTop: 0, color: '#666' }}>生成时间：{String(meta.generated_at)}</p>
+        <p style={{ marginTop: 0, ...mutedTextStyle }}>生成时间：{String(meta.generated_at)}</p>
       ) : null}
 
       <div style={{

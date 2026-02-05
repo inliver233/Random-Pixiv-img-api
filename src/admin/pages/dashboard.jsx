@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ApiClient } from 'adminjs';
+import { mutedTextStyle, pageCardStyle, pageRootStyle } from './uiKit';
 
 const api = new ApiClient();
 
@@ -91,7 +92,7 @@ export default function Dashboard() {
 
   if (error) {
     return (
-      <div style={{ padding: 16 }}>
+      <div style={pageRootStyle}>
         <h2>仪表盘</h2>
         <p style={{ color: '#b91c1c' }}>仪表盘加载失败：{error}</p>
       </div>
@@ -100,7 +101,7 @@ export default function Dashboard() {
 
   if (!data) {
     return (
-      <div style={{ padding: 16 }}>
+      <div style={pageRootStyle}>
         <h2>仪表盘</h2>
         <p>加载中…</p>
       </div>
@@ -150,10 +151,10 @@ export default function Dashboard() {
   }
 
   return (
-    <div style={{ padding: 16, fontFamily: 'system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif' }}>
+    <div style={pageRootStyle}>
       <h2 style={{ marginTop: 0 }}>仪表盘</h2>
-      <p style={{ marginTop: 0, color: '#666' }}>生成时间：{data.generated_at}</p>
-      <div style={{ border: '1px solid #e5e7eb', borderRadius: 12, padding: 12, marginBottom: 12 }}>
+      <p style={{ marginTop: 0, ...mutedTextStyle }}>生成时间：{data.generated_at}</p>
+      <div style={{ ...pageCardStyle, marginBottom: 12 }}>
         <h3 style={{ marginTop: 0, marginBottom: 8 }}>快捷导航</h3>
         <p style={{ marginTop: 0, color: '#666' }}>
           推荐先进入

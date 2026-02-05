@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ApiClient } from 'adminjs';
+import { pageRootStyle } from './uiKit';
 
 const api = new ApiClient();
 
@@ -370,7 +371,7 @@ export default function ImportUrlsPage() {
     : 'unknown';
 
   return (
-    <div style={{ padding: 16, maxWidth: 980 }}>
+    <div style={{ ...pageRootStyle, maxWidth: 980 }}>
       <h2 style={{ marginTop: 0 }}>批量导入 URL</h2>
       <p style={{ marginTop: 0, color: '#666' }}>
         批量导入 Pixiv 原图（pximg）URL，一行一个。支持注释行（以 <code>#</code> 开头）。后端会做解析与去重（illustId + page）。

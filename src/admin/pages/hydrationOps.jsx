@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ApiClient } from 'adminjs';
+import { createButtonStyle, pageRootStyle } from './uiKit';
 
 const api = new ApiClient();
 
@@ -154,17 +155,10 @@ export default function HydrationOpsPage() {
 
   const selectedQueueMeta = dlqCountsByName.get(safeString(selectedDlq)) || null;
 
-  const buttonStyle = {
-    padding: '6px 10px',
-    borderRadius: 8,
-    border: '1px solid #e5e7eb',
-    background: '#fff',
-    color: '#111827',
-    cursor: loading ? 'not-allowed' : 'pointer',
-  };
+  const buttonStyle = createButtonStyle({ disabled: loading });
 
   return (
-    <div style={{ padding: 16, fontFamily: 'system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif' }}>
+    <div style={pageRootStyle}>
       <h2 style={{ marginTop: 0 }}>补全运行面板与 DLQ</h2>
       <p style={{ marginTop: 0, color: '#666' }}>生成时间：{safeString(data?.generated_at || '')}</p>
 
@@ -348,7 +342,7 @@ export default function HydrationOpsPage() {
                         <button type="button" disabled={loading} onClick={() => retryDlqJob(job)} style={{ ...buttonStyle, marginRight: 8 }}>
                           重试
                         </button>
-                        <button type="button" disabled={loading} onClick={() => deleteDlqJob(job)} style={{ ...buttonStyle, borderColor: '#fecaca', color: '#991b1b' }}>
+                        <button type="button" disabled={loading} onClick={() => deleteDlqJob(job)} style={createButtonStyle({ danger: true, disabled: loading })}>
                           删除
                         </button>
                       </td>
@@ -363,4 +357,3 @@ export default function HydrationOpsPage() {
     </div>
   );
 }
-

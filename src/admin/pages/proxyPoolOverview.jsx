@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ApiClient } from 'adminjs';
+import { pageRootStyle } from './uiKit';
 
 const api = new ApiClient();
 
@@ -67,7 +68,7 @@ export default function ProxyPoolOverviewPage() {
   }, [health]);
 
   return (
-    <div style={{ padding: 16, fontFamily: 'system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif' }}>
+    <div style={pageRootStyle}>
       <h2 style={{ marginTop: 0 }}>代理池概览与可观测性</h2>
       <p style={{ marginTop: 0, color: '#666' }}>生成时间：{safeString(data?.generated_at || '')}</p>
 
@@ -242,4 +243,3 @@ export default function ProxyPoolOverviewPage() {
     </div>
   );
 }
-
