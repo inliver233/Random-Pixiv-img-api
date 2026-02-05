@@ -361,6 +361,18 @@ async function processBackfillRun(runId: bigint, requestId?: string): Promise<vo
   let cursor = normalizeCursor(run.cursor);
 
   for (let batchIndex = 0; batchIndex < MAX_BATCHES_PER_JOB; batchIndex += 1) {
+    const current = await prisma.hydrationRun.findUnique({
+      where: { id: runId },
+      select: { status: true, cursor: true },
+    });
+    if (!current) return;
+
+    if (current.status === 'paused' || current.status === 'canceled' || current.status === 'completed' || current.status === 'failed') {
+      return;
+    }
+
+    cursor = normalizeCursor(current.cursor);
+
     const nextIllustIds = await loadNextIllustIds(criteria, cursor);
     if (nextIllustIds.length === 0) {
       await prisma.hydrationRun.update({
@@ -425,7 +437,10 @@ async function processBackfillRun(runId: bigint, requestId?: string): Promise<vo
     }
   }
 
-  await enqueueHydrationBackfillRun(runId);
+  const statusRow = await prisma.hydrationRun.findUnique({ where: { id: runId }, select: { status: true } });
+  if (statusRow?.status === 'running' || statusRow?.status === 'pending') {
+    await enqueueHydrationBackfillRun(runId);
+  }
 }
 
 export async function registerHydrationBackfillWorker(): Promise<void> {

@@ -2128,6 +2128,238 @@ export async function getAdminJsRouter(): Promise<Router> {
           },
         ] as any[];
 
+        resources.push({
+          resource: { model: getModelByName('HydrationRun', prismaClientModule), client: prisma, clientModule: prismaClientModule },
+          options: {
+            navigation: { name: '补全', icon: 'Activity' },
+            label: '补全运行',
+            listProperties: [
+              'id',
+              'type',
+              'status',
+              'total',
+              'processed',
+              'success',
+              'failed',
+              'startedAt',
+              'finishedAt',
+              'updatedAt',
+              'createdAt',
+            ],
+            filterProperties: [
+              'type',
+              'status',
+              'requestedBy',
+              'startedAt',
+              'finishedAt',
+              'updatedAt',
+              'createdAt',
+            ],
+            actions: {
+              new: { isAccessible: false, isVisible: false },
+              edit: { isAccessible: false, isVisible: false },
+              delete: { isAccessible: false, isVisible: false },
+
+              pause: {
+                actionType: 'record',
+                icon: 'Pause',
+                label: 'Pause',
+                guard: 'Pause this backfill run?',
+                handler: async (request: any, _res: any, context: any) => {
+                  const { record, currentAdmin, h, resource } = context;
+                  if (!record) throw new Error('Record is required');
+
+                  if (String(request?.method || '').toLowerCase() === 'get') {
+                    return { record: record.toJSON(currentAdmin) };
+                  }
+
+                  const idRaw = record.id?.() ?? record.params?.id;
+                  let id: bigint;
+                  try {
+                    id = typeof idRaw === 'bigint' ? idRaw : BigInt(String(idRaw));
+                  } catch {
+                    return { notice: { type: 'error', message: 'Invalid record id.' }, redirectUrl: h.resourceUrl({ resourceId: resource.id() }) };
+                  }
+
+                  const run = await prisma.hydrationRun.findUnique({ where: { id }, select: { id: true, type: true, status: true } });
+                  if (!run) {
+                    return { notice: { type: 'error', message: 'Not Found' }, redirectUrl: h.resourceUrl({ resourceId: resource.id() }) };
+                  }
+
+                  if (run.type !== 'backfill') {
+                    return { notice: { type: 'error', message: `Only backfill runs can be paused (type=${run.type}).` }, redirectUrl: h.recordActionUrl({ resourceId: resource.id(), recordId: record.id(), actionName: 'show' }) };
+                  }
+
+                  const prevStatus = run.status;
+                  const terminal = prevStatus === 'completed' || prevStatus === 'canceled' || prevStatus === 'failed';
+                  if (terminal) {
+                    return { notice: { type: 'error', message: `Run is terminal (status=${prevStatus}).` }, redirectUrl: h.recordActionUrl({ resourceId: resource.id(), recordId: record.id(), actionName: 'show' }) };
+                  }
+
+                  if (prevStatus !== 'paused') {
+                    await prisma.hydrationRun.update({ where: { id }, data: { status: 'paused', finishedAt: null } });
+                  }
+
+                  auditAdminModelChange({
+                    action: 'hydration_run_pause',
+                    resource: 'HydrationRun',
+                    record_id: id.toString(),
+                    req: request,
+                    detail: { prev_status: prevStatus, next_status: 'paused' },
+                  });
+
+                  return {
+                    record: record.toJSON(currentAdmin),
+                    notice: { type: 'success', message: prevStatus === 'paused' ? 'Already paused.' : 'Paused.' },
+                    redirectUrl: h.recordActionUrl({ resourceId: resource.id(), recordId: record.id(), actionName: 'show' }),
+                  };
+                },
+              },
+
+              resume: {
+                actionType: 'record',
+                icon: 'Play',
+                label: 'Resume',
+                guard: 'Resume this backfill run?',
+                handler: async (request: any, _res: any, context: any) => {
+                  const { record, currentAdmin, h, resource } = context;
+                  if (!record) throw new Error('Record is required');
+
+                  if (String(request?.method || '').toLowerCase() === 'get') {
+                    return { record: record.toJSON(currentAdmin) };
+                  }
+
+                  const idRaw = record.id?.() ?? record.params?.id;
+                  let id: bigint;
+                  try {
+                    id = typeof idRaw === 'bigint' ? idRaw : BigInt(String(idRaw));
+                  } catch {
+                    return { notice: { type: 'error', message: 'Invalid record id.' }, redirectUrl: h.resourceUrl({ resourceId: resource.id() }) };
+                  }
+
+                  const run = await prisma.hydrationRun.findUnique({ where: { id }, select: { id: true, type: true, status: true, startedAt: true } });
+                  if (!run) {
+                    return { notice: { type: 'error', message: 'Not Found' }, redirectUrl: h.resourceUrl({ resourceId: resource.id() }) };
+                  }
+
+                  if (run.type !== 'backfill') {
+                    return { notice: { type: 'error', message: `Only backfill runs can be resumed (type=${run.type}).` }, redirectUrl: h.recordActionUrl({ resourceId: resource.id(), recordId: record.id(), actionName: 'show' }) };
+                  }
+
+                  const prevStatus = run.status;
+                  const terminal = prevStatus === 'completed' || prevStatus === 'canceled' || prevStatus === 'failed';
+                  if (terminal) {
+                    return { notice: { type: 'error', message: `Run is terminal (status=${prevStatus}).` }, redirectUrl: h.recordActionUrl({ resourceId: resource.id(), recordId: record.id(), actionName: 'show' }) };
+                  }
+
+                  await prisma.hydrationRun.update({
+                    where: { id },
+                    data: {
+                      status: 'running',
+                      finishedAt: null,
+                      startedAt: run.startedAt ?? new Date(),
+                      lastErrorCode: null,
+                      lastErrorMsg: null,
+                    },
+                  });
+
+                  try {
+                    // eslint-disable-next-line @typescript-eslint/no-var-requires
+                    const { enqueueHydrationBackfillRun } = require('../jobs/hydrationBackfill') as typeof import('../jobs/hydrationBackfill');
+                    const reqId = request?.request_id || request?.headers?.['x-request-id'];
+                    await enqueueHydrationBackfillRun(id, typeof reqId === 'string' ? reqId : undefined);
+                  } catch (err: unknown) {
+                    await prisma.hydrationRun.update({ where: { id }, data: { status: 'paused', lastErrorCode: 'enqueue_failed', lastErrorMsg: err instanceof Error ? err.message : String(err) } });
+
+                    auditAdminModelChange({
+                      action: 'hydration_run_resume_enqueue_failed',
+                      resource: 'HydrationRun',
+                      record_id: id.toString(),
+                      req: request,
+                      detail: { prev_status: prevStatus, next_status: 'paused', error: err instanceof Error ? err.message : String(err) },
+                    });
+
+                    return {
+                      record: record.toJSON(currentAdmin),
+                      notice: { type: 'error', message: err instanceof Error ? err.message : String(err) },
+                      redirectUrl: h.recordActionUrl({ resourceId: resource.id(), recordId: record.id(), actionName: 'show' }),
+                    };
+                  }
+
+                  auditAdminModelChange({
+                    action: 'hydration_run_resume',
+                    resource: 'HydrationRun',
+                    record_id: id.toString(),
+                    req: request,
+                    detail: { prev_status: prevStatus, next_status: 'running' },
+                  });
+
+                  return {
+                    record: record.toJSON(currentAdmin),
+                    notice: { type: 'success', message: prevStatus === 'running' ? 'Already running.' : 'Resumed.' },
+                    redirectUrl: h.recordActionUrl({ resourceId: resource.id(), recordId: record.id(), actionName: 'show' }),
+                  };
+                },
+              },
+
+              cancel: {
+                actionType: 'record',
+                icon: 'Close',
+                label: 'Cancel',
+                guard: 'Cancel this backfill run?',
+                handler: async (request: any, _res: any, context: any) => {
+                  const { record, currentAdmin, h, resource } = context;
+                  if (!record) throw new Error('Record is required');
+
+                  if (String(request?.method || '').toLowerCase() === 'get') {
+                    return { record: record.toJSON(currentAdmin) };
+                  }
+
+                  const idRaw = record.id?.() ?? record.params?.id;
+                  let id: bigint;
+                  try {
+                    id = typeof idRaw === 'bigint' ? idRaw : BigInt(String(idRaw));
+                  } catch {
+                    return { notice: { type: 'error', message: 'Invalid record id.' }, redirectUrl: h.resourceUrl({ resourceId: resource.id() }) };
+                  }
+
+                  const run = await prisma.hydrationRun.findUnique({ where: { id }, select: { id: true, type: true, status: true } });
+                  if (!run) {
+                    return { notice: { type: 'error', message: 'Not Found' }, redirectUrl: h.resourceUrl({ resourceId: resource.id() }) };
+                  }
+
+                  if (run.type !== 'backfill') {
+                    return { notice: { type: 'error', message: `Only backfill runs can be canceled (type=${run.type}).` }, redirectUrl: h.recordActionUrl({ resourceId: resource.id(), recordId: record.id(), actionName: 'show' }) };
+                  }
+
+                  const prevStatus = run.status;
+                  if (prevStatus !== 'canceled' && prevStatus !== 'completed') {
+                    await prisma.hydrationRun.update({ where: { id }, data: { status: 'canceled', finishedAt: new Date() } });
+                  }
+
+                  auditAdminModelChange({
+                    action: 'hydration_run_cancel',
+                    resource: 'HydrationRun',
+                    record_id: id.toString(),
+                    req: request,
+                    detail: { prev_status: prevStatus, next_status: 'canceled' },
+                  });
+
+                  return {
+                    record: record.toJSON(currentAdmin),
+                    notice: { type: 'success', message: prevStatus === 'canceled' ? 'Already canceled.' : 'Canceled.' },
+                    redirectUrl: h.recordActionUrl({ resourceId: resource.id(), recordId: record.id(), actionName: 'show' }),
+                  };
+                },
+              },
+            },
+            properties: {
+              criteria: { isVisible: { list: false, filter: false, show: true, edit: false } },
+              cursor: { isVisible: { list: false, filter: false, show: true, edit: false } },
+            },
+          },
+        });
+
         if (auditViewEnabled) {
           resources.push({
             resource: { model: getModelByName('AdminAudit', prismaClientModule), client: prisma, clientModule: prismaClientModule },
