@@ -1,6 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ApiClient } from 'adminjs';
-import { createButtonStyle, pageRootStyle } from './uiKit';
+import {
+  createButtonStyle,
+  createCalloutStyle,
+  createCardStyle,
+  createInputStyle,
+  pageRootStyle,
+  pageTitleStyle,
+} from './uiKit';
 
 const api = new ApiClient();
 
@@ -159,11 +166,11 @@ export default function HydrationOpsPage() {
 
   return (
     <div style={pageRootStyle}>
-      <h2 style={{ marginTop: 0 }}>补全运行面板与 DLQ</h2>
+      <h2 style={pageTitleStyle}>补全运行面板与死信队列</h2>
       <p style={{ marginTop: 0, color: '#666' }}>生成时间：{safeString(data?.generated_at || '')}</p>
 
       {error ? (
-        <div style={{ padding: 12, border: '1px solid #fecaca', background: '#fef2f2', borderRadius: 12, color: '#991b1b' }}>
+        <div style={createCalloutStyle('danger')}>
           <b>加载失败：</b>{safeString(error)}
         </div>
       ) : null}
@@ -172,30 +179,26 @@ export default function HydrationOpsPage() {
         <div
           style={{
             marginTop: 12,
-            padding: 12,
-            borderRadius: 12,
-            border: notice.type === 'error' ? '1px solid #fecaca' : '1px solid #bbf7d0',
-            background: notice.type === 'error' ? '#fef2f2' : '#f0fdf4',
-            color: notice.type === 'error' ? '#991b1b' : '#166534',
+            ...(notice.type === 'error' ? createCalloutStyle('danger') : createCalloutStyle('success')),
           }}
         >
           {safeString(notice.message)}
         </div>
       ) : null}
 
-      <div style={{ marginTop: 12, border: '1px solid #e5e7eb', borderRadius: 12, padding: 12 }}>
+      <div style={{ marginTop: 12, ...createCardStyle() }}>
         <h3 style={{ marginTop: 0 }}>概览</h3>
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <tbody>
             <tr>
-              <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee', fontWeight: 600 }}>queue</td>
+              <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee', fontWeight: 600 }}>队列状态</td>
               <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee' }}>
-                {data?.queue?.ok ? 'ok' : 'not_ok'} {data?.queue?.message ? `(${safeString(data.queue.message)})` : ''}
+                {data?.queue?.ok ? '正常' : '异常'} {data?.queue?.message ? `(${safeString(data.queue.message)})` : ''}
               </td>
             </tr>
             <tr>
-              <td style={{ padding: '4px 8px', fontWeight: 600 }}>dlq_enabled</td>
-              <td style={{ padding: '4px 8px' }}>{dlq?.enabled ? 'true' : 'false'}</td>
+              <td style={{ padding: '4px 8px', fontWeight: 600 }}>死信队列开关</td>
+              <td style={{ padding: '4px 8px' }}>{dlq?.enabled ? '已启用' : '已关闭'}</td>
             </tr>
           </tbody>
         </table>
@@ -205,20 +208,20 @@ export default function HydrationOpsPage() {
         </button>
       </div>
 
-      <div style={{ marginTop: 12, border: '1px solid #e5e7eb', borderRadius: 12, padding: 12 }}>
+      <div style={{ marginTop: 12, ...createCardStyle({ alt: true }) }}>
         <h3 style={{ marginTop: 0 }}>补全运行（HydrationRun）</h3>
         <div style={{ overflowX: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 980 }}>
             <thead>
               <tr>
-                <th style={{ textAlign: 'left', padding: '6px 8px', borderBottom: '1px solid #eee' }}>id</th>
-                <th style={{ textAlign: 'left', padding: '6px 8px', borderBottom: '1px solid #eee' }}>type</th>
-                <th style={{ textAlign: 'left', padding: '6px 8px', borderBottom: '1px solid #eee' }}>status</th>
-                <th style={{ textAlign: 'right', padding: '6px 8px', borderBottom: '1px solid #eee' }}>processed/total</th>
-                <th style={{ textAlign: 'right', padding: '6px 8px', borderBottom: '1px solid #eee' }}>success</th>
-                <th style={{ textAlign: 'right', padding: '6px 8px', borderBottom: '1px solid #eee' }}>failed</th>
-                <th style={{ textAlign: 'left', padding: '6px 8px', borderBottom: '1px solid #eee' }}>updated_at</th>
-                <th style={{ textAlign: 'left', padding: '6px 8px', borderBottom: '1px solid #eee' }}>last_error</th>
+                <th style={{ textAlign: 'left', padding: '6px 8px', borderBottom: '1px solid #eee' }}>运行 ID</th>
+                <th style={{ textAlign: 'left', padding: '6px 8px', borderBottom: '1px solid #eee' }}>类型</th>
+                <th style={{ textAlign: 'left', padding: '6px 8px', borderBottom: '1px solid #eee' }}>状态</th>
+                <th style={{ textAlign: 'right', padding: '6px 8px', borderBottom: '1px solid #eee' }}>进度</th>
+                <th style={{ textAlign: 'right', padding: '6px 8px', borderBottom: '1px solid #eee' }}>成功</th>
+                <th style={{ textAlign: 'right', padding: '6px 8px', borderBottom: '1px solid #eee' }}>失败</th>
+                <th style={{ textAlign: 'left', padding: '6px 8px', borderBottom: '1px solid #eee' }}>更新时间</th>
+                <th style={{ textAlign: 'left', padding: '6px 8px', borderBottom: '1px solid #eee' }}>最近错误</th>
               </tr>
             </thead>
             <tbody>
@@ -253,18 +256,18 @@ export default function HydrationOpsPage() {
         </div>
       </div>
 
-      <div style={{ marginTop: 12, border: '1px solid #e5e7eb', borderRadius: 12, padding: 12 }}>
-        <h3 style={{ marginTop: 0 }}>Dead-letter（DLQ）</h3>
+      <div style={{ marginTop: 12, ...createCardStyle() }}>
+        <h3 style={{ marginTop: 0 }}>死信队列（DLQ）</h3>
         {!dlq?.enabled ? (
           <p style={{ marginTop: 0, color: '#666' }}>DLQ 已禁用（QUEUE_DEAD_LETTER_ENABLED=false）。</p>
         ) : dlq?.ok === false ? (
-          <div style={{ padding: 12, border: '1px solid #fecaca', background: '#fef2f2', borderRadius: 12, color: '#991b1b' }}>
+          <div style={createCalloutStyle('danger')}>
             <b>DLQ 查询失败：</b>{safeString(dlq?.error || '')}
           </div>
         ) : (
           <>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 12 }}>
-              <div style={{ border: '1px solid #f3f4f6', borderRadius: 12, padding: 12 }}>
+              <div style={createCardStyle({ alt: true })}>
                 <div style={{ fontSize: 12, color: '#666' }}>选择 DLQ 队列</div>
                 <select
                   value={selectedDlq}
@@ -273,7 +276,7 @@ export default function HydrationOpsPage() {
                     setSelectedDlq(q);
                     void loadDlqJobs(q);
                   }}
-                  style={{ width: '100%', marginTop: 6, padding: '6px 8px', borderRadius: 8, border: '1px solid #e5e7eb' }}
+                  style={createInputStyle({ disabled: loading })}
                   disabled={loading}
                 >
                   {dlqQueues.map((q) => (
@@ -288,7 +291,7 @@ export default function HydrationOpsPage() {
                 </p>
               </div>
 
-              <div style={{ border: '1px solid #f3f4f6', borderRadius: 12, padding: 12 }}>
+              <div style={createCardStyle({ alt: true })}>
                 <div style={{ fontSize: 12, color: '#666' }}>当前队列</div>
                 <div style={{ marginTop: 6, fontWeight: 700 }}>{safeString(selectedQueueMeta?.name || selectedDlq)}</div>
                 <div style={{ marginTop: 6, color: '#374151' }}>count: {formatOptionalNumber(selectedQueueMeta?.count)}</div>
@@ -306,13 +309,13 @@ export default function HydrationOpsPage() {
               <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 1060 }}>
                 <thead>
                   <tr>
-                    <th style={{ textAlign: 'left', padding: '6px 8px', borderBottom: '1px solid #eee' }}>id</th>
-                    <th style={{ textAlign: 'left', padding: '6px 8px', borderBottom: '1px solid #eee' }}>queue</th>
-                    <th style={{ textAlign: 'left', padding: '6px 8px', borderBottom: '1px solid #eee' }}>created_on</th>
-                    <th style={{ textAlign: 'left', padding: '6px 8px', borderBottom: '1px solid #eee' }}>state</th>
-                    <th style={{ textAlign: 'left', padding: '6px 8px', borderBottom: '1px solid #eee' }}>data</th>
-                    <th style={{ textAlign: 'left', padding: '6px 8px', borderBottom: '1px solid #eee' }}>error</th>
-                    <th style={{ textAlign: 'left', padding: '6px 8px', borderBottom: '1px solid #eee' }}>actions</th>
+                    <th style={{ textAlign: 'left', padding: '6px 8px', borderBottom: '1px solid #eee' }}>作业 ID</th>
+                    <th style={{ textAlign: 'left', padding: '6px 8px', borderBottom: '1px solid #eee' }}>队列</th>
+                    <th style={{ textAlign: 'left', padding: '6px 8px', borderBottom: '1px solid #eee' }}>创建时间</th>
+                    <th style={{ textAlign: 'left', padding: '6px 8px', borderBottom: '1px solid #eee' }}>状态</th>
+                    <th style={{ textAlign: 'left', padding: '6px 8px', borderBottom: '1px solid #eee' }}>数据摘要</th>
+                    <th style={{ textAlign: 'left', padding: '6px 8px', borderBottom: '1px solid #eee' }}>错误信息</th>
+                    <th style={{ textAlign: 'left', padding: '6px 8px', borderBottom: '1px solid #eee' }}>操作</th>
                   </tr>
                 </thead>
                 <tbody>

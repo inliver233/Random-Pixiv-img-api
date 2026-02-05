@@ -1,6 +1,14 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ApiClient } from 'adminjs';
-import { pageRootStyle } from './uiKit';
+import {
+  createButtonStyle,
+  createCalloutStyle,
+  createCardStyle,
+  createInputStyle,
+  createTextareaStyle,
+  pageRootStyle,
+  pageTitleStyle,
+} from './uiKit';
 
 const api = new ApiClient();
 
@@ -128,13 +136,13 @@ export default function TokenProxyBindingsPage() {
 
   return (
     <div style={pageRootStyle}>
-      <h2 style={{ marginTop: 0 }}>Token↔Proxy 绑定</h2>
+      <h2 style={pageTitleStyle}>令牌与代理绑定</h2>
       <p style={{ marginTop: 0, color: '#666' }}>
         生成时间：{safeString(data?.generated_at || '')}
       </p>
 
       {error ? (
-        <div style={{ padding: 12, border: '1px solid #fecaca', background: '#fef2f2', borderRadius: 12, color: '#991b1b' }}>
+        <div style={createCalloutStyle('danger')}>
           <b>加载失败：</b>{safeString(error)}
         </div>
       ) : null}
@@ -143,18 +151,14 @@ export default function TokenProxyBindingsPage() {
         <div
           style={{
             marginTop: 12,
-            padding: 12,
-            borderRadius: 12,
-            border: notice.type === 'error' ? '1px solid #fecaca' : '1px solid #bbf7d0',
-            background: notice.type === 'error' ? '#fef2f2' : '#f0fdf4',
-            color: notice.type === 'error' ? '#991b1b' : '#166534',
+            ...(notice.type === 'error' ? createCalloutStyle('danger') : createCalloutStyle('success')),
           }}
         >
           {safeString(notice.message)}
         </div>
       ) : null}
 
-      <div style={{ marginTop: 12, border: '1px solid #e5e7eb', borderRadius: 12, padding: 12 }}>
+      <div style={{ marginTop: 12, ...createCardStyle() }}>
         <h3 style={{ marginTop: 0 }}>概览</h3>
         <p style={{ marginTop: 0, color: '#666' }}>
           pool: {pool ? `${safeString(pool.name)} (#${safeString(pool.id)})` : '未初始化（首次操作会自动创建 default pool）'}
@@ -184,7 +188,7 @@ export default function TokenProxyBindingsPage() {
         ) : null}
       </div>
 
-      <div style={{ marginTop: 12, border: '1px solid #e5e7eb', borderRadius: 12, padding: 12 }}>
+      <div style={{ marginTop: 12, ...createCardStyle({ alt: true }) }}>
         <h3 style={{ marginTop: 0 }}>绑定列表</h3>
         {loading && !data ? (
           <p style={{ marginTop: 0, color: '#666' }}>加载中…</p>
@@ -193,11 +197,11 @@ export default function TokenProxyBindingsPage() {
           <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 720 }}>
             <thead>
               <tr>
-                <th style={{ textAlign: 'left', padding: '6px 8px', borderBottom: '1px solid #eee' }}>Token</th>
-                <th style={{ textAlign: 'left', padding: '6px 8px', borderBottom: '1px solid #eee' }}>Primary</th>
-                <th style={{ textAlign: 'left', padding: '6px 8px', borderBottom: '1px solid #eee' }}>Effective</th>
-                <th style={{ textAlign: 'left', padding: '6px 8px', borderBottom: '1px solid #eee' }}>Override Expires</th>
-                <th style={{ textAlign: 'left', padding: '6px 8px', borderBottom: '1px solid #eee' }}>Suggested</th>
+                <th style={{ textAlign: 'left', padding: '6px 8px', borderBottom: '1px solid #eee' }}>令牌</th>
+                <th style={{ textAlign: 'left', padding: '6px 8px', borderBottom: '1px solid #eee' }}>主代理</th>
+                <th style={{ textAlign: 'left', padding: '6px 8px', borderBottom: '1px solid #eee' }}>当前生效</th>
+                <th style={{ textAlign: 'left', padding: '6px 8px', borderBottom: '1px solid #eee' }}>Override 到期</th>
+                <th style={{ textAlign: 'left', padding: '6px 8px', borderBottom: '1px solid #eee' }}>建议代理</th>
               </tr>
             </thead>
             <tbody>
@@ -233,16 +237,16 @@ export default function TokenProxyBindingsPage() {
         </div>
       </div>
 
-      <div style={{ marginTop: 12, border: '1px solid #e5e7eb', borderRadius: 12, padding: 12 }}>
+      <div style={{ marginTop: 12, ...createCardStyle() }}>
         <h3 style={{ marginTop: 0 }}>操作</h3>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 12 }}>
-          <div style={{ border: '1px solid #f3f4f6', borderRadius: 12, padding: 12 }}>
+          <div style={createCardStyle({ alt: true })}>
             <h4 style={{ marginTop: 0 }}>选择 Token</h4>
             <select
               value={selectedTokenId}
               onChange={(e) => setSelectedTokenId(e.target.value)}
-              style={{ width: '100%', padding: '6px 8px', borderRadius: 8, border: '1px solid #e5e7eb' }}
+              style={createInputStyle()}
             >
               {tokens.map((t) => (
                 <option key={String(t.id)} value={String(t.id)}>
@@ -255,12 +259,12 @@ export default function TokenProxyBindingsPage() {
             </p>
           </div>
 
-          <div style={{ border: '1px solid #f3f4f6', borderRadius: 12, padding: 12 }}>
-            <h4 style={{ marginTop: 0 }}>Rebind primary</h4>
+          <div style={createCardStyle({ alt: true })}>
+            <h4 style={{ marginTop: 0 }}>重绑主代理</h4>
             <select
               value={rebindProxyId}
               onChange={(e) => setRebindProxyId(e.target.value)}
-              style={{ width: '100%', padding: '6px 8px', borderRadius: 8, border: '1px solid #e5e7eb' }}
+              style={createInputStyle()}
             >
               <option value="">(请选择代理)</option>
               {proxies.map((p) => (
@@ -279,26 +283,18 @@ export default function TokenProxyBindingsPage() {
               type="button"
               disabled={!selectedTokenId || !rebindProxyId || loading}
               onClick={() => runAction('rebindPrimary', { tokenId: selectedTokenId, primaryProxyId: rebindProxyId, clearOverride: clearOverride ? 'true' : 'false', reason })}
-              style={{
-                marginTop: 8,
-                padding: '6px 10px',
-                borderRadius: 8,
-                border: '1px solid #111827',
-                background: '#111827',
-                color: '#fff',
-                cursor: !selectedTokenId || !rebindProxyId || loading ? 'not-allowed' : 'pointer',
-              }}
+              style={{ marginTop: 8, ...createButtonStyle({ primary: true, disabled: !selectedTokenId || !rebindProxyId || loading }) }}
             >
-              执行 Rebind
+              执行重绑
             </button>
           </div>
 
-          <div style={{ border: '1px solid #f3f4f6', borderRadius: 12, padding: 12 }}>
-            <h4 style={{ marginTop: 0 }}>Set override (temporary)</h4>
+          <div style={createCardStyle({ alt: true })}>
+            <h4 style={{ marginTop: 0 }}>设置临时 override</h4>
             <select
               value={overrideProxyId}
               onChange={(e) => setOverrideProxyId(e.target.value)}
-              style={{ width: '100%', padding: '6px 8px', borderRadius: 8, border: '1px solid #e5e7eb' }}
+              style={createInputStyle()}
             >
               <option value="">(请选择代理)</option>
               {proxies.map((p) => (
@@ -309,14 +305,14 @@ export default function TokenProxyBindingsPage() {
             </select>
 
             <div style={{ marginTop: 8 }}>
-              <label style={{ display: 'block', color: '#374151', marginBottom: 4 }}>TTL (minutes)</label>
+              <label style={{ display: 'block', color: '#374151', marginBottom: 4 }}>TTL（分钟）</label>
               <input
                 type="number"
                 min={1}
                 max={10080}
                 value={overrideTtlMinutes}
                 onChange={(e) => setOverrideTtlMinutes(Number(e.target.value))}
-                style={{ width: '100%', padding: '6px 8px', borderRadius: 8, border: '1px solid #e5e7eb' }}
+                style={createInputStyle()}
               />
             </div>
 
@@ -324,15 +320,7 @@ export default function TokenProxyBindingsPage() {
               type="button"
               disabled={!selectedTokenId || !overrideProxyId || loading}
               onClick={() => runAction('setOverride', { tokenId: selectedTokenId, overrideProxyId, ttlMinutes: overrideTtlMinutes, reason })}
-              style={{
-                marginTop: 8,
-                padding: '6px 10px',
-                borderRadius: 8,
-                border: '1px solid #b45309',
-                background: '#fff',
-                color: '#b45309',
-                cursor: !selectedTokenId || !overrideProxyId || loading ? 'not-allowed' : 'pointer',
-              }}
+              style={{ marginTop: 8, ...createButtonStyle({ disabled: !selectedTokenId || !overrideProxyId || loading }) }}
             >
               设置 override
             </button>
@@ -341,43 +329,26 @@ export default function TokenProxyBindingsPage() {
               type="button"
               disabled={!selectedTokenId || loading}
               onClick={() => runAction('clearOverride', { tokenId: selectedTokenId, reason })}
-              style={{
-                marginTop: 8,
-                marginLeft: 8,
-                padding: '6px 10px',
-                borderRadius: 8,
-                border: '1px solid #6b7280',
-                background: '#fff',
-                color: '#374151',
-                cursor: !selectedTokenId || loading ? 'not-allowed' : 'pointer',
-              }}
+              style={{ marginTop: 8, marginLeft: 8, ...createButtonStyle({ tone: 'ghost', disabled: !selectedTokenId || loading }) }}
             >
               清空 override
             </button>
           </div>
 
-          <div style={{ border: '1px solid #f3f4f6', borderRadius: 12, padding: 12 }}>
+          <div style={createCardStyle({ alt: true })}>
             <h4 style={{ marginTop: 0 }}>审计原因（可选）</h4>
             <textarea
               rows={4}
               value={reason}
               onChange={(e) => setReason(e.target.value)}
               placeholder="例如：proxy 不稳定 / 手工排障 / 临时切换"
-              style={{ width: '100%', padding: '6px 8px', borderRadius: 8, border: '1px solid #e5e7eb' }}
+              style={createTextareaStyle({ minHeight: 96 })}
             />
             <button
               type="button"
               disabled={loading}
               onClick={() => refresh()}
-              style={{
-                marginTop: 8,
-                padding: '6px 10px',
-                borderRadius: 8,
-                border: '1px solid #e5e7eb',
-                background: '#fff',
-                color: '#111827',
-                cursor: loading ? 'not-allowed' : 'pointer',
-              }}
+              style={{ marginTop: 8, ...createButtonStyle({ tone: 'ghost', disabled: loading }) }}
             >
               刷新
             </button>

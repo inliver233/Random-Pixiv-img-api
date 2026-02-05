@@ -1,6 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ApiClient } from 'adminjs';
-import { pageRootStyle } from './uiKit';
+import {
+  createButtonStyle,
+  createCalloutStyle,
+  createCardStyle,
+  pageRootStyle,
+  pageTitleStyle,
+} from './uiKit';
 
 const api = new ApiClient();
 
@@ -69,16 +75,16 @@ export default function ProxyPoolOverviewPage() {
 
   return (
     <div style={pageRootStyle}>
-      <h2 style={{ marginTop: 0 }}>代理池概览与可观测性</h2>
+      <h2 style={pageTitleStyle}>代理池概览与可观测性</h2>
       <p style={{ marginTop: 0, color: '#666' }}>生成时间：{safeString(data?.generated_at || '')}</p>
 
       {error ? (
-        <div style={{ padding: 12, border: '1px solid #fecaca', background: '#fef2f2', borderRadius: 12, color: '#991b1b' }}>
+        <div style={createCalloutStyle('danger')}>
           <b>加载失败：</b>{safeString(error)}
         </div>
       ) : null}
 
-      <div style={{ marginTop: 12, border: '1px solid #e5e7eb', borderRadius: 12, padding: 12 }}>
+      <div style={{ marginTop: 12, ...createCardStyle() }}>
         <h3 style={{ marginTop: 0 }}>概览</h3>
         <p style={{ marginTop: 0, color: '#666' }}>{safeString(data?.note || '')}</p>
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
@@ -97,21 +103,13 @@ export default function ProxyPoolOverviewPage() {
           type="button"
           disabled={loading}
           onClick={() => refresh()}
-          style={{
-            marginTop: 8,
-            padding: '6px 10px',
-            borderRadius: 8,
-            border: '1px solid #e5e7eb',
-            background: '#fff',
-            color: '#111827',
-            cursor: loading ? 'not-allowed' : 'pointer',
-          }}
+          style={{ marginTop: 8, ...createButtonStyle({ tone: 'ghost', disabled: loading }) }}
         >
           {loading ? '刷新中…' : '刷新'}
         </button>
       </div>
 
-      <div style={{ marginTop: 12, border: '1px solid #e5e7eb', borderRadius: 12, padding: 12 }}>
+      <div style={{ marginTop: 12, ...createCardStyle({ alt: true }) }}>
         <h3 style={{ marginTop: 0 }}>健康检查</h3>
         {!health ? (
           <p style={{ marginTop: 0, color: '#666' }}>未获取到健康检查数据。</p>
@@ -157,14 +155,14 @@ export default function ProxyPoolOverviewPage() {
         )}
       </div>
 
-      <div style={{ marginTop: 12, border: '1px solid #e5e7eb', borderRadius: 12, padding: 12 }}>
-        <h3 style={{ marginTop: 0 }}>Outbound 错误 (outbound_errors_total)</h3>
+      <div style={{ marginTop: 12, ...createCardStyle() }}>
+        <h3 style={{ marginTop: 0 }}>出站错误指标（outbound_errors_total）</h3>
         <div style={{ overflowX: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 560 }}>
             <thead>
               <tr>
-                <th style={{ textAlign: 'left', padding: '6px 8px', borderBottom: '1px solid #eee' }}>type</th>
-                <th style={{ textAlign: 'right', padding: '6px 8px', borderBottom: '1px solid #eee' }}>value</th>
+                <th style={{ textAlign: 'left', padding: '6px 8px', borderBottom: '1px solid #eee' }}>错误类型</th>
+                <th style={{ textAlign: 'right', padding: '6px 8px', borderBottom: '1px solid #eee' }}>累计值</th>
               </tr>
             </thead>
             <tbody>
@@ -179,7 +177,7 @@ export default function ProxyPoolOverviewPage() {
         </div>
       </div>
 
-      <div style={{ marginTop: 12, border: '1px solid #e5e7eb', borderRadius: 12, padding: 12 }}>
+      <div style={{ marginTop: 12, ...createCardStyle({ alt: true }) }}>
         <h3 style={{ marginTop: 0 }}>最近失败原因</h3>
         <div style={{ overflowX: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 920 }}>
@@ -209,7 +207,7 @@ export default function ProxyPoolOverviewPage() {
         </div>
       </div>
 
-      <div style={{ marginTop: 12, border: '1px solid #e5e7eb', borderRadius: 12, padding: 12 }}>
+      <div style={{ marginTop: 12, ...createCardStyle() }}>
         <h3 style={{ marginTop: 0 }}>节点明细</h3>
         <div style={{ overflowX: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 980 }}>
