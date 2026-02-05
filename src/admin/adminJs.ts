@@ -335,6 +335,7 @@ export async function getAdminJsRouter(): Promise<Router> {
     // AdminJS bundler parses JSX reliably from .jsx/.tsx but not from plain .js in some environments.
     const Dashboard = componentLoader.add('Dashboard', path.join(__dirname, 'pages', 'dashboard.jsx'));
     const ImportUrls = componentLoader.add('ImportUrls', path.join(__dirname, 'pages', 'importUrls.jsx'));
+    const HydrationOps = componentLoader.add('HydrationOps', path.join(__dirname, 'pages', 'hydrationOps.jsx'));
     const TokenProxyBindings = componentLoader.add('TokenProxyBindings', path.join(__dirname, 'pages', 'tokenProxyBindings.jsx'));
     const ProxyPoolOverview = componentLoader.add('ProxyPoolOverview', path.join(__dirname, 'pages', 'proxyPoolOverview.jsx'));
     const EasyProxiesImport = componentLoader.add('EasyProxiesImport', path.join(__dirname, 'pages', 'easyProxiesImport.jsx'));
@@ -361,6 +362,330 @@ export async function getAdminJsRouter(): Promise<Router> {
               adminImportMaxFileBytes: env.ADMIN_IMPORT_MAX_FILE_BYTES,
               adminImportMaxLines: env.ADMIN_IMPORT_MAX_LINES,
               note: '实际导入接口：/admin/images/import。本页面用于预览、去重与分批提交（更适合 1Panel/Cloudflare 反代）。',
+            };
+          },
+        },
+        hydrationOps: {
+          label: '补全运行 / DLQ',
+          component: HydrationOps,
+          handler: async (request: any) => {
+            const method = String(request?.method || 'get').toLowerCase();
+
+            let queue: { ok: boolean; message: string | null } = { ok: false, message: 'unknown' };
+            try {
+              // eslint-disable-next-line @typescript-eslint/no-var-requires
+              const { getQueueHealth } = require('../queue/queue') as typeof import('../queue/queue');
+              queue = await getQueueHealth();
+            } catch (err: unknown) {
+              queue = { ok: false, message: err instanceof Error ? err.message : String(err) };
+            }
+
+            const dlqEnabled = parseBooleanEnv(process.env.QUEUE_DEAD_LETTER_ENABLED, true);
+            const baseQueues = ['hydrate_metadata', 'heal_url', 'hydration_backfill'];
+
+            const dlqQueues = (() => {
+              if (!dlqEnabled) return [];
+              try {
+                // eslint-disable-next-line @typescript-eslint/no-var-requires
+                const { getDeadLetterQueueName } = require('../queue/queue') as typeof import('../queue/queue');
+                return baseQueues
+                  .map((name) => getDeadLetterQueueName(name))
+                  .filter((name): name is string => typeof name === 'string' && name.trim());
+              } catch {
+                return [];
+              }
+            })();
+
+            const coerceInt = (value: unknown, fallback: number): number => {
+              if (typeof value === 'number' && Number.isFinite(value)) return Math.trunc(value);
+              if (typeof value === 'string' && value.trim()) {
+                const parsed = Number(value.trim());
+                if (Number.isFinite(parsed)) return Math.trunc(parsed);
+              }
+              return fallback;
+            };
+
+            const normalizeUuid = (value: unknown): string | null => {
+              if (typeof value !== 'string') return null;
+              const v = value.trim();
+              if (!v) return null;
+              if (!/^[0-9a-fA-F-]{36}$/.test(v)) return null;
+              return v;
+            };
+
+            const safeJobSummary = (data: any): Record<string, unknown> => {
+              const out: Record<string, unknown> = {};
+              if (!data || typeof data !== 'object') return out;
+              const illust = data.illust_id ?? data.illustId ?? data.illustID ?? data.id;
+              const run = data.run_id ?? data.runId ?? data.runID;
+              const requestId = data.request_id ?? data.requestId;
+              if (illust !== undefined && illust !== null && String(illust).trim()) out.illust_id = String(illust).trim();
+              if (run !== undefined && run !== null && String(run).trim()) out.run_id = String(run).trim();
+              if (requestId !== undefined && requestId !== null && String(requestId).trim()) out.request_id = String(requestId).trim();
+              return out;
+            };
+
+            const extractOutputMessage = (output: any): { message: string | null; stack: string | null } => {
+              if (!output || typeof output !== 'object') return { message: null, stack: null };
+              const value = (output as any).value;
+              if (!value || typeof value !== 'object') return { message: null, stack: null };
+              const message = typeof (value as any).message === 'string' ? (value as any).message : null;
+              const stack = typeof (value as any).stack === 'string' ? (value as any).stack : null;
+              return { message, stack };
+            };
+
+            const queryDlqQueues = async () => {
+              if (dlqQueues.length === 0) return { ok: true, queues: [] as any[] };
+              try {
+                const rows = await prisma.$queryRaw<{
+                  name: string;
+                  count: bigint | number | string;
+                  oldest: Date | null;
+                  newest: Date | null;
+                }[]>(
+                  Prisma.sql`
+                    SELECT
+                      name::text as name,
+                      COUNT(*)::bigint as count,
+                      MIN(created_on) as oldest,
+                      MAX(created_on) as newest
+                    FROM pgboss.job
+                    WHERE name IN (${Prisma.join(dlqQueues)})
+                    GROUP BY name
+                    ORDER BY name ASC
+                  `,
+                );
+
+                const countsByName = new Map<string, any>();
+                for (const row of rows) {
+                  const rawCount = row.count;
+                  const count = typeof rawCount === 'bigint'
+                    ? Number(rawCount)
+                    : typeof rawCount === 'number'
+                      ? rawCount
+                      : Number(BigInt(rawCount));
+                  countsByName.set(String(row.name), {
+                    name: String(row.name),
+                    count,
+                    oldest: row.oldest ? row.oldest.toISOString() : null,
+                    newest: row.newest ? row.newest.toISOString() : null,
+                  });
+                }
+
+                const queues = dlqQueues.map((name) => countsByName.get(name) ?? { name, count: 0, oldest: null, newest: null });
+                return { ok: true, queues };
+              } catch (err: unknown) {
+                return { ok: false, error: err instanceof Error ? err.message : String(err), queues: [] as any[] };
+              }
+            };
+
+            const queryDlqJobs = async (queueName: string, limit: number) => {
+              const maxLimit = Math.max(1, Math.min(200, limit));
+              try {
+                const rows = await prisma.$queryRaw<{
+                  id: string;
+                  queue: string;
+                  state: string;
+                  created_on: Date;
+                  data: any;
+                  output: any;
+                }[]>(
+                  Prisma.sql`
+                    SELECT
+                      id::text as id,
+                      name::text as queue,
+                      state::text as state,
+                      created_on,
+                      data,
+                      output
+                    FROM pgboss.job
+                    WHERE name = ${queueName}
+                    ORDER BY created_on DESC
+                    LIMIT ${maxLimit}
+                  `,
+                );
+
+                return rows.map((row) => {
+                  const output = extractOutputMessage(row.output);
+                  return {
+                    id: row.id,
+                    queue: row.queue,
+                    state: row.state,
+                    created_on: row.created_on ? row.created_on.toISOString() : null,
+                    data_summary: safeJobSummary(row.data),
+                    error_message: output.message,
+                    error_stack: output.stack,
+                  };
+                });
+              } catch (err: unknown) {
+                const message = err instanceof Error ? err.message : String(err);
+                const output = extractOutputMessage({ value: { message } });
+                return [{
+                  id: 'query_failed',
+                  queue: queueName,
+                  state: 'error',
+                  created_on: null,
+                  data_summary: {},
+                  error_message: output.message,
+                  error_stack: output.stack,
+                }];
+              }
+            };
+
+            if (method === 'post') {
+              const payload = request?.payload && typeof request.payload === 'object' ? (request.payload as Record<string, unknown>) : {};
+              const action = typeof payload.action === 'string' ? payload.action.trim() : '';
+
+              if (action === 'dlq_list') {
+                const queueName = typeof payload.queue === 'string' ? payload.queue.trim() : '';
+                if (!queueName || !dlqQueues.includes(queueName)) {
+                  return { ok: false, error: 'invalid_queue' };
+                }
+                const jobs = await queryDlqJobs(queueName, coerceInt(payload.limit, 50));
+                return { ok: true, queue: queueName, jobs };
+              }
+
+              if (action === 'dlq_delete') {
+                const queueName = typeof payload.queue === 'string' ? payload.queue.trim() : '';
+                const jobId = normalizeUuid(payload.job_id ?? payload.jobId);
+                if (!queueName || !dlqQueues.includes(queueName)) return { ok: false, error: 'invalid_queue' };
+                if (!jobId) return { ok: false, error: 'invalid_job_id' };
+
+                const deleted = await prisma.$executeRaw(
+                  Prisma.sql`DELETE FROM pgboss.job WHERE name = ${queueName} AND id = ${jobId}::uuid`,
+                );
+
+                auditAdminModelChange({
+                  action: 'dlq_job_delete',
+                  resource: 'PgBossJob',
+                  record_id: jobId,
+                  req: request,
+                  detail: { queue: queueName, deleted },
+                });
+
+                return { ok: true, deleted };
+              }
+
+              if (action === 'dlq_retry') {
+                const queueName = typeof payload.queue === 'string' ? payload.queue.trim() : '';
+                const jobId = normalizeUuid(payload.job_id ?? payload.jobId);
+                if (!queueName || !dlqQueues.includes(queueName)) return { ok: false, error: 'invalid_queue' };
+                if (!jobId) return { ok: false, error: 'invalid_job_id' };
+
+                // eslint-disable-next-line @typescript-eslint/no-var-requires
+                const { getBaseQueueNameFromDlq } = require('../queue/queue') as typeof import('../queue/queue');
+                const baseQueue = getBaseQueueNameFromDlq(queueName);
+                if (!baseQueue) return { ok: false, error: 'unsupported_dlq_queue' };
+
+                const job = await prisma.$queryRaw<{ data: any }[]>(
+                  Prisma.sql`SELECT data FROM pgboss.job WHERE name = ${queueName} AND id = ${jobId}::uuid LIMIT 1`,
+                );
+                const data = job?.[0]?.data;
+                if (!data) return { ok: false, error: 'job_not_found' };
+
+                const summary = safeJobSummary(data);
+                let newJobId: string | null = null;
+
+                try {
+                  if (baseQueue === 'hydrate_metadata') {
+                    // eslint-disable-next-line @typescript-eslint/no-var-requires
+                    const { enqueueHydrateMetadata } = require('../jobs/hydrateMetadata') as typeof import('../jobs/hydrateMetadata');
+                    const illustIdRaw = data.illust_id ?? data.illustId ?? data.illustID ?? data.id;
+                    if (illustIdRaw === undefined || illustIdRaw === null || !String(illustIdRaw).trim()) return { ok: false, error: 'missing_illust_id' };
+                    newJobId = await enqueueHydrateMetadata(BigInt(String(illustIdRaw).trim()), typeof summary.request_id === 'string' ? summary.request_id : undefined);
+                  } else if (baseQueue === 'heal_url') {
+                    // eslint-disable-next-line @typescript-eslint/no-var-requires
+                    const { enqueueHealUrl } = require('../jobs/healUrl') as typeof import('../jobs/healUrl');
+                    const illustIdRaw = data.illust_id ?? data.illustId ?? data.illustID ?? data.id;
+                    if (illustIdRaw === undefined || illustIdRaw === null || !String(illustIdRaw).trim()) return { ok: false, error: 'missing_illust_id' };
+                    newJobId = await enqueueHealUrl(BigInt(String(illustIdRaw).trim()), typeof summary.request_id === 'string' ? summary.request_id : undefined);
+                  } else if (baseQueue === 'hydration_backfill') {
+                    // eslint-disable-next-line @typescript-eslint/no-var-requires
+                    const { enqueueHydrationBackfillRun } = require('../jobs/hydrationBackfill') as typeof import('../jobs/hydrationBackfill');
+                    const runIdRaw = data.run_id ?? data.runId ?? data.runID ?? data.id;
+                    if (runIdRaw === undefined || runIdRaw === null || !String(runIdRaw).trim()) return { ok: false, error: 'missing_run_id' };
+                    newJobId = await enqueueHydrationBackfillRun(BigInt(String(runIdRaw).trim()), typeof summary.request_id === 'string' ? summary.request_id : undefined);
+                  } else {
+                    return { ok: false, error: 'unsupported_base_queue' };
+                  }
+                } catch (err: unknown) {
+                  return { ok: false, error: err instanceof Error ? err.message : String(err) };
+                }
+
+                if (!newJobId) {
+                  return { ok: false, error: 'enqueue_returned_null', message: 'enqueue returned null (maybe throttled)' };
+                }
+
+                const deleted = await prisma.$executeRaw(
+                  Prisma.sql`DELETE FROM pgboss.job WHERE name = ${queueName} AND id = ${jobId}::uuid`,
+                );
+
+                auditAdminModelChange({
+                  action: 'dlq_job_retry',
+                  resource: 'PgBossJob',
+                  record_id: jobId,
+                  req: request,
+                  detail: { dlq_queue: queueName, base_queue: baseQueue, new_job_id: newJobId, deleted, data: summary },
+                });
+
+                return { ok: true, new_job_id: newJobId, deleted, message: `已入队 ${baseQueue}` };
+              }
+
+              return { ok: false, error: 'unknown_action' };
+            }
+
+            const generatedAt = new Date().toISOString();
+
+            let runs: any[] = [];
+            try {
+              const rows = await prisma.hydrationRun.findMany({
+                orderBy: [{ createdAt: 'desc' }],
+                take: 30,
+                select: {
+                  id: true,
+                  type: true,
+                  status: true,
+                  total: true,
+                  processed: true,
+                  success: true,
+                  failed: true,
+                  updatedAt: true,
+                  lastErrorCode: true,
+                  lastErrorMsg: true,
+                },
+              });
+              runs = rows.map((row) => ({
+                id: row.id.toString(),
+                type: row.type,
+                status: row.status,
+                total: row.total,
+                processed: row.processed,
+                success: row.success,
+                failed: row.failed,
+                updated_at: row.updatedAt ? row.updatedAt.toISOString() : null,
+                last_error_code: row.lastErrorCode,
+                last_error_msg: row.lastErrorMsg,
+              }));
+            } catch {
+              runs = [];
+            }
+
+            const dlqMeta = await queryDlqQueues();
+            const defaultQueueName = dlqMeta.ok && dlqMeta.queues.length > 0 ? String(dlqMeta.queues[0]?.name || '') : '';
+            const jobs = defaultQueueName ? await queryDlqJobs(defaultQueueName, 50) : [];
+
+            return {
+              ok: true,
+              generated_at: generatedAt,
+              queue,
+              runs,
+              dlq: {
+                enabled: dlqEnabled,
+                ok: dlqMeta.ok,
+                error: (dlqMeta as any).error ?? null,
+                queues: dlqMeta.queues,
+                jobs,
+              },
             };
           },
         },

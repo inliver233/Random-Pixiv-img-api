@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { ensureQueue, getDeadLetterQueueName, resetQueueForTest } from '../src/queue/queue';
+import { ensureQueue, getBaseQueueNameFromDlq, getDeadLetterQueueName, resetQueueForTest } from '../src/queue/queue';
 
 describe('queue dead-letter (DLQ)', () => {
   beforeEach(() => {
@@ -20,6 +20,19 @@ describe('queue dead-letter (DLQ)', () => {
 
   it('returns null for DLQ queue itself (no nested dlq)', () => {
     expect(getDeadLetterQueueName('heal_url__dlq')).toBeNull();
+  });
+
+  it('maps DLQ queue back to base queue name', () => {
+    expect(getBaseQueueNameFromDlq('heal_url__dlq')).toBe('heal_url');
+  });
+
+  it('returns null for non-DLQ queue name', () => {
+    expect(getBaseQueueNameFromDlq('heal_url')).toBeNull();
+  });
+
+  it('returns null when DLQ is disabled', () => {
+    process.env.QUEUE_DEAD_LETTER_ENABLED = 'false';
+    expect(getBaseQueueNameFromDlq('heal_url__dlq')).toBeNull();
   });
 
   it('ensureQueue creates main queue with deadLetter and also creates the DLQ queue', async () => {

@@ -49,6 +49,12 @@
 - `QUEUE_DEAD_LETTER_ENABLED`：是否启用 DLQ，默认：`true`。
 - `QUEUE_DEAD_LETTER_SUFFIX`：DLQ 后缀，默认：`__dlq`。
 
+### Admin 面板（补全运行 / DLQ）
+后台提供 `补全运行 / DLQ` 页面（AdminJS custom page）：`/admin/pages/hydrationOps`，用于：
+- 查看 `HydrationRun`（backfill）进度与最近错误
+- 查看 DLQ job 列表（例如 `hydrate_metadata__dlq` / `heal_url__dlq`）
+- 对 DLQ job 执行「重试」或「删除（忽略）」操作（会写入 `AdminAudit`）
+
 手动查看建议：
 - 用 pg-boss API：`boss.getQueueStats('<dlq_name>')`
 - 或直接查询 DB（schema `pgboss`）

@@ -37,6 +37,20 @@ export function getDeadLetterQueueName(queueName: string): string | null {
   return `${queueName}${suffix}`;
 }
 
+export function getBaseQueueNameFromDlq(queueName: string): string | null {
+  const enabled = parseBooleanEnv(process.env.QUEUE_DEAD_LETTER_ENABLED, true);
+  if (!enabled) return null;
+
+  const suffix = normalizeDeadLetterSuffix(process.env.QUEUE_DEAD_LETTER_SUFFIX);
+  if (!suffix) return null;
+
+  if (!queueName.endsWith(suffix)) return null;
+  const base = queueName.slice(0, -suffix.length);
+  if (!base) return null;
+  if (base.endsWith(suffix)) return null;
+  return base;
+}
+
 function ensureState(): QueueState {
   globalThis.__pixivcatQueue ??= {
     boss: null,
