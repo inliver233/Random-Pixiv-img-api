@@ -1,10 +1,10 @@
-import type { PrismaClient, ProxyScheme } from '@prisma/client';
+import type { PrismaClient } from '@prisma/client';
 
 import { getPrismaClient } from '../db/prismaClient';
 import logger from '../logger/logger';
 
 import { easyProxiesExport } from './easyProxiesClient';
-import { parseProxyUri } from './proxyUri';
+import { importProxyUriLines } from './proxyUriImporter';
 
 const EASY_PROXIES_CONFIG_KEY = 'easy_proxies_config';
 
@@ -57,85 +57,24 @@ export async function importProxyEndpointsFromEasyProxies(params: EasyProxiesImp
   const enabled = params.enabled ?? true;
   const sourceRef = params.sourceRef ?? baseUrl;
   const conflictPolicy: EasyProxiesConflictPolicy = params.conflictPolicy ?? 'overwrite';
-
-  const errors: Array<{ line: number; uri: string; error: string }> = [];
-  let imported = 0;
-  let invalid = 0;
-  let conflicts = 0;
-
-  for (let i = 0; i < exportRes.lines.length; i += 1) {
-    const uri = exportRes.lines[i]!;
-    const lineNo = i + 1;
-
-    try {
-      const parsed = parseProxyUri(uri);
-
-      if (conflictPolicy === 'skip_non_easy_proxies') {
-        const existing = await prisma.proxyEndpoint.findUnique({
-          where: {
-            scheme_host_port_username: {
-              scheme: parsed.scheme as ProxyScheme,
-              host: parsed.host,
-              port: parsed.port,
-              username: parsed.username,
-            },
-          },
-          select: { source: true },
-        });
-
-        if (existing && existing.source !== 'easy_proxies') {
-          conflicts += 1;
-          continue;
-        }
-      }
-
-      await prisma.proxyEndpoint.upsert({
-        where: {
-          scheme_host_port_username: {
-            scheme: parsed.scheme as ProxyScheme,
-            host: parsed.host,
-            port: parsed.port,
-            username: parsed.username,
-          },
-        },
-        create: {
-          scheme: parsed.scheme as ProxyScheme,
-          host: parsed.host,
-          port: parsed.port,
-          username: parsed.username,
-          password: parsed.password,
-          enabled,
-          source: 'easy_proxies',
-          sourceRef,
-        },
-        update: {
-          password: parsed.password,
-          enabled,
-          source: 'easy_proxies',
-          sourceRef,
-        },
-      });
-
-      imported += 1;
-    } catch (err: unknown) {
-      invalid += 1;
-      errors.push({
-        line: lineNo,
-        uri,
-        error: err instanceof Error ? err.message : String(err),
-      });
-    }
-  }
+  const importedSummary = await importProxyUriLines({
+    lines: exportRes.lines,
+    source: 'easy_proxies',
+    sourceRef,
+    enabled,
+    conflictPolicy: conflictPolicy === 'skip_non_easy_proxies' ? 'skip_non_easy_proxies' : 'overwrite',
+    prisma,
+  });
 
   return {
     ok: true,
     baseUrl,
-    total_lines: exportRes.lines.length,
-    imported,
-    invalid,
-    conflicts,
+    total_lines: importedSummary.total_lines,
+    imported: importedSummary.imported,
+    invalid: importedSummary.invalid,
+    conflicts: importedSummary.conflicts,
     token_used: Boolean(exportRes.token),
-    errors,
+    errors: importedSummary.errors,
   };
 }
 
