@@ -6,6 +6,7 @@ import { auditAdminModelChange } from '../audit/adminAudit';
 import { extractFirstSampleValue, extractVectorSamples, queryPrometheusInstant } from '../metrics/prometheusQueryClient';
 import { importProxyEndpointsFromEasyProxies } from '../proxy/easyProxiesImporter';
 import { runProxyHealthCheckOnce } from '../proxy/healthCheck';
+import { pickPrimaryProxyRendezvous, resolveEffectiveProxy } from '../proxy/tokenProxyBinding';
 import * as PrismaModule from '@prisma/client';
 import { Prisma } from '@prisma/client';
 
@@ -322,6 +323,7 @@ export async function getAdminJsRouter(): Promise<Router> {
     // AdminJS bundler parses JSX reliably from .jsx/.tsx but not from plain .js in some environments.
     const Dashboard = componentLoader.add('Dashboard', path.join(__dirname, 'pages', 'dashboard.jsx'));
     const ImportUrls = componentLoader.add('ImportUrls', path.join(__dirname, 'pages', 'importUrls.jsx'));
+    const TokenProxyBindings = componentLoader.add('TokenProxyBindings', path.join(__dirname, 'pages', 'tokenProxyBindings.jsx'));
 
     const admin = new AdminJS({
       rootPath: '/admin',
@@ -346,6 +348,142 @@ export async function getAdminJsRouter(): Promise<Router> {
               adminImportMaxLines: env.ADMIN_IMPORT_MAX_LINES,
               note: '实际导入接口：/admin/images/import。本页面用于预览、去重与分批提交（更适合 1Panel/Cloudflare 反代）。',
             };
+          },
+        },
+        tokenProxyBindings: {
+          label: 'Token↔Proxy 绑定',
+          component: TokenProxyBindings,
+          handler: async () => {
+            try {
+              const generatedAt = new Date().toISOString();
+
+              const tokens = await prisma.pixivToken.findMany({
+                where: { enabled: true },
+                select: { id: true, label: true, enabled: true, refreshTokenMasked: true, updatedAt: true },
+                orderBy: [{ id: 'asc' }],
+              });
+
+              const proxies = await prisma.proxyEndpoint.findMany({
+                where: { enabled: true },
+                select: { id: true, scheme: true, host: true, port: true, username: true, enabled: true, source: true, sourceRef: true },
+                orderBy: [{ id: 'asc' }],
+              });
+
+              const pool = await prisma.proxyPool.findUnique({
+                where: { name: 'default' },
+                select: { id: true, name: true, enabled: true, updatedAt: true },
+              });
+
+              const proxyById = new Map<string, any>();
+              const proxyIds: string[] = [];
+              for (const p of proxies) {
+                const id = p.id.toString();
+                proxyById.set(id, p);
+                proxyIds.push(id);
+              }
+
+              const bindings = pool
+                ? await prisma.tokenProxyBinding.findMany({
+                  where: { poolId: pool.id, tokenId: { in: tokens.map((t) => t.id) } },
+                  select: {
+                    id: true,
+                    tokenId: true,
+                    poolId: true,
+                    primaryProxyId: true,
+                    overrideProxyId: true,
+                    overrideExpiresAt: true,
+                    updatedAt: true,
+                    createdAt: true,
+                  },
+                })
+                : [];
+
+              const bindingByToken = new Map<string, any>();
+              for (const b of bindings) {
+                bindingByToken.set(b.tokenId.toString(), b);
+              }
+
+              const now = new Date();
+              const salt = pool ? `pool:${pool.id.toString()}` : 'pool:default';
+
+              const formatProxyDisplay = (p: any): string => {
+                if (!p) return '';
+                const scheme = String(p.scheme ?? '').toLowerCase();
+                const host = String(p.host ?? '').trim();
+                const port = Number(p.port);
+                const username = String(p.username ?? '').trim();
+                const auth = username ? `${username}@` : '';
+                const hostForUri = host.includes(':') && !host.startsWith('[') && !host.endsWith(']') ? `[${host}]` : host;
+                return `${scheme}://${auth}${hostForUri}:${port}`;
+              };
+
+              const tokenRows = tokens.map((t) => ({ id: t.id.toString(), label: t.label ?? null, refreshTokenMasked: t.refreshTokenMasked }));
+              const proxyRows = proxies.map((p) => ({
+                id: p.id.toString(),
+                enabled: Boolean(p.enabled),
+                source: p.source,
+                sourceRef: p.sourceRef ?? null,
+                display: formatProxyDisplay(p),
+              }));
+
+              const bindingRows = tokenRows.map((t) => {
+                const b = bindingByToken.get(t.id) ?? null;
+
+                const suggestedPrimaryProxyId =
+                  proxyIds.length > 0
+                    ? pickPrimaryProxyRendezvous(t.id, proxyIds, salt)
+                    : null;
+
+                if (!b) {
+                  return {
+                    tokenId: t.id,
+                    bindingId: null,
+                    primaryProxyId: null,
+                    overrideProxyId: null,
+                    overrideExpiresAt: null,
+                    effectiveProxyId: null,
+                    effectiveMode: null,
+                    suggestedPrimaryProxyId,
+                  };
+                }
+
+                const effective = resolveEffectiveProxy({
+                  primaryProxyId: b.primaryProxyId.toString(),
+                  overrideProxyId: b.overrideProxyId ? b.overrideProxyId.toString() : null,
+                  overrideExpiresAt: b.overrideExpiresAt ?? null,
+                }, now);
+
+                return {
+                  tokenId: t.id,
+                  bindingId: b.id.toString(),
+                  primaryProxyId: b.primaryProxyId.toString(),
+                  overrideProxyId: b.overrideProxyId ? b.overrideProxyId.toString() : null,
+                  overrideExpiresAt: b.overrideExpiresAt ? b.overrideExpiresAt.toISOString() : null,
+                  effectiveProxyId: effective.proxyId,
+                  effectiveMode: effective.mode,
+                  suggestedPrimaryProxyId,
+                };
+              });
+
+              return {
+                ok: true,
+                generated_at: generatedAt,
+                pool: pool ? { id: pool.id.toString(), name: pool.name, enabled: Boolean(pool.enabled), updated_at: pool.updatedAt.toISOString() } : null,
+                tokens: tokenRows,
+                proxies: proxyRows,
+                bindings: bindingRows,
+                summary: {
+                  tokens_total: tokenRows.length,
+                  proxies_total: proxyRows.length,
+                  bindings_total: bindings.length,
+                  missing_bindings: bindingRows.filter((b: any) => !b.bindingId).length,
+                },
+                note: '手动 rebind/override 会写入 token_proxy_bindings，并写入 AdminAudit（不含敏感信息）。',
+                proxy_by_id: Object.fromEntries(Array.from(proxyById.entries()).map(([id, p]) => [id, { display: formatProxyDisplay(p) }])),
+              };
+            } catch (err: unknown) {
+              return { ok: false, error: err instanceof Error ? err.message : String(err) };
+            }
           },
         },
       },
@@ -701,6 +839,487 @@ export async function getAdminJsRouter(): Promise<Router> {
           {
             resource: { model: getModelByName('PixivToken', prismaClientModule), client: prisma, clientModule: prismaClientModule },
             options: pixivTokenResourceOptions,
+          },
+          {
+            resource: { model: getModelByName('TokenProxyBinding', prismaClientModule), client: prisma, clientModule: prismaClientModule },
+            options: {
+              navigation: { name: '令牌', icon: 'Key' },
+              label: 'Token↔Proxy 绑定（操作）',
+              listProperties: [
+                'id',
+                'tokenId',
+                'poolId',
+                'primaryProxyId',
+                'overrideProxyId',
+                'overrideExpiresAt',
+                'updatedAt',
+                'createdAt',
+              ],
+              filterProperties: [
+                'tokenId',
+                'poolId',
+                'primaryProxyId',
+                'overrideProxyId',
+                'overrideExpiresAt',
+                'updatedAt',
+                'createdAt',
+              ],
+              actions: {
+                new: { isAccessible: false, isVisible: false },
+                edit: { isAccessible: false, isVisible: false },
+                delete: { isAccessible: false, isVisible: false },
+
+                rebindPrimary: {
+                  actionType: 'resource',
+                  icon: 'Shuffle',
+                  label: 'Rebind primary (via page)',
+                  handler: async (request: any, _res: any, context: any) => {
+                    if (String(request?.method || '').toLowerCase() === 'get') return {};
+
+                    const toBigIntId = (value: any, label: string): bigint => {
+                      try {
+                        const raw = typeof value === 'bigint' ? value : BigInt(String(value ?? '').trim());
+                        if (raw <= 0n) throw new Error('non_positive');
+                        return raw;
+                      } catch {
+                        throw new Error(`${label} must be a bigint id.`);
+                      }
+                    };
+
+                    const parseBool = (value: any, defaultValue: boolean): boolean => {
+                      if (typeof value === 'boolean') return value;
+                      if (typeof value === 'number') return value !== 0;
+                      if (typeof value === 'string') {
+                        const normalized = value.trim().toLowerCase();
+                        if (['1', 'true', 'yes', 'y', 'on'].includes(normalized)) return true;
+                        if (['0', 'false', 'no', 'n', 'off'].includes(normalized)) return false;
+                      }
+                      return defaultValue;
+                    };
+
+                    const reasonRaw = (request as any)?.payload?.reason;
+                    const reason = typeof reasonRaw === 'string' && reasonRaw.trim() ? reasonRaw.trim().slice(0, 200) : null;
+                    const clearOverride = parseBool((request as any)?.payload?.clearOverride, true);
+
+                    let tokenId: bigint;
+                    let primaryProxyId: bigint;
+                    try {
+                      tokenId = toBigIntId((request as any)?.payload?.tokenId, 'tokenId');
+                      primaryProxyId = toBigIntId((request as any)?.payload?.primaryProxyId, 'primaryProxyId');
+                    } catch (err: unknown) {
+                      return {
+                        notice: { type: 'error', message: err instanceof Error ? err.message : String(err) },
+                        redirectUrl: context.h.resourceUrl({ resourceId: context.resource.id() }),
+                      };
+                    }
+
+                    const [token, proxy] = await Promise.all([
+                      prisma.pixivToken.findUnique({ where: { id: tokenId }, select: { id: true, enabled: true, label: true } }),
+                      prisma.proxyEndpoint.findUnique({ where: { id: primaryProxyId }, select: { id: true, enabled: true, scheme: true, host: true, port: true, username: true } }),
+                    ]);
+
+                    if (!token || !token.enabled) {
+                      return {
+                        notice: { type: 'error', message: 'Token not found or disabled.' },
+                        redirectUrl: context.h.resourceUrl({ resourceId: context.resource.id() }),
+                      };
+                    }
+
+                    if (!proxy || !proxy.enabled) {
+                      return {
+                        notice: { type: 'error', message: 'Proxy not found or disabled.' },
+                        redirectUrl: context.h.resourceUrl({ resourceId: context.resource.id() }),
+                      };
+                    }
+
+                    const getOrCreateDefaultPool = async (): Promise<{ id: bigint; name: string }> => {
+                      const existing = await prisma.proxyPool.findUnique({ where: { name: 'default' }, select: { id: true, name: true } });
+                      if (existing) return existing;
+                      try {
+                        const created = await prisma.proxyPool.create({
+                          data: { name: 'default', enabled: true, description: 'Auto-created default pool for token↔proxy bindings.' },
+                          select: { id: true, name: true },
+                        });
+
+                        auditAdminModelChange({
+                          action: 'proxy_pool_create_default',
+                          resource: 'ProxyPool',
+                          record_id: created.id.toString(),
+                          req: request,
+                          detail: { name: created.name, auto: true },
+                        });
+
+                        return created;
+                      } catch {
+                        const fallback = await prisma.proxyPool.findUnique({ where: { name: 'default' }, select: { id: true, name: true } });
+                        if (!fallback) throw new Error('Failed to create default pool.');
+                        return fallback;
+                      }
+                    };
+
+                    const pool = await getOrCreateDefaultPool();
+                    const now = new Date();
+
+                    const prev = await prisma.tokenProxyBinding.findUnique({
+                      where: { tokenId_poolId: { tokenId, poolId: pool.id } },
+                      select: { id: true, primaryProxyId: true, overrideProxyId: true, overrideExpiresAt: true },
+                    });
+
+                    const updated = await prisma.tokenProxyBinding.upsert({
+                      where: { tokenId_poolId: { tokenId, poolId: pool.id } },
+                      update: {
+                        primaryProxyId,
+                        ...(clearOverride ? { overrideProxyId: null, overrideExpiresAt: null } : {}),
+                      },
+                      create: { tokenId, poolId: pool.id, primaryProxyId },
+                      select: { id: true, primaryProxyId: true, overrideProxyId: true, overrideExpiresAt: true },
+                    });
+
+                    const prevEffective = prev
+                      ? resolveEffectiveProxy({
+                        primaryProxyId: prev.primaryProxyId.toString(),
+                        overrideProxyId: prev.overrideProxyId ? prev.overrideProxyId.toString() : null,
+                        overrideExpiresAt: prev.overrideExpiresAt ?? null,
+                      }, now)
+                      : null;
+
+                    const nextEffective = resolveEffectiveProxy({
+                      primaryProxyId: updated.primaryProxyId.toString(),
+                      overrideProxyId: updated.overrideProxyId ? updated.overrideProxyId.toString() : null,
+                      overrideExpiresAt: updated.overrideExpiresAt ?? null,
+                    }, now);
+
+                    auditAdminModelChange({
+                      action: 'token_proxy_binding_rebind_primary',
+                      resource: 'TokenProxyBinding',
+                      record_id: updated.id.toString(),
+                      req: request,
+                      detail: {
+                        tokenId: tokenId.toString(),
+                        tokenLabel: token.label ?? null,
+                        pool: { id: pool.id.toString(), name: pool.name },
+                        prev: prev ? {
+                          primaryProxyId: prev.primaryProxyId.toString(),
+                          overrideProxyId: prev.overrideProxyId ? prev.overrideProxyId.toString() : null,
+                          overrideExpiresAt: prev.overrideExpiresAt ? prev.overrideExpiresAt.toISOString() : null,
+                          effective: prevEffective,
+                        } : null,
+                        next: {
+                          primaryProxyId: updated.primaryProxyId.toString(),
+                          overrideProxyId: updated.overrideProxyId ? updated.overrideProxyId.toString() : null,
+                          overrideExpiresAt: updated.overrideExpiresAt ? updated.overrideExpiresAt.toISOString() : null,
+                          effective: nextEffective,
+                        },
+                        clearOverride,
+                        reason,
+                        impact: { affected_bindings: 1, affected_tokens: 1 },
+                      },
+                    });
+
+                    return {
+                      notice: {
+                        type: 'success',
+                        message: `rebind_primary ok (token=${tokenId.toString()} prev=${prevEffective?.proxyId ?? '-'} next=${nextEffective.proxyId} affected=1)`,
+                      },
+                      redirectUrl: context.h.resourceUrl({ resourceId: context.resource.id() }),
+                    };
+                  },
+                },
+
+                setOverride: {
+                  actionType: 'resource',
+                  icon: 'Clock',
+                  label: 'Set override (via page)',
+                  handler: async (request: any, _res: any, context: any) => {
+                    if (String(request?.method || '').toLowerCase() === 'get') return {};
+
+                    const toBigIntId = (value: any, label: string): bigint => {
+                      try {
+                        const raw = typeof value === 'bigint' ? value : BigInt(String(value ?? '').trim());
+                        if (raw <= 0n) throw new Error('non_positive');
+                        return raw;
+                      } catch {
+                        throw new Error(`${label} must be a bigint id.`);
+                      }
+                    };
+
+                    const reasonRaw = (request as any)?.payload?.reason;
+                    const reason = typeof reasonRaw === 'string' && reasonRaw.trim() ? reasonRaw.trim().slice(0, 200) : null;
+
+                    const ttlMinutesRaw = (request as any)?.payload?.ttlMinutes;
+                    const ttlMinutes = Number(ttlMinutesRaw);
+                    if (!Number.isFinite(ttlMinutes) || ttlMinutes <= 0 || ttlMinutes > 7 * 24 * 60) {
+                      return {
+                        notice: { type: 'error', message: 'ttlMinutes must be within (0, 10080].' },
+                        redirectUrl: context.h.resourceUrl({ resourceId: context.resource.id() }),
+                      };
+                    }
+
+                    let tokenId: bigint;
+                    let overrideProxyId: bigint;
+                    try {
+                      tokenId = toBigIntId((request as any)?.payload?.tokenId, 'tokenId');
+                      overrideProxyId = toBigIntId((request as any)?.payload?.overrideProxyId, 'overrideProxyId');
+                    } catch (err: unknown) {
+                      return {
+                        notice: { type: 'error', message: err instanceof Error ? err.message : String(err) },
+                        redirectUrl: context.h.resourceUrl({ resourceId: context.resource.id() }),
+                      };
+                    }
+
+                    const [token, proxy] = await Promise.all([
+                      prisma.pixivToken.findUnique({ where: { id: tokenId }, select: { id: true, enabled: true, label: true } }),
+                      prisma.proxyEndpoint.findUnique({ where: { id: overrideProxyId }, select: { id: true, enabled: true } }),
+                    ]);
+
+                    if (!token || !token.enabled) {
+                      return {
+                        notice: { type: 'error', message: 'Token not found or disabled.' },
+                        redirectUrl: context.h.resourceUrl({ resourceId: context.resource.id() }),
+                      };
+                    }
+
+                    if (!proxy || !proxy.enabled) {
+                      return {
+                        notice: { type: 'error', message: 'Proxy not found or disabled.' },
+                        redirectUrl: context.h.resourceUrl({ resourceId: context.resource.id() }),
+                      };
+                    }
+
+                    const getOrCreateDefaultPool = async (): Promise<{ id: bigint; name: string }> => {
+                      const existing = await prisma.proxyPool.findUnique({ where: { name: 'default' }, select: { id: true, name: true } });
+                      if (existing) return existing;
+                      try {
+                        const created = await prisma.proxyPool.create({
+                          data: { name: 'default', enabled: true, description: 'Auto-created default pool for token↔proxy bindings.' },
+                          select: { id: true, name: true },
+                        });
+
+                        auditAdminModelChange({
+                          action: 'proxy_pool_create_default',
+                          resource: 'ProxyPool',
+                          record_id: created.id.toString(),
+                          req: request,
+                          detail: { name: created.name, auto: true },
+                        });
+
+                        return created;
+                      } catch {
+                        const fallback = await prisma.proxyPool.findUnique({ where: { name: 'default' }, select: { id: true, name: true } });
+                        if (!fallback) throw new Error('Failed to create default pool.');
+                        return fallback;
+                      }
+                    };
+
+                    const pool = await getOrCreateDefaultPool();
+                    const now = new Date();
+                    const overrideExpiresAt = new Date(now.getTime() + ttlMinutes * 60 * 1000);
+
+                    const prev = await prisma.tokenProxyBinding.findUnique({
+                      where: { tokenId_poolId: { tokenId, poolId: pool.id } },
+                      select: { id: true, primaryProxyId: true, overrideProxyId: true, overrideExpiresAt: true },
+                    });
+
+                    const primaryProxyId = (() => {
+                      if (prev) return prev.primaryProxyId;
+                      return null;
+                    })();
+
+                    const ensurePrimaryProxyId = async (): Promise<bigint> => {
+                      if (primaryProxyId) return primaryProxyId;
+                      const enabledIds = await prisma.proxyEndpoint.findMany({ where: { enabled: true }, select: { id: true }, orderBy: [{ id: 'asc' }] });
+                      const proxyIds = enabledIds.map((row) => row.id.toString());
+                      if (proxyIds.length === 0) throw new Error('No enabled proxies.');
+                      const picked = pickPrimaryProxyRendezvous(tokenId.toString(), proxyIds, `pool:${pool.id.toString()}`);
+                      return BigInt(picked);
+                    };
+
+                    let computedPrimary: bigint;
+                    try {
+                      computedPrimary = await ensurePrimaryProxyId();
+                    } catch (err: unknown) {
+                      return {
+                        notice: { type: 'error', message: err instanceof Error ? err.message : String(err) },
+                        redirectUrl: context.h.resourceUrl({ resourceId: context.resource.id() }),
+                      };
+                    }
+
+                    const updated = await prisma.tokenProxyBinding.upsert({
+                      where: { tokenId_poolId: { tokenId, poolId: pool.id } },
+                      update: { overrideProxyId, overrideExpiresAt },
+                      create: {
+                        tokenId,
+                        poolId: pool.id,
+                        primaryProxyId: computedPrimary,
+                        overrideProxyId,
+                        overrideExpiresAt,
+                      },
+                      select: { id: true, primaryProxyId: true, overrideProxyId: true, overrideExpiresAt: true },
+                    });
+
+                    const prevEffective = prev
+                      ? resolveEffectiveProxy({
+                        primaryProxyId: prev.primaryProxyId.toString(),
+                        overrideProxyId: prev.overrideProxyId ? prev.overrideProxyId.toString() : null,
+                        overrideExpiresAt: prev.overrideExpiresAt ?? null,
+                      }, now)
+                      : null;
+
+                    const nextEffective = resolveEffectiveProxy({
+                      primaryProxyId: updated.primaryProxyId.toString(),
+                      overrideProxyId: updated.overrideProxyId ? updated.overrideProxyId.toString() : null,
+                      overrideExpiresAt: updated.overrideExpiresAt ?? null,
+                    }, now);
+
+                    auditAdminModelChange({
+                      action: 'token_proxy_binding_set_override',
+                      resource: 'TokenProxyBinding',
+                      record_id: updated.id.toString(),
+                      req: request,
+                      detail: {
+                        tokenId: tokenId.toString(),
+                        tokenLabel: token.label ?? null,
+                        pool: { id: pool.id.toString(), name: pool.name },
+                        prev: prev ? {
+                          primaryProxyId: prev.primaryProxyId.toString(),
+                          overrideProxyId: prev.overrideProxyId ? prev.overrideProxyId.toString() : null,
+                          overrideExpiresAt: prev.overrideExpiresAt ? prev.overrideExpiresAt.toISOString() : null,
+                          effective: prevEffective,
+                        } : null,
+                        next: {
+                          primaryProxyId: updated.primaryProxyId.toString(),
+                          overrideProxyId: updated.overrideProxyId ? updated.overrideProxyId.toString() : null,
+                          overrideExpiresAt: updated.overrideExpiresAt ? updated.overrideExpiresAt.toISOString() : null,
+                          effective: nextEffective,
+                        },
+                        ttlMinutes,
+                        reason,
+                        impact: { affected_bindings: 1, affected_tokens: 1 },
+                      },
+                    });
+
+                    return {
+                      notice: { type: 'success', message: `set_override ok (token=${tokenId.toString()} effective=${nextEffective.proxyId} ttl_min=${ttlMinutes})` },
+                      redirectUrl: context.h.resourceUrl({ resourceId: context.resource.id() }),
+                    };
+                  },
+                },
+
+                clearOverride: {
+                  actionType: 'resource',
+                  icon: 'Close',
+                  label: 'Clear override (via page)',
+                  handler: async (request: any, _res: any, context: any) => {
+                    if (String(request?.method || '').toLowerCase() === 'get') return {};
+
+                    const toBigIntId = (value: any, label: string): bigint => {
+                      try {
+                        const raw = typeof value === 'bigint' ? value : BigInt(String(value ?? '').trim());
+                        if (raw <= 0n) throw new Error('non_positive');
+                        return raw;
+                      } catch {
+                        throw new Error(`${label} must be a bigint id.`);
+                      }
+                    };
+
+                    const reasonRaw = (request as any)?.payload?.reason;
+                    const reason = typeof reasonRaw === 'string' && reasonRaw.trim() ? reasonRaw.trim().slice(0, 200) : null;
+
+                    let tokenId: bigint;
+                    try {
+                      tokenId = toBigIntId((request as any)?.payload?.tokenId, 'tokenId');
+                    } catch (err: unknown) {
+                      return {
+                        notice: { type: 'error', message: err instanceof Error ? err.message : String(err) },
+                        redirectUrl: context.h.resourceUrl({ resourceId: context.resource.id() }),
+                      };
+                    }
+
+                    const token = await prisma.pixivToken.findUnique({ where: { id: tokenId }, select: { id: true, enabled: true, label: true } });
+                    if (!token || !token.enabled) {
+                      return {
+                        notice: { type: 'error', message: 'Token not found or disabled.' },
+                        redirectUrl: context.h.resourceUrl({ resourceId: context.resource.id() }),
+                      };
+                    }
+
+                    const getOrCreateDefaultPool = async (): Promise<{ id: bigint; name: string }> => {
+                      const existing = await prisma.proxyPool.findUnique({ where: { name: 'default' }, select: { id: true, name: true } });
+                      if (existing) return existing;
+                      try {
+                        const created = await prisma.proxyPool.create({
+                          data: { name: 'default', enabled: true, description: 'Auto-created default pool for token↔proxy bindings.' },
+                          select: { id: true, name: true },
+                        });
+
+                        auditAdminModelChange({
+                          action: 'proxy_pool_create_default',
+                          resource: 'ProxyPool',
+                          record_id: created.id.toString(),
+                          req: request,
+                          detail: { name: created.name, auto: true },
+                        });
+
+                        return created;
+                      } catch {
+                        const fallback = await prisma.proxyPool.findUnique({ where: { name: 'default' }, select: { id: true, name: true } });
+                        if (!fallback) throw new Error('Failed to create default pool.');
+                        return fallback;
+                      }
+                    };
+
+                    const pool = await getOrCreateDefaultPool();
+
+                    const prev = await prisma.tokenProxyBinding.findUnique({
+                      where: { tokenId_poolId: { tokenId, poolId: pool.id } },
+                      select: { id: true, primaryProxyId: true, overrideProxyId: true, overrideExpiresAt: true },
+                    });
+
+                    if (!prev) {
+                      return {
+                        notice: { type: 'warning', message: `no binding found for token=${tokenId.toString()}` },
+                        redirectUrl: context.h.resourceUrl({ resourceId: context.resource.id() }),
+                      };
+                    }
+
+                    const updated = await prisma.tokenProxyBinding.update({
+                      where: { id: prev.id },
+                      data: { overrideProxyId: null, overrideExpiresAt: null },
+                      select: { id: true, primaryProxyId: true, overrideProxyId: true, overrideExpiresAt: true },
+                    });
+
+                    auditAdminModelChange({
+                      action: 'token_proxy_binding_clear_override',
+                      resource: 'TokenProxyBinding',
+                      record_id: updated.id.toString(),
+                      req: request,
+                      detail: {
+                        tokenId: tokenId.toString(),
+                        tokenLabel: token.label ?? null,
+                        pool: { id: pool.id.toString(), name: pool.name },
+                        prev: {
+                          primaryProxyId: prev.primaryProxyId.toString(),
+                          overrideProxyId: prev.overrideProxyId ? prev.overrideProxyId.toString() : null,
+                          overrideExpiresAt: prev.overrideExpiresAt ? prev.overrideExpiresAt.toISOString() : null,
+                        },
+                        next: {
+                          primaryProxyId: updated.primaryProxyId.toString(),
+                          overrideProxyId: null,
+                          overrideExpiresAt: null,
+                        },
+                        reason,
+                        impact: { affected_bindings: 1, affected_tokens: 1 },
+                      },
+                    });
+
+                    return {
+                      notice: { type: 'success', message: `clear_override ok (token=${tokenId.toString()} affected=1)` },
+                      redirectUrl: context.h.resourceUrl({ resourceId: context.resource.id() }),
+                    };
+                  },
+                },
+              },
+            },
           },
           {
             resource: {
