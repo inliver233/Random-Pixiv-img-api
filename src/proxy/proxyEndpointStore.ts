@@ -18,6 +18,10 @@ declare global {
 
 const DEFAULT_CACHE_TTL_MS = 1000;
 
+function hasDatabaseUrl(): boolean {
+  return Boolean(String(process.env.DATABASE_URL || '').trim());
+}
+
 function formatHostForUri(host: string): string {
   const h = String(host ?? '').trim();
   if (!h) throw new Error('Proxy host is required.');
@@ -57,6 +61,11 @@ export async function loadEnabledProxyCandidates(params: {
   if (cached && now - cached.fetchedAt < ttl) {
     ensureProxyHealthSchedulerStarted();
     return filterProxyCandidatesByHealth(cached.candidates);
+  }
+
+  if (!params.prisma && (process.env.NODE_ENV === 'test' || !hasDatabaseUrl())) {
+    globalThis.__pixivcatProxyEndpointCache = { fetchedAt: now, candidates: [] };
+    return [];
   }
 
   const prisma = params.prisma ?? getPrismaClient();

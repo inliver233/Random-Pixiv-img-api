@@ -12,6 +12,7 @@ try {
 if (!delegated) {
   module.exports = {
     RUNTIME_SETTING_KEYS: {
+      proxyEnabled: 'proxy_enabled',
       proxyFailClosed: 'proxy_fail_closed',
       proxyFailClosedDomains: 'proxy_fail_closed_domains',
       proxyFailOpenDomains: 'proxy_fail_open_domains',
@@ -21,6 +22,7 @@ if (!delegated) {
     },
     getRuntimeConfigDefaults() {
       return {
+        proxyEnabled: true,
         proxyFailClosed: false,
         proxyFailClosedDomains: [],
         proxyFailOpenDomains: [],

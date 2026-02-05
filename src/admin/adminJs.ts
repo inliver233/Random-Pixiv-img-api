@@ -628,8 +628,28 @@ export async function getAdminJsRouter(): Promise<Router> {
             pixivTokens = { ok: false, error: err instanceof Error ? err.message : String(err), source: null, tokens: [] };
           }
 
+          let runtimeConfig: any = { ok: false, error: null, source: null, version: null, fetched_at: null, proxy_enabled: null };
+          try {
+            // eslint-disable-next-line @typescript-eslint/no-var-requires
+            const { getRuntimeConfigSnapshot } = require('../config/runtimeConfig') as typeof import('../config/runtimeConfig');
+            const snapshot = await getRuntimeConfigSnapshot({ prisma });
+            runtimeConfig = {
+              ok: true,
+              error: null,
+              source: snapshot.source,
+              version: snapshot.version,
+              fetched_at: snapshot.fetchedAt,
+              proxy_enabled: snapshot.config.proxyEnabled,
+              proxy_fail_closed: snapshot.config.proxyFailClosed,
+              proxy_route_mode: snapshot.config.proxyRouteMode,
+            };
+          } catch (err: unknown) {
+            runtimeConfig = { ok: false, error: err instanceof Error ? err.message : String(err), source: null, version: null, fetched_at: null, proxy_enabled: null };
+          }
+
           return {
             generated_at: new Date().toISOString(),
+            runtime_config: runtimeConfig,
             images: {
               total: imagesTotal,
               active: imagesActive,
@@ -686,6 +706,75 @@ export async function getAdminJsRouter(): Promise<Router> {
               navigation: { name: '代理', icon: 'Network' },
               label: '代理端点',
               actions: {
+                setProxyEnabled: {
+                  actionType: 'resource',
+                  icon: 'Switch',
+                  label: '代理总开关（直连回退）',
+                  guard: 'Disable proxy will use direct connections (real IP exposure risk). Continue?',
+                  handler: async (request: any, _res: any, context: any) => {
+                    if (String(request?.method || '').toLowerCase() === 'get') {
+                      return {};
+                    }
+
+                    const rawEnabled = (request as any)?.payload?.enabled;
+                    let enabled: boolean | null = null;
+                    if (typeof rawEnabled === 'boolean') enabled = rawEnabled;
+                    else if (typeof rawEnabled === 'number') enabled = rawEnabled !== 0;
+                    else if (typeof rawEnabled === 'string') {
+                      const normalized = rawEnabled.trim().toLowerCase();
+                      if (['1', 'true', 'yes', 'y', 'on'].includes(normalized)) enabled = true;
+                      else if (['0', 'false', 'no', 'n', 'off'].includes(normalized)) enabled = false;
+                    }
+
+                    if (enabled === null) {
+                      return {
+                        notice: { type: 'error', message: 'Invalid payload: enabled must be boolean.' },
+                        redirectUrl: context.h.resourceUrl({ resourceId: context.resource.id() }),
+                      };
+                    }
+
+                    try {
+                      // eslint-disable-next-line @typescript-eslint/no-var-requires
+                      const { RUNTIME_SETTING_KEYS, upsertRuntimeSetting } = require('../config/runtimeSettings') as typeof import('../config/runtimeSettings');
+                      // eslint-disable-next-line @typescript-eslint/no-var-requires
+                      const { invalidateRuntimeCaches } = require('../config/runtimeConfig') as typeof import('../config/runtimeConfig');
+
+                      const previous = await prisma.runtimeSetting.findUnique({
+                        where: { key: RUNTIME_SETTING_KEYS.proxyEnabled },
+                        select: { value: true },
+                      });
+
+                      await upsertRuntimeSetting(RUNTIME_SETTING_KEYS.proxyEnabled, enabled, {
+                        updatedBy: request?.session?.admin_user,
+                        updatedFromIp: request?.ip,
+                        updatedRequestId: request?.request_id || request?.headers?.['x-request-id'],
+                      }, prisma);
+
+                      invalidateRuntimeCaches({ settings: true });
+
+                      auditAdminModelChange({
+                        action: enabled ? 'proxy_enabled_set_true' : 'proxy_enabled_set_false',
+                        resource: 'RuntimeSetting',
+                        record_id: RUNTIME_SETTING_KEYS.proxyEnabled,
+                        req: request,
+                        detail: {
+                          previous_value: previous?.value ?? null,
+                          next_value: enabled,
+                        },
+                      });
+
+                      return {
+                        notice: { type: 'success', message: enabled ? '已启用代理（出站将优先走代理）' : '已关闭代理：将直连出站（真实 IP 暴露风险）' },
+                        redirectUrl: context.h.resourceUrl({ resourceId: context.resource.id() }),
+                      };
+                    } catch (err: unknown) {
+                      return {
+                        notice: { type: 'error', message: err instanceof Error ? err.message : String(err) },
+                        redirectUrl: context.h.resourceUrl({ resourceId: context.resource.id() }),
+                      };
+                    }
+                  },
+                },
                 easyProxiesImport: {
                   actionType: 'resource',
                   icon: 'Download',

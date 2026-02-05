@@ -4,7 +4,7 @@ import { resetEnvForTest } from '../src/config/env';
 import { resetPixivApiCircuitForTest } from '../src/resilience/circuit';
 
 const mockPixivApiGet = vi.fn();
-const mockGetAccessToken = vi.fn(async () => 'test-access-token');
+const mockGetAccessTokenWithMeta = vi.fn(async () => ({ accessToken: 'test-access-token', tokenIndex: 0, tokenId: 'env-0' }));
 const mockMemcachedGet = vi.fn();
 const mockMemcachedSet = vi.fn();
 
@@ -13,7 +13,7 @@ vi.mock('../src/http/axiosClient', () => ({
 }));
 
 vi.mock('../src/services/pixivAuthService', () => ({
-  getAccessToken: mockGetAccessToken,
+  getAccessTokenWithMeta: mockGetAccessTokenWithMeta,
   maskHeader: {},
 }));
 
@@ -30,7 +30,7 @@ describe('pixivService detail cache (ts)', () => {
     resetEnvForTest();
 
     mockPixivApiGet.mockReset();
-    mockGetAccessToken.mockReset();
+    mockGetAccessTokenWithMeta.mockReset();
     mockMemcachedGet.mockReset();
     mockMemcachedSet.mockReset();
 

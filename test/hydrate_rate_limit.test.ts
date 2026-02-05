@@ -127,11 +127,9 @@ describe('pixivService.getPixivIllustIdData rateLimit option', () => {
       const p1 = pixivService.getPixivIllustIdData('123', false, { rateLimit: true });
       const p2 = pixivService.getPixivIllustIdData('124', false, { rateLimit: true });
 
-      await Promise.resolve();
-      await Promise.resolve();
-      await Promise.resolve();
-      await Promise.resolve();
-      await Promise.resolve();
+      for (let i = 0; i < 20 && callTimes.length === 0; i += 1) {
+        await Promise.resolve();
+      }
 
       expect(callTimes.length).toBe(1);
 

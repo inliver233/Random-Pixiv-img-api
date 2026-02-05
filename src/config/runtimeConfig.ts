@@ -1,6 +1,7 @@
 import type { PrismaClient } from '@prisma/client';
 
 import { getPrismaClient } from '../db/prismaClient';
+import logger from '../logger/logger';
 import { invalidateProxyEndpointCache } from '../proxy/proxyEndpointStore';
 import { invalidateTokenStoreCache } from '../services/tokenStore';
 
@@ -19,6 +20,7 @@ type RuntimeConfigState = {
   version: number;
   cache: RuntimeConfigSnapshot | null;
   inFlight: Promise<RuntimeConfigSnapshot> | null;
+  proxyDisabledWarnedAtVersion: number;
 };
 
 declare global {
@@ -29,7 +31,7 @@ declare global {
 const DEFAULT_CACHE_TTL_MS = 1000;
 
 function getRuntimeConfigState(): RuntimeConfigState {
-  globalThis.__pixivcatRuntimeConfigState ??= { version: 0, cache: null, inFlight: null };
+  globalThis.__pixivcatRuntimeConfigState ??= { version: 0, cache: null, inFlight: null, proxyDisabledWarnedAtVersion: -1 };
   return globalThis.__pixivcatRuntimeConfigState;
 }
 
@@ -124,7 +126,8 @@ export async function getRuntimeConfigSnapshot(params: {
   const loadPromise = (async (): Promise<RuntimeConfigSnapshot> => {
     const defaults = getRuntimeConfigDefaults();
 
-    const canQueryDb = Boolean(params.prisma) || hasDatabaseUrl();
+    // Unit tests in this repo mock Prisma I/O; avoid hitting a real DB in NODE_ENV=test unless a Prisma client is injected.
+    const canQueryDb = Boolean(params.prisma) || (process.env.NODE_ENV !== 'test' && hasDatabaseUrl());
     if (canQueryDb) {
       try {
         const prisma = params.prisma ?? getPrismaClient();
@@ -146,6 +149,18 @@ export async function getRuntimeConfigSnapshot(params: {
 
   try {
     const loaded = await loadPromise;
+
+    if (!loaded.config.proxyEnabled && state.proxyDisabledWarnedAtVersion !== version) {
+      state.proxyDisabledWarnedAtVersion = version;
+      logger.warn({
+        proxy_enabled: false,
+        proxy_fail_closed: loaded.config.proxyFailClosed,
+        proxy_route_mode: loaded.config.proxyRouteMode,
+        runtime_config_source: loaded.source,
+        runtime_config_version: version,
+      }, 'Proxy is disabled: outbound requests will use direct connections (real IP exposure risk).');
+    }
+
     if (state.version === version) {
       state.cache = loaded;
     }

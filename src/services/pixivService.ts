@@ -158,8 +158,8 @@ const getPixivIllustIdData = async (illustId: string | number, cache = true, opt
     };
 
     const requestUrl = `${PIXIV_BASE_URL}/illust/detail?illust_id=${illustId}`;
-    const shouldProxy = shouldProxyUrl(requestUrl, routing);
-    const failClosed = shouldFailClosedForUrl(requestUrl, { routing, policy });
+    const shouldProxy = runtimeConfig.proxyEnabled && shouldProxyUrl(requestUrl, routing);
+    const failClosed = runtimeConfig.proxyEnabled && shouldFailClosedForUrl(requestUrl, { routing, policy });
 
     const fetchOnce = async (accessToken: string, proxyUri?: string) =>
       pixivApiCircuitFire(async () =>

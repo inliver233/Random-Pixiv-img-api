@@ -31,7 +31,9 @@ export async function fetchPixivImageStream(url: string, signal: AbortSignal): P
     failOpenDomains: runtimeConfig.proxyFailOpenDomains,
   };
 
-  if (!shouldProxyUrl(url, routing)) {
+  const shouldProxy = shouldProxyUrl(url, routing);
+
+  if (!runtimeConfig.proxyEnabled || !shouldProxy) {
     return pixivImageGet<Readable>(url, {
       headers: PIXIV_IMAGE_HEADERS,
       responseType: 'stream',

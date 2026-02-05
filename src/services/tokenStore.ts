@@ -26,6 +26,13 @@ function hasDatabaseUrl(): boolean {
   return Boolean(String(process.env.DATABASE_URL || '').trim());
 }
 
+function canQueryDb(prisma: PrismaClient | undefined): boolean {
+  if (prisma) return true;
+  // Unit tests in this repo mock Prisma I/O; avoid hitting a real DB in NODE_ENV=test.
+  if (process.env.NODE_ENV === 'test') return false;
+  return hasDatabaseUrl();
+}
+
 function loadEnvTokens(): TokenStoreToken[] {
   const env = getEnv();
   return env.REFRESH_TOKENS.map((refreshToken, idx) => ({ id: `env-${idx}`, refreshToken }));
@@ -59,7 +66,7 @@ export async function getTokenStoreSnapshot(params: {
 
   let snapshot: TokenStoreSnapshot | null = null;
 
-  if (params.prisma || hasDatabaseUrl()) {
+  if (canQueryDb(params.prisma)) {
     try {
       const prisma = params.prisma ?? getPrismaClient();
       const dbTokens = await loadDbTokens(prisma);
@@ -76,4 +83,3 @@ export async function getTokenStoreSnapshot(params: {
   globalThis.__pixivcatTokenStoreCache = { fetchedAt: now, snapshot };
   return snapshot;
 }
-

@@ -100,12 +100,13 @@ function buildPixivConfig(
   const merged = mergeConfig(base, axiosOverride);
 
   const hasExplicitAgents = Boolean((axiosOverride as any).httpAgent || (axiosOverride as any).httpsAgent);
+  const routingAllowsProxy = proxyRouting ? (typeof requestUrl === 'string' && shouldProxyUrl(requestUrl, proxyRouting)) : true;
   const shouldApplyProxyUri =
     typeof proxyUri === 'string' &&
     proxyUri.trim().length > 0 &&
     !hasExplicitAgents &&
     typeof requestUrl === 'string' &&
-    shouldProxyUrl(requestUrl, proxyRouting);
+    routingAllowsProxy;
 
   if (shouldApplyProxyUri) {
     const agents = getProxyAgentPair(proxyUri, proxyAgentOptions);

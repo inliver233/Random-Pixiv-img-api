@@ -56,6 +56,8 @@ function renderKeyValueRows(obj) {
 export default function Dashboard() {
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
+  const [proxyToggleBusy, setProxyToggleBusy] = useState(false);
+  const [proxyToggleNotice, setProxyToggleNotice] = useState(null);
 
   useEffect(() => {
     let mounted = true;
@@ -105,10 +107,123 @@ export default function Dashboard() {
     );
   }
 
+  const runtimeConfig = data?.runtime_config || null;
+  const proxyEnabled = runtimeConfig?.ok ? Boolean(runtimeConfig?.proxy_enabled) : null;
+
+  async function handleProxyToggle(nextEnabled) {
+    if (proxyToggleBusy) return;
+
+    if (nextEnabled === false) {
+      // eslint-disable-next-line no-alert
+      const ok = window.confirm('确认关闭代理？关闭后将使用直连出站（真实 IP 可能暴露），仅建议临时排障/回退。');
+      if (!ok) return;
+    }
+
+    setProxyToggleNotice(null);
+
+    try {
+      setProxyToggleBusy(true);
+      const form = new FormData();
+      form.append('enabled', nextEnabled ? 'true' : 'false');
+
+      const res = await api.resourceAction({
+        resourceId: 'ProxyEndpoint',
+        actionName: 'setProxyEnabled',
+        method: 'post',
+        data: form,
+      });
+
+      const notice = res?.data?.notice;
+      if (notice?.message) {
+        setProxyToggleNotice({ type: notice.type || 'success', message: String(notice.message) });
+      } else {
+        setProxyToggleNotice({ type: 'success', message: nextEnabled ? '已启用代理' : '已关闭代理（直连）' });
+      }
+
+      const refreshed = await api.getDashboard();
+      setData(refreshed.data || null);
+    } catch (err) {
+      setProxyToggleNotice({ type: 'error', message: err?.message || String(err) });
+    } finally {
+      setProxyToggleBusy(false);
+    }
+  }
+
   return (
     <div style={{ padding: 16, fontFamily: 'system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif' }}>
       <h2 style={{ marginTop: 0 }}>仪表盘</h2>
       <p style={{ marginTop: 0, color: '#666' }}>生成时间：{data.generated_at}</p>
+
+      <div style={{
+        border: proxyEnabled === false ? '1px solid #fecaca' : '1px solid #e5e7eb',
+        background: proxyEnabled === false ? '#fef2f2' : '#fff',
+        borderRadius: 12,
+        padding: 12,
+        marginBottom: 12,
+      }}
+      >
+        <h3 style={{ marginTop: 0, marginBottom: 8 }}>代理出站（回退开关）</h3>
+        {!runtimeConfig?.ok ? (
+          <p style={{ marginTop: 0, color: '#b91c1c' }}>runtime_config_error: {String(runtimeConfig?.error || 'unknown')}</p>
+        ) : (
+          <>
+            <p style={{ marginTop: 0, color: proxyEnabled === false ? '#b91c1c' : '#111827' }}>
+              状态：<b>{proxyEnabled === false ? '已关闭（直连）' : '已启用（优先走代理）'}</b>{' '}
+              <span style={{ color: '#666' }}>
+                （source:{String(runtimeConfig.source || 'unknown')} / version:{String(runtimeConfig.version ?? 'null')}）
+              </span>
+            </p>
+            {proxyEnabled === false ? (
+              <p style={{ marginTop: 0, color: '#b91c1c' }}>
+                风险提示：当前出站请求将使用直连（真实 IP 可能暴露）。仅建议临时排障；恢复后请及时重新启用代理。
+              </p>
+            ) : (
+              <p style={{ marginTop: 0, color: '#666' }}>
+                关闭代理会回退到直连模式（用于临时排障）。若已启用 fail-closed，关闭代理仍会放行直连（避免锁死）。
+              </p>
+            )}
+
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                disabled={proxyToggleBusy || proxyEnabled === true}
+                onClick={() => handleProxyToggle(true)}
+                style={{
+                  padding: '6px 10px',
+                  borderRadius: 8,
+                  border: '1px solid #111827',
+                  background: proxyEnabled === true ? '#e5e7eb' : '#111827',
+                  color: proxyEnabled === true ? '#111827' : '#fff',
+                  cursor: proxyToggleBusy || proxyEnabled === true ? 'not-allowed' : 'pointer',
+                }}
+              >
+                启用代理
+              </button>
+              <button
+                type="button"
+                disabled={proxyToggleBusy || proxyEnabled === false}
+                onClick={() => handleProxyToggle(false)}
+                style={{
+                  padding: '6px 10px',
+                  borderRadius: 8,
+                  border: '1px solid #b91c1c',
+                  background: proxyEnabled === false ? '#fecaca' : '#fff',
+                  color: '#b91c1c',
+                  cursor: proxyToggleBusy || proxyEnabled === false ? 'not-allowed' : 'pointer',
+                }}
+              >
+                关闭代理（直连）
+              </button>
+            </div>
+
+            {proxyToggleNotice?.message ? (
+              <p style={{ marginTop: 8, color: proxyToggleNotice.type === 'error' ? '#b91c1c' : '#166534' }}>
+                {String(proxyToggleNotice.message)}
+              </p>
+            ) : null}
+          </>
+        )}
+      </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 12 }}>
         <div style={{ border: '1px solid #e5e7eb', borderRadius: 12, padding: 12 }}>

@@ -3,14 +3,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { resetPixivApiCircuitForTest } from '../src/resilience/circuit';
 
 const mockPixivApiGet = vi.fn();
-const mockGetAccessToken = vi.fn(async () => 'test-access-token');
+const mockGetAccessTokenWithMeta = vi.fn(async () => ({ accessToken: 'test-access-token', tokenIndex: 0, tokenId: 'env-0' }));
 
 vi.mock('../src/http/axiosClient', () => ({
   pixivApiGet: mockPixivApiGet,
 }));
 
 vi.mock('../src/services/pixivAuthService', () => ({
-  getAccessToken: mockGetAccessToken,
+  getAccessTokenWithMeta: mockGetAccessTokenWithMeta,
   maskHeader: {},
 }));
 
@@ -25,7 +25,7 @@ describe('pixivService circuit-open classification (ts)', () => {
   beforeEach(() => {
     resetPixivApiCircuitForTest();
     mockPixivApiGet.mockReset();
-    mockGetAccessToken.mockReset();
+    mockGetAccessTokenWithMeta.mockReset();
 
     process.env.PIXIV_CIRCUIT_VOLUME_THRESHOLD = '1';
     process.env.PIXIV_CIRCUIT_ERROR_THRESHOLD_PERCENT = '50';

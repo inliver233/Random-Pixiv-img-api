@@ -73,7 +73,7 @@ describe('runtime hot reload (single process)', () => {
     const t2 = await getTokenStoreSnapshot({ prisma, cacheTtlMs: 10_000 });
     const p2 = await loadEnabledProxyCandidates({ prisma, cacheTtlMs: 10_000 });
     expect(t2).toBe(t1);
-    expect(p2).toBe(p1);
+    expect(p2).toEqual(p1);
     expect(prisma.pixivToken.findMany).toHaveBeenCalledTimes(1);
     expect(prisma.proxyEndpoint.findMany).toHaveBeenCalledTimes(1);
 

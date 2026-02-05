@@ -4,6 +4,7 @@ import { getPrismaClient } from '../db/prismaClient';
 import { getEnv } from './env';
 
 export const RUNTIME_SETTING_KEYS = {
+  proxyEnabled: 'proxy_enabled',
   proxyFailClosed: 'proxy_fail_closed',
   proxyFailClosedDomains: 'proxy_fail_closed_domains',
   proxyFailOpenDomains: 'proxy_fail_open_domains',
@@ -16,6 +17,7 @@ export const RUNTIME_SETTING_KEYS = {
 export type ProxyRouteMode = 'pixiv_only' | 'all' | 'allowlist';
 
 export type RuntimeConfig = {
+  proxyEnabled: boolean;
   proxyFailClosed: boolean;
   proxyFailClosedDomains: string[];
   proxyFailOpenDomains: string[];
@@ -31,6 +33,7 @@ export function getRuntimeConfigDefaults(): RuntimeConfig {
   const env = getEnv();
 
   return {
+    proxyEnabled: true,
     proxyFailClosed: false,
     proxyFailClosedDomains: [],
     proxyFailOpenDomains: [],
@@ -98,6 +101,9 @@ export function resolveRuntimeConfig(defaults: RuntimeConfig, settings: RuntimeS
     if (!setting?.key) continue;
 
     switch (setting.key) {
+      case RUNTIME_SETTING_KEYS.proxyEnabled:
+        resolved.proxyEnabled = coerceBoolean(setting.value, defaults.proxyEnabled);
+        break;
       case RUNTIME_SETTING_KEYS.proxyFailClosed:
         resolved.proxyFailClosed = coerceBoolean(setting.value, defaults.proxyFailClosed);
         break;

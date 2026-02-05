@@ -68,8 +68,8 @@ const refreshAccessToken = async (refreshToken: string): Promise<PixivAuthRefres
     failOpenDomains: runtimeConfig.proxyFailOpenDomains,
   };
 
-  const shouldProxy = shouldProxyUrl(AUTH_TOKEN_URL, routing);
-  const failClosed = shouldFailClosedForUrl(AUTH_TOKEN_URL, { routing, policy });
+  const shouldProxy = runtimeConfig.proxyEnabled && shouldProxyUrl(AUTH_TOKEN_URL, routing);
+  const failClosed = runtimeConfig.proxyEnabled && shouldFailClosedForUrl(AUTH_TOKEN_URL, { routing, policy });
   const proxies = shouldProxy ? await loadEnabledProxyCandidates() : [];
 
   if (shouldProxy && proxies.length === 0 && failClosed) {

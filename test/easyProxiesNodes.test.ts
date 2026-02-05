@@ -54,7 +54,7 @@ describe('easyProxiesClient nodes/debug', () => {
   });
 
   it('fetches /api/debug and parses summary fields', async () => {
-    const fetchMock = vi.fn(async (input: any, init?: any) => {
+    const fetchMock = vi.fn(async (input: any, _init?: any) => {
       const url = String(input);
 
       if (url.endsWith('/api/debug')) {
@@ -78,4 +78,3 @@ describe('easyProxiesClient nodes/debug', () => {
     expect(res.nodes[0]?.tag).toBe('n1');
   });
 });
-

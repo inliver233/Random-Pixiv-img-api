@@ -1,3 +1,4 @@
+import type { BufferEncoding } from 'node:buffer';
 import { Writable } from 'node:stream';
 import { Readable } from 'node:stream';
 
