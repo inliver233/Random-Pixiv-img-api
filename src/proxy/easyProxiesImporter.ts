@@ -213,10 +213,10 @@ export async function loadEasyProxiesRuntimeConfig(params: { prisma?: PrismaClie
     if (parsed) {
       return {
         source: 'db',
-        baseUrl: parsed.baseUrl,
+        baseUrl: parsed.baseUrl ?? null,
         password: parsed.password,
-        autoRefreshEnabled: parsed.autoRefreshEnabled,
-        refreshIntervalMs: parsed.refreshIntervalMs,
+        autoRefreshEnabled: parsed.autoRefreshEnabled ?? true,
+        refreshIntervalMs: parsed.refreshIntervalMs ?? 30 * 60_000,
       };
     }
   } catch {

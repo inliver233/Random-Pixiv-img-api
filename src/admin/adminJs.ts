@@ -396,7 +396,7 @@ export async function getAdminJsRouter(): Promise<Router> {
                 const { getDeadLetterQueueName } = require('../queue/queue') as typeof import('../queue/queue');
                 return baseQueues
                   .map((name) => getDeadLetterQueueName(name))
-                  .filter((name): name is string => typeof name === 'string' && name.trim());
+                  .filter((name): name is string => typeof name === 'string' && name.trim().length > 0);
               } catch {
                 return [];
               }

@@ -312,8 +312,9 @@ export default function adminAuth(req: Request, res: Response, next: NextFunctio
   if (!provided && queryTokenAllowed) {
     provided = queryToken;
   }
+  const providedToken = typeof provided === 'string' ? provided : '';
 
-  const authorized = Boolean(expected) && Boolean(provided) && timingSafeEquals(provided, expected);
+  const authorized = Boolean(expected) && Boolean(providedToken) && timingSafeEquals(providedToken, expected);
 
   if (!authorized) {
     const accept = (req.header('accept') || '').toLowerCase();
@@ -355,7 +356,9 @@ export default function adminAuth(req: Request, res: Response, next: NextFunctio
 
   if (queryTokenAllowed) {
     // First-time browser access: persist token as cookie to allow subsequent asset/API requests.
-    setAdminTokenCookie(req, res, provided);
+    if (providedToken) {
+      setAdminTokenCookie(req, res, providedToken);
+    }
 
     // Redirect to the same path without the token query param to keep it out of the URL bar.
     const u = new URL(`http://localhost${req.originalUrl}`);

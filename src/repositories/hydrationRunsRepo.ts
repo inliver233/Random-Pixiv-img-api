@@ -1,4 +1,4 @@
-import type { HydrationRunStatus, HydrationRunType, Prisma } from '@prisma/client';
+import { Prisma, type HydrationRunStatus, type HydrationRunType } from '@prisma/client';
 
 import { getPrismaClient } from '../db/prismaClient';
 
@@ -18,8 +18,8 @@ export async function createHydrationRun(input: CreateHydrationRunInput) {
       type: input.type,
       status: input.status,
       requestedBy: input.requestedBy,
-      criteria: input.criteria ?? null,
-      cursor: input.cursor ?? null,
+      criteria: input.criteria ?? Prisma.JsonNull,
+      cursor: input.cursor ?? Prisma.JsonNull,
     },
   });
 }
@@ -79,4 +79,3 @@ export async function updateHydrationRun(input: UpdateHydrationRunInput) {
     },
   });
 }
-

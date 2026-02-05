@@ -90,7 +90,7 @@ function createClientConfig(): ClientConfig | null {
   };
 }
 
-function parseMessagePayload(payload: string | null): RuntimeCacheInvalidationMessage | null {
+function parseMessagePayload(payload: string | null | undefined): RuntimeCacheInvalidationMessage | null {
   if (!payload) return null;
 
   try {
