@@ -1,12 +1,20 @@
 import { getPrismaClient } from '../../db/prismaClient';
-import { auditAdminImageStatusChange } from '../../audit/adminAudit';
+import { auditAdminImageStatusChange, auditAdminModelChange } from '../../audit/adminAudit';
 import { IMAGE_STATUS_ACTIVE, IMAGE_STATUS_BROKEN, IMAGE_STATUS_DISABLED } from '../../repositories/imagesRepo';
+import { enqueueHydrateMetadata } from '../../jobs/hydrateMetadata';
 
 function toBigIntId(value: any): bigint {
   if (typeof value === 'bigint') return value;
   if (typeof value === 'number' && Number.isFinite(value)) return BigInt(Math.trunc(value));
   if (typeof value === 'string' && value.trim()) return BigInt(value.trim());
   throw new Error('Invalid record id');
+}
+
+function toBigIntValue(value: any, field: string): bigint {
+  if (typeof value === 'bigint') return value;
+  if (typeof value === 'number' && Number.isFinite(value)) return BigInt(Math.trunc(value));
+  if (typeof value === 'string' && value.trim()) return BigInt(value.trim());
+  throw new Error(`Invalid ${field}`);
 }
 
 function toNumberOrNull(value: any): number | null {
@@ -185,6 +193,67 @@ export const imageResourceOptions = {
           },
           redirectUrl: context.h.resourceUrl({ resourceId: context.resource.id() }),
         };
+      },
+    },
+
+    hydrateMetadata: {
+      actionType: 'record',
+      icon: 'RefreshCw',
+      label: '补全元信息（入队 hydrate_metadata）',
+      guard: 'Enqueue hydrate_metadata for this illust now?',
+      handler: async (request: any, _res: any, context: any) => {
+        const { record, currentAdmin, h, resource } = context;
+        if (!record) throw new Error('Record is required');
+
+        if (request?.method === 'get') {
+          return { record: record.toJSON(currentAdmin) };
+        }
+
+        const illustId = toBigIntValue(record.params?.illustId ?? record.params?.illust_id, 'illustId');
+        const requestIdRaw = request?.request_id || request?.headers?.['x-request-id'];
+        const requestId = typeof requestIdRaw === 'string' && requestIdRaw.trim() ? requestIdRaw.trim() : undefined;
+
+        try {
+          const jobId = await enqueueHydrateMetadata(illustId, requestId);
+
+          auditAdminModelChange({
+            action: 'image_hydrate_metadata_enqueue',
+            resource: 'Image',
+            record_id: record.id?.() ? String(record.id()) : String(record.params?.id),
+            req: request,
+            detail: {
+              illust_id: illustId.toString(),
+              job_id: jobId,
+            },
+          });
+
+          return {
+            record: record.toJSON(currentAdmin),
+            notice: { type: 'success', message: `已入队 hydrate_metadata: ${jobId}` },
+            redirectUrl: h.recordActionUrl({ resourceId: resource.id(), recordId: record.id(), actionName: 'show' }),
+          };
+        } catch (err: unknown) {
+          const code = typeof (err as any)?.code === 'string' ? (err as any).code : '';
+          const message = err instanceof Error ? err.message : String(err);
+
+          auditAdminModelChange({
+            action: 'image_hydrate_metadata_enqueue_failed',
+            resource: 'Image',
+            record_id: record.id?.() ? String(record.id()) : String(record.params?.id),
+            req: request,
+            detail: {
+              illust_id: illustId.toString(),
+              code: code || null,
+              message,
+            },
+          });
+
+          return {
+            record: record.toJSON(currentAdmin),
+            notice: { type: 'error', message: code ? `${code}: ${message}` : message },
+            redirectUrl: h.recordActionUrl({ resourceId: resource.id(), recordId: record.id(), actionName: 'show' }),
+          };
+        }
       },
     },
   },

@@ -425,3 +425,60 @@ describe('POST /admin/images/import', () => {
     expect(res.body).toMatchObject({ code: 'INVALID_UPLOAD_TYPE' });
   });
 });
+
+describe('POST /admin/images/hydrate', () => {
+  beforeEach(() => {
+    delete process.env.ADMIN_IMPORT_MAX_LINES;
+    delete process.env.ADMIN_IMPORT_MAX_FILE_BYTES;
+    delete process.env.ADMIN_IMPORT_ALLOWED_MIME_TYPES;
+    resetEnvForTest();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+
+    delete process.env.ADMIN_IMPORT_MAX_LINES;
+    delete process.env.ADMIN_IMPORT_MAX_FILE_BYTES;
+    delete process.env.ADMIN_IMPORT_ALLOWED_MIME_TYPES;
+    resetEnvForTest();
+  });
+
+  it('enqueues hydrate_metadata once per illust_id', async () => {
+    const urlP1 = VALID_URL.replace('_p0.', '_p1.');
+
+    const send = vi.fn().mockResolvedValue('job-1');
+    vi.spyOn(queue, 'ensureQueue').mockResolvedValue({ send } as any);
+
+    const app = createApp();
+
+    const res = await request(app)
+      .post('/admin/images/hydrate')
+      .field('urls', `${VALID_URL}\n${urlP1}`)
+      .expect(200);
+
+    expect(res.headers['cache-control']).toBe('no-store');
+
+    expect(res.body).toMatchObject({
+      ok: true,
+      hydrate_only: true,
+      total_lines: 2,
+      unique_illusts: 1,
+      failed: 0,
+      enqueued: { hydrate_metadata: 1, note: 'ok' },
+    });
+
+    expect(send).toHaveBeenCalledTimes(1);
+    expect(send).toHaveBeenCalledWith('hydrate_metadata', expect.objectContaining({ illust_id: '12345678' }));
+  });
+
+  it('returns 400 when input is empty', async () => {
+    const app = createApp();
+
+    const res = await request(app)
+      .post('/admin/images/hydrate')
+      .field('urls', '')
+      .expect(400);
+
+    expect(res.body).toMatchObject({ code: 'EMPTY_INPUT' });
+  });
+});

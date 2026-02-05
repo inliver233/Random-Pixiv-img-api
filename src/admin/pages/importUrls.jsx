@@ -132,6 +132,32 @@ async function postImport({ baseUrl, formData }) {
   return data;
 }
 
+async function postHydrate({ baseUrl, formData }) {
+  const res = await fetch(`${baseUrl}/admin/images/hydrate`, {
+    method: 'POST',
+    body: formData,
+    credentials: 'include',
+  });
+
+  const text = await res.text();
+  let data;
+  try {
+    data = JSON.parse(text);
+  } catch {
+    data = { ok: false, status: res.status, body: text };
+  }
+
+  if (!res.ok) {
+    const message = data?.message || data?.error || `HTTP ${res.status}`;
+    const err = new Error(message);
+    err.data = data;
+    err.status = res.status;
+    throw err;
+  }
+
+  return data;
+}
+
 function downloadText(filename, text) {
   const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
   const url = URL.createObjectURL(blob);
@@ -196,6 +222,9 @@ export default function ImportUrlsPage() {
     setResult(null);
     setProgress(null);
 
+    const hydrateOnly = mode === 'hydrate';
+    const postFn = hydrateOnly ? postHydrate : postImport;
+
     const baseUrl = config?.baseUrl || '';
     const maxBytes = Number(config?.adminImportMaxFileBytes || 0) || 0;
     const maxLines = Number(config?.adminImportMaxLines || 0) || 0;
@@ -248,18 +277,28 @@ export default function ImportUrlsPage() {
       const startedAt = Date.now();
       let processedLines = 0;
       const MAX_COMBINED_ERRORS = 2000;
-      const combined = {
-        total_lines: 0,
-        unique_images: 0,
-        deduped: 0,
-        success: 0,
-        failed: 0,
-        enqueued_hydrate_metadata: 0,
-        errors: [],
-        import_ids: [],
-        error_urls_text: '',
-        error_urls_with_comments_text: '',
-      };
+      const combined = hydrateOnly
+        ? {
+          total_lines: 0,
+          unique_illusts: 0,
+          failed: 0,
+          enqueued_hydrate_metadata: 0,
+          errors: [],
+          error_urls_text: '',
+          error_urls_with_comments_text: '',
+        }
+        : {
+          total_lines: 0,
+          unique_images: 0,
+          deduped: 0,
+          success: 0,
+          failed: 0,
+          enqueued_hydrate_metadata: 0,
+          errors: [],
+          import_ids: [],
+          error_urls_text: '',
+          error_urls_with_comments_text: '',
+        };
 
       for (let i = 0; i < plannedChunks.length; i += 1) {
         const chunk = plannedChunks[i];
@@ -285,16 +324,21 @@ export default function ImportUrlsPage() {
         if (mode === 'preview') formData.set('preview', '1');
 
         // eslint-disable-next-line no-await-in-loop
-        const data = await postImport({ baseUrl, formData });
+        const data = await postFn({ baseUrl, formData });
         responses.push(data);
 
         combined.total_lines += Number(data.total_lines || 0);
-        combined.unique_images += Number(data.unique_images || 0);
-        combined.deduped += Number(data.deduped || 0);
-        combined.success += Number(data.success || 0);
         combined.failed += Number(data.failed || 0);
         combined.enqueued_hydrate_metadata += Number(data.enqueued?.hydrate_metadata || 0);
-        if (data.import_id) combined.import_ids.push(String(data.import_id));
+
+        if (hydrateOnly) {
+          combined.unique_illusts += Number(data.unique_illusts || 0);
+        } else {
+          combined.unique_images += Number(data.unique_images || 0);
+          combined.deduped += Number(data.deduped || 0);
+          combined.success += Number(data.success || 0);
+          if (data.import_id) combined.import_ids.push(String(data.import_id));
+        }
 
         if (data.error_export?.urls_text) {
           combined.error_urls_text += `${combined.error_urls_text ? '\n' : ''}${String(data.error_export.urls_text)}`;
@@ -312,7 +356,7 @@ export default function ImportUrlsPage() {
         processedLines += chunk.length;
       }
 
-      setResult({ batches: responses.length, combined, responses });
+      setResult({ mode, batches: responses.length, combined, responses });
     } catch (err) {
       setError(err?.message || String(err));
     } finally {
@@ -430,6 +474,20 @@ export default function ImportUrlsPage() {
             >
               开始导入
             </button>
+            <button
+              type="button"
+              onClick={() => handleSubmit('hydrate')}
+              disabled={loading}
+              style={{
+                padding: '8px 12px',
+                borderRadius: 10,
+                border: '1px solid #e5e7eb',
+                background: '#fff',
+                cursor: loading ? 'not-allowed' : 'pointer',
+              }}
+            >
+              仅补全（入队 hydrate_metadata）
+            </button>
           </div>
 
           {progress ? (
@@ -491,18 +549,27 @@ export default function ImportUrlsPage() {
                 <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee', fontWeight: 600 }}>total_lines</td>
                 <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee', textAlign: 'right' }}>{result.combined.total_lines}</td>
               </tr>
-              <tr>
-                <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee', fontWeight: 600 }}>unique_images</td>
-                <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee', textAlign: 'right' }}>{result.combined.unique_images}</td>
-              </tr>
-              <tr>
-                <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee', fontWeight: 600 }}>deduped</td>
-                <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee', textAlign: 'right' }}>{result.combined.deduped}</td>
-              </tr>
-              <tr>
-                <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee', fontWeight: 600 }}>success</td>
-                <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee', textAlign: 'right' }}>{result.combined.success}</td>
-              </tr>
+              {result.mode === 'hydrate' ? (
+                <tr>
+                  <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee', fontWeight: 600 }}>unique_illusts</td>
+                  <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee', textAlign: 'right' }}>{result.combined.unique_illusts}</td>
+                </tr>
+              ) : (
+                <>
+                  <tr>
+                    <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee', fontWeight: 600 }}>unique_images</td>
+                    <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee', textAlign: 'right' }}>{result.combined.unique_images}</td>
+                  </tr>
+                  <tr>
+                    <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee', fontWeight: 600 }}>deduped</td>
+                    <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee', textAlign: 'right' }}>{result.combined.deduped}</td>
+                  </tr>
+                  <tr>
+                    <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee', fontWeight: 600 }}>success</td>
+                    <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee', textAlign: 'right' }}>{result.combined.success}</td>
+                  </tr>
+                </>
+              )}
               <tr>
                 <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee', fontWeight: 600 }}>failed</td>
                 <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee', textAlign: 'right' }}>{result.combined.failed}</td>

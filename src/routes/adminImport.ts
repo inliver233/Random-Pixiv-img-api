@@ -537,4 +537,163 @@ router.post(
   },
 );
 
+type HydrateEnqueueResponse = {
+  ok: true;
+  hydrate_only: true;
+  total_lines: number;
+  unique_illusts: number;
+  enqueued: {
+    hydrate_metadata: number;
+    note: string;
+  };
+  failed: number;
+  error_export?: {
+    total_errors: number;
+    exported_errors: number;
+    truncated: boolean;
+    urls_text: string;
+    urls_with_comments_text: string;
+  };
+  errors: ImportErrorRow[];
+};
+
+router.post(
+  '/images/hydrate',
+  adminImportUploadMiddleware,
+  (req, res, next) => {
+    (async () => {
+      const fields = (req as any).fields || {};
+      const files = (req as any).files || {};
+      const env = getEnv();
+
+      const textarea =
+        normalizeText(fields.urls)
+        || normalizeText(fields.text)
+        || normalizeText(fields.textarea)
+        || normalizeText(fields.input);
+
+      const uploadFile = files.file || files.upload || files.urls;
+      validateUploadFileType(uploadFile);
+      const fileText = await readUploadFileText(uploadFile);
+
+      const combined = [textarea, fileText].filter((v) => v && v.trim()).join('\n');
+      const lines = readLines(combined);
+
+      if (lines.length === 0) {
+        const err = new Error('No URLs provided.');
+        (err as any).status = 400;
+        (err as any).code = 'EMPTY_INPUT';
+        throw err;
+      }
+
+      if (env.ADMIN_IMPORT_MAX_LINES > 0 && lines.length > env.ADMIN_IMPORT_MAX_LINES) {
+        const err = new Error(
+          `Too many lines: ${lines.length}. Max is ${env.ADMIN_IMPORT_MAX_LINES}. `
+          + `Please split the input into multiple requests (<= ${env.ADMIN_IMPORT_MAX_LINES} lines each).`,
+        );
+        (err as any).status = 400;
+        (err as any).code = 'MAX_LINES_EXCEEDED';
+        throw err;
+      }
+
+      const errors: ImportErrorRow[] = [];
+      const MAX_ERRORS = 2000;
+
+      const illustIdsToHydrate = new Set<string>();
+
+      for (const item of lines) {
+        const parsed = parsePixivUrl(item.url);
+        if (!parsed.ok) {
+          if (errors.length < MAX_ERRORS) {
+            errors.push({
+              ok: false,
+              line: item.line,
+              url: item.url,
+              code: parsed.code,
+              message: parsed.message,
+            });
+          }
+          continue;
+        }
+
+        illustIdsToHydrate.add(parsed.illustId.toString());
+      }
+
+      const failed = errors.length;
+
+      const maxExportErrors = 1000;
+      const exportErrors = errors.slice(0, maxExportErrors);
+      const errorExport = {
+        total_errors: failed,
+        exported_errors: exportErrors.length,
+        truncated: failed > maxExportErrors,
+        urls_text: exportErrors.map((row) => row.url).join('\n'),
+        urls_with_comments_text: exportErrors
+          .map((row) => `# line ${row.line} code=${row.code}\n${row.url}`)
+          .join('\n'),
+      };
+
+      let enqueuedHydrateMetadata = 0;
+      let enqueueNote = 'ok';
+      const requestIdRaw = (req as any).request_id;
+      const requestId = typeof requestIdRaw === 'string' && requestIdRaw.trim() ? requestIdRaw.trim() : undefined;
+
+      if (illustIdsToHydrate.size === 0) {
+        enqueueNote = 'skipped:no_valid_illusts';
+      } else {
+        try {
+          const boss = await ensureQueue('hydrate_metadata');
+          for (const rawIllustId of illustIdsToHydrate) {
+            const payload: any = { illust_id: rawIllustId };
+            if (requestId) payload.request_id = requestId;
+            // eslint-disable-next-line no-await-in-loop
+            const id = await boss.send('hydrate_metadata', payload);
+            if (!id) continue;
+            enqueuedHydrateMetadata += 1;
+          }
+        } catch (err: unknown) {
+          const code = typeof (err as any)?.code === 'string' ? (err as any).code : '';
+          const message = err instanceof Error ? err.message : String(err);
+          enqueueNote = code ? `enqueue_failed:${code}:${message}` : `enqueue_failed:${message}`;
+        }
+      }
+
+      void auditAdminEvent({
+        actor: 'admin_token',
+        action: 'hydrate_metadata_enqueue',
+        resource: 'HydrationRun',
+        request_id: (req as any)?.request_id,
+        ip: (req as any)?.ip,
+        user_agent: (req as any)?.headers?.['user-agent'],
+        detail: {
+          total_lines: lines.length,
+          unique_illusts: illustIdsToHydrate.size,
+          enqueued: {
+            hydrate_metadata: enqueuedHydrateMetadata,
+            note: enqueueNote,
+          },
+          failed,
+        },
+      });
+
+      const response: HydrateEnqueueResponse = {
+        ok: true,
+        hydrate_only: true,
+        total_lines: lines.length,
+        unique_illusts: illustIdsToHydrate.size,
+        enqueued: {
+          hydrate_metadata: enqueuedHydrateMetadata,
+          note: enqueueNote,
+        },
+        failed,
+        error_export: errorExport,
+        errors,
+      };
+
+      res.setHeader('Cache-Control', 'no-store');
+      res.status(200).json(response);
+    })().catch(next);
+  },
+);
+
 export default router;
