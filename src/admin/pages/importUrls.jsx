@@ -189,6 +189,7 @@ export default function ImportUrlsPage() {
   const [clientDedupe, setClientDedupe] = useState(true);
   const [chunking, setChunking] = useState(true);
   const [batchLines, setBatchLines] = useState(2000);
+  const [batchInitialized, setBatchInitialized] = useState(false);
 
   const [result, setResult] = useState(null);
   const [progress, setProgress] = useState(null);
@@ -212,6 +213,15 @@ export default function ImportUrlsPage() {
       mounted = false;
     };
   }, []);
+
+  useEffect(() => {
+    if (batchInitialized) return;
+    const maxLines = Number(config?.adminImportMaxLines || 0);
+    if (Number.isFinite(maxLines) && maxLines > 0) {
+      setBatchLines(Math.max(100, Math.min(2000, Math.trunc(maxLines))));
+      setBatchInitialized(true);
+    }
+  }, [config, batchInitialized]);
 
   const stats = useMemo(() => {
     const lines = parseLines(text);
@@ -255,6 +265,16 @@ export default function ImportUrlsPage() {
       const normalizedBatchLines = Math.max(1, Math.min(10000, Number(batchLines) || 2000));
       const previewMaxLines = Math.max(50, Math.min(normalizedBatchLines, 2000));
       const inputLines = mode === 'preview' ? rawLines.slice(0, previewMaxLines) : rawLines;
+
+      if (mode !== 'preview' && inputLines.length >= 5000) {
+        const confirmed = globalThis.confirm
+          ? globalThis.confirm(`本次将提交 ${inputLines.length} 行，可能需要较长时间。是否继续？`)
+          : true;
+        if (!confirmed) {
+          setLoading(false);
+          return;
+        }
+      }
 
       setProgress({
         stage: 'prepare',
@@ -367,7 +387,19 @@ export default function ImportUrlsPage() {
 
       setResult({ mode, batches: responses.length, combined, responses });
     } catch (err) {
-      setError(err?.message || String(err));
+      const status = Number(err?.status || err?.data?.status || 0);
+      const code = String(err?.data?.code || '');
+      const message = String(err?.message || err);
+
+      if (status === 413 || code === 'PAYLOAD_TOO_LARGE') {
+        setError(`上传体积超过限制。请减小“每批行数”或改用更多批次（当前建议 <= ${batchLines}）。`);
+      } else if (code === 'MAX_LINES_EXCEEDED') {
+        setError(`单批行数超过后端限制。请降低“每批行数”，或开启分批提交后重试。`);
+      } else if (code === 'INVALID_UPLOAD_TYPE') {
+        setError('上传文件类型不支持。请使用 .txt / text/plain。');
+      } else {
+        setError(message);
+      }
     } finally {
       setLoading(false);
       setProgress(null);
@@ -467,6 +499,20 @@ export default function ImportUrlsPage() {
               style={createButtonStyle({ disabled: loading })}
             >
               仅补全（入队 hydrate_metadata）
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setText('');
+                setResult(null);
+                setError(null);
+                setProgress(null);
+                if (fileInputRef.current) fileInputRef.current.value = '';
+              }}
+              disabled={loading}
+              style={createButtonStyle({ tone: 'ghost', disabled: loading })}
+            >
+              清空输入
             </button>
           </div>
 

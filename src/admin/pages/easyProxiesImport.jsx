@@ -30,6 +30,13 @@ function formatOptionalNumber(value, digits = 0) {
   return String(Math.round(n));
 }
 
+function parseUriLines(text) {
+  return String(text || '')
+    .split(/\r?\n/)
+    .map((line) => String(line || '').trim())
+    .filter((line) => line && !line.startsWith('#'));
+}
+
 export default function EasyProxiesImportPage() {
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState(null);
@@ -258,7 +265,7 @@ export default function EasyProxiesImportPage() {
               password: clearPassword ? undefined : (password || undefined),
               clear_password: clearPassword ? '1' : undefined,
               auto_refresh_enabled: autoRefreshEnabled ? '1' : '0',
-              refresh_interval_ms: refreshIntervalMs,
+              refresh_interval_ms: Math.max(60_000, Number(refreshIntervalMs) || 0),
             })}
             style={buttonStyle}
           >
@@ -277,7 +284,13 @@ export default function EasyProxiesImportPage() {
           <button
             type="button"
             disabled={loading}
-            onClick={() => runAction('easyProxiesRollback', {})}
+            onClick={() => {
+              const confirmed = globalThis.confirm
+                ? globalThis.confirm('回滚会禁用 source=easy_proxies 的代理，并关闭自动刷新。是否继续？')
+                : true;
+              if (!confirmed) return;
+              void runAction('easyProxiesRollback', {});
+            }}
             style={createButtonStyle({ danger: true, disabled: loading })}
           >
             回滚到手动代理列表
@@ -345,12 +358,27 @@ export default function EasyProxiesImportPage() {
           <button
             type="button"
             disabled={loading}
-            onClick={() => runAction('importProxyUris', {
-              proxy_uris: proxyUriText,
-              source: 'manual',
-              enabled: importEnabled ? '1' : '0',
-              conflict_policy: importConflictPolicy,
-            })}
+            onClick={() => {
+              const lines = parseUriLines(proxyUriText);
+              if (lines.length === 0) {
+                setNotice({ type: 'error', message: '请输入至少 1 条代理 URI（支持多行）。' });
+                return;
+              }
+
+              if (importConflictPolicy === 'overwrite') {
+                const confirmed = globalThis.confirm
+                  ? globalThis.confirm('overwrite 会覆盖同 host+port+username 的现有条目，是否继续？')
+                  : true;
+                if (!confirmed) return;
+              }
+
+              void runAction('importProxyUris', {
+                proxy_uris: lines.join('\n'),
+                source: 'manual',
+                enabled: importEnabled ? '1' : '0',
+                conflict_policy: importConflictPolicy,
+              });
+            }}
             style={buttonStyle}
           >
             导入 URI（立即生效）
@@ -364,6 +392,9 @@ export default function EasyProxiesImportPage() {
             清空输入
           </button>
         </div>
+        <p style={{ marginTop: 8, marginBottom: 0, color: '#666', fontSize: 12 }}>
+          当前有效行数：{parseUriLines(proxyUriText).length}。建议优先使用 <code>skip_non_source</code>，避免误覆盖手工维护的代理条目。
+        </p>
       </div>
 
       <div style={{ marginTop: 12, ...createCardStyle({ alt: true }) }}>

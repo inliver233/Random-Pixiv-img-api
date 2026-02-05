@@ -282,7 +282,18 @@ export default function TokenProxyBindingsPage() {
             <button
               type="button"
               disabled={!selectedTokenId || !rebindProxyId || loading}
-              onClick={() => runAction('rebindPrimary', { tokenId: selectedTokenId, primaryProxyId: rebindProxyId, clearOverride: clearOverride ? 'true' : 'false', reason })}
+              onClick={() => {
+                const confirmed = globalThis.confirm
+                  ? globalThis.confirm('将重绑当前令牌的主代理。是否继续？')
+                  : true;
+                if (!confirmed) return;
+                void runAction('rebindPrimary', {
+                  tokenId: selectedTokenId,
+                  primaryProxyId: rebindProxyId,
+                  clearOverride: clearOverride ? 'true' : 'false',
+                  reason,
+                });
+              }}
               style={{ marginTop: 8, ...createButtonStyle({ primary: true, disabled: !selectedTokenId || !rebindProxyId || loading }) }}
             >
               执行重绑
@@ -319,7 +330,14 @@ export default function TokenProxyBindingsPage() {
             <button
               type="button"
               disabled={!selectedTokenId || !overrideProxyId || loading}
-              onClick={() => runAction('setOverride', { tokenId: selectedTokenId, overrideProxyId, ttlMinutes: overrideTtlMinutes, reason })}
+              onClick={() => {
+                const ttlMinutes = Math.max(1, Math.min(10080, Number(overrideTtlMinutes) || 60));
+                const confirmed = globalThis.confirm
+                  ? globalThis.confirm(`将设置临时 override（TTL ${ttlMinutes} 分钟）。是否继续？`)
+                  : true;
+                if (!confirmed) return;
+                void runAction('setOverride', { tokenId: selectedTokenId, overrideProxyId, ttlMinutes, reason });
+              }}
               style={{ marginTop: 8, ...createButtonStyle({ disabled: !selectedTokenId || !overrideProxyId || loading }) }}
             >
               设置 override
@@ -328,7 +346,13 @@ export default function TokenProxyBindingsPage() {
             <button
               type="button"
               disabled={!selectedTokenId || loading}
-              onClick={() => runAction('clearOverride', { tokenId: selectedTokenId, reason })}
+              onClick={() => {
+                const confirmed = globalThis.confirm
+                  ? globalThis.confirm('将清空当前令牌的 override 并恢复主代理。是否继续？')
+                  : true;
+                if (!confirmed) return;
+                void runAction('clearOverride', { tokenId: selectedTokenId, reason });
+              }}
               style={{ marginTop: 8, marginLeft: 8, ...createButtonStyle({ tone: 'ghost', disabled: !selectedTokenId || loading }) }}
             >
               清空 override

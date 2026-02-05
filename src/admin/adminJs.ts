@@ -1966,6 +1966,12 @@ export async function getAdminJsRouter(): Promise<Router> {
                         redirectUrl: context.h.resourceUrl({ resourceId: context.resource.id() }),
                       };
                     }
+                    if (lines.length > 10_000) {
+                      return {
+                        notice: { type: 'error', message: `Too many lines: ${lines.length}. Please import <= 10000 lines each time.` },
+                        redirectUrl: context.h.resourceUrl({ resourceId: context.resource.id() }),
+                      };
+                    }
 
                     const sourceRaw = String((payload as any).source || 'manual').trim().toLowerCase();
                     const source = sourceRaw || 'manual';
@@ -2021,7 +2027,9 @@ export async function getAdminJsRouter(): Promise<Router> {
                       return {
                         notice: {
                           type: summary.invalid > 0 ? 'warning' : 'success',
-                          message: `URI import done: imported=${summary.imported} invalid=${summary.invalid} conflicts=${summary.conflicts}`,
+                          message: summary.invalid > 0
+                            ? `URI import done: imported=${summary.imported} invalid=${summary.invalid} conflicts=${summary.conflicts} (first invalid line: ${summary.errors[0]?.line ?? '-'})`
+                            : `URI import done: imported=${summary.imported} invalid=${summary.invalid} conflicts=${summary.conflicts}`,
                         },
                         redirectUrl: context.h.resourceUrl({ resourceId: context.resource.id() }),
                       };
