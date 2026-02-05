@@ -12,6 +12,7 @@ import { imageResourceOptions } from './resources/images';
 import { importResourceOptions } from './resources/imports';
 import { adminAuditResourceOptions } from './resources/adminAudits';
 import { requestLogResourceOptions } from './resources/requestLogs';
+import { pixivTokenResourceOptions } from './resources/pixivTokens';
 
 let cachedRouter: Router | null = null;
 let cachedPromise: Promise<Router> | null = null;
@@ -695,6 +696,10 @@ export async function getAdminJsRouter(): Promise<Router> {
           {
             resource: { model: getModelByName('Tag', prismaClientModule), client: prisma, clientModule: prismaClientModule },
             options: { navigation: { name: '数据', icon: 'Database' }, label: '标签' },
+          },
+          {
+            resource: { model: getModelByName('PixivToken', prismaClientModule), client: prisma, clientModule: prismaClientModule },
+            options: pixivTokenResourceOptions,
           },
           {
             resource: {

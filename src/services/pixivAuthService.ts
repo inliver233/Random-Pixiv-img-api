@@ -508,3 +508,36 @@ export function resetPixivTokenRefreshFailures(tokenId: string): { ok: true } | 
 
   return { ok: true };
 }
+
+export async function testRefreshToken(refreshToken: string): Promise<
+  | { ok: true; expires_in: number }
+  | { ok: false; status: number | null; code: string; message: string }
+> {
+  try {
+    const res = await refreshAccessToken(refreshToken);
+    return { ok: true, expires_in: res.expires_in };
+  } catch (err: unknown) {
+    const anyErr = err as any;
+    const statusRaw = anyErr?.response?.status;
+    const status = typeof statusRaw === 'number' && Number.isFinite(statusRaw) ? statusRaw : null;
+
+    const code = typeof anyErr?.code === 'string' && anyErr.code
+      ? anyErr.code
+      : status
+        ? `upstream_${status}`
+        : 'refresh_failed';
+
+    let message =
+      anyErr instanceof Error
+        ? anyErr.message
+        : typeof anyErr?.message === 'string' && anyErr.message
+          ? anyErr.message
+          : 'Refresh token test failed.';
+
+    if (refreshToken && typeof message === 'string' && message.includes(refreshToken)) {
+      message = message.split(refreshToken).join('[redacted]');
+    }
+
+    return { ok: false, status, code, message };
+  }
+}
