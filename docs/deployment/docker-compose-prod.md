@@ -41,6 +41,19 @@ BACKEND_LOG_MAX_SIZE=10m BACKEND_LOG_MAX_FILE=3 docker compose up -d --build
 docker compose -f docker-compose.yml config
 ```
 
+## 多实例部署（水平扩展）
+
+当你以多个 backend 实例（多容器/多进程）部署并共享同一个 Postgres 时，本项目支持用 **Postgres LISTEN/NOTIFY** 做运行时配置变更广播：
+- AdminJS 修改运行时配置 / Token / 代理池后，会触发本机缓存失效，并向 DB 发送 `NOTIFY`。
+- 其它实例收到通知后会立即失效本地缓存（不需要等待 TTL），降低“热更新不同步”的窗口。
+
+降级策略：
+- 若 NOTIFY 不可用（网络/权限/DB 断连等），各实例仍会按本地缓存 TTL 自动回源 DB（可用性优先，但同步会有延迟）。
+
+可选环境变量：
+- `RUNTIME_NOTIFY_ENABLED`：是否启用 LISTEN/NOTIFY（默认 `true`）
+- `RUNTIME_NOTIFY_CHANNEL`：通知 channel 名（默认 `pixivcat_runtime_cache_invalidate`）
+
 ## 备注：docker-compose.prod.yml
 
 仓库仍保留 `docker-compose.prod.yml` 作为历史 overlay（便于旧部署脚本兼容）。

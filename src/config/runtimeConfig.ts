@@ -6,6 +6,7 @@ import { invalidateProxyEndpointCache } from '../proxy/proxyEndpointStore';
 import { invalidateTokenStoreCache } from '../services/tokenStore';
 
 import { getRuntimeConfigDefaults, resolveRuntimeConfig, type RuntimeConfig } from './runtimeSettings';
+import { ensureRuntimeCacheNotifyListenerStarted, publishRuntimeCacheInvalidation } from './notify';
 
 export type RuntimeConfigSource = 'db' | 'defaults' | 'cache';
 
@@ -29,6 +30,7 @@ declare global {
 }
 
 const DEFAULT_CACHE_TTL_MS = 1000;
+let notifyListenerHooked = false;
 
 function getRuntimeConfigState(): RuntimeConfigState {
   globalThis.__pixivcatRuntimeConfigState ??= { version: 0, cache: null, inFlight: null, proxyDisabledWarnedAtVersion: -1 };
@@ -37,6 +39,23 @@ function getRuntimeConfigState(): RuntimeConfigState {
 
 function hasDatabaseUrl(): boolean {
   return Boolean(String(process.env.DATABASE_URL || '').trim());
+}
+
+function ensureRuntimeNotifyListener(): void {
+  if (notifyListenerHooked) return;
+  if (process.env.NODE_ENV === 'test') return;
+  if (!hasDatabaseUrl()) return;
+
+  notifyListenerHooked = true;
+  ensureRuntimeCacheNotifyListenerStarted({
+    onInvalidation: (options) => {
+      try {
+        invalidateRuntimeCaches(options, { broadcast: false });
+      } catch {
+        // best-effort
+      }
+    },
+  });
 }
 
 async function loadFromDb(prisma: PrismaClient): Promise<RuntimeConfig> {
@@ -77,7 +96,7 @@ export type RuntimeCacheInvalidation = {
   proxies?: boolean;
 };
 
-export function invalidateRuntimeCaches(options: RuntimeCacheInvalidation = {}): number {
+export function invalidateRuntimeCaches(options: RuntimeCacheInvalidation = {}, params: { broadcast?: boolean } = {}): number {
   const state = getRuntimeConfigState();
 
   const empty = options.settings === undefined && options.tokens === undefined && options.proxies === undefined;
@@ -100,6 +119,16 @@ export function invalidateRuntimeCaches(options: RuntimeCacheInvalidation = {}):
     invalidateProxyEndpointCache();
   }
 
+  const shouldBroadcast = params.broadcast ?? true;
+  if (shouldBroadcast) {
+    ensureRuntimeNotifyListener();
+    void publishRuntimeCacheInvalidation({
+      settings: Boolean(invalidateSettings),
+      tokens: Boolean(invalidateTokens),
+      proxies: Boolean(invalidateProxies),
+    });
+  }
+
   return state.version;
 }
 
@@ -108,6 +137,7 @@ export async function getRuntimeConfigSnapshot(params: {
   cacheTtlMs?: number;
 } = {}): Promise<RuntimeConfigSnapshot> {
   const state = getRuntimeConfigState();
+  ensureRuntimeNotifyListener();
 
   const ttl = params.cacheTtlMs ?? DEFAULT_CACHE_TTL_MS;
   const now = Date.now();
