@@ -87,6 +87,8 @@ function wantsJson(req: Request): boolean {
 
   return (
     path.startsWith('/images')
+    || path.startsWith('/tags')
+    || path.startsWith('/authors')
     || path.startsWith('/admin')
     || path.startsWith('/metrics')
     || path.startsWith('/healthz')

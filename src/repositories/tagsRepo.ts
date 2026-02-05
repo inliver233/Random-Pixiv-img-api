@@ -110,3 +110,71 @@ export async function syncImageTags(imageId: bigint, tags: UpsertTagInput[]) {
 
   return { added: tagIdsToAdd.length, removed: tagIdsToRemove.length };
 }
+
+export type TagSearchParams = {
+  q?: string | null;
+  limit: number;
+  cursor?: bigint | null;
+};
+
+export type TagSearchItem = {
+  id: bigint;
+  name: string;
+  translatedName: string | null;
+  imageCount: number;
+};
+
+function normalizeOptionalQuery(value: string | null | undefined): string | undefined {
+  const trimmed = String(value ?? '').trim();
+  return trimmed ? trimmed : undefined;
+}
+
+export async function searchTags(params: TagSearchParams): Promise<{ items: TagSearchItem[]; nextCursor: bigint | null }> {
+  const prisma = getPrismaClient();
+
+  const q = normalizeOptionalQuery(params.q);
+  const limit = Math.max(1, Math.min(100, Math.trunc(params.limit || 20)));
+  const cursor = params.cursor ?? null;
+
+  const and: Prisma.TagWhereInput[] = [];
+  if (cursor) {
+    and.push({ id: { gt: cursor } });
+  }
+
+  if (q) {
+    and.push({
+      OR: [
+        { name: { contains: q, mode: 'insensitive' } },
+        { translatedName: { contains: q, mode: 'insensitive' } },
+      ],
+    });
+  }
+
+  const where: Prisma.TagWhereInput = and.length > 0 ? { AND: and } : {};
+
+  const rows = await prisma.tag.findMany({
+    where,
+    orderBy: { id: 'asc' },
+    take: limit + 1,
+    select: {
+      id: true,
+      name: true,
+      translatedName: true,
+      _count: { select: { imageTags: true } },
+    },
+  });
+
+  const hasMore = rows.length > limit;
+  const pageRows = hasMore ? rows.slice(0, limit) : rows;
+  const nextCursor = hasMore ? pageRows[pageRows.length - 1]!.id : null;
+
+  return {
+    items: pageRows.map((row: any) => ({
+      id: row.id as bigint,
+      name: String(row.name || ''),
+      translatedName: row.translatedName ?? null,
+      imageCount: Number(row?._count?.imageTags ?? 0),
+    })),
+    nextCursor,
+  };
+}

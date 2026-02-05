@@ -303,6 +303,72 @@ function buildPickRandomBaseWhere(filters: PickRandomFilters) {
   return where;
 }
 
+export async function listImagesWithTags(
+  filters: PickRandomFilters,
+  params: { limit: number; cursor?: bigint | null },
+): Promise<{ items: any[]; nextCursor: bigint | null }> {
+  const prisma = getPrismaClient();
+
+  const limit = Math.max(1, Math.min(200, Math.trunc(params.limit || 50)));
+  const cursor = params.cursor ?? null;
+
+  if (filters.minPixels !== undefined && filters.minPixels !== null) {
+    const conditions = buildPickRandomSqlConditions(filters);
+    if (cursor) {
+      conditions.push(Prisma.sql`id < ${cursor}`);
+    }
+
+    const idRows = await prisma.$queryRaw<{ id: bigint | string }[]>(
+      Prisma.sql`
+        SELECT id
+        FROM images
+        WHERE ${Prisma.join(conditions, ' AND ')}
+        ORDER BY id DESC
+        LIMIT ${limit + 1}
+      `,
+    );
+
+    const ids = idRows
+      .map((row) => row?.id)
+      .filter((id): id is bigint | string => id !== undefined && id !== null)
+      .map((id) => (typeof id === 'bigint' ? id : BigInt(id)));
+
+    const hasMore = ids.length > limit;
+    const pageIds = hasMore ? ids.slice(0, limit) : ids;
+    const nextCursor = hasMore && pageIds.length > 0 ? pageIds[pageIds.length - 1]! : null;
+
+    if (pageIds.length === 0) {
+      return { items: [], nextCursor: null };
+    }
+
+    const rows = await prisma.image.findMany({
+      where: { id: { in: pageIds } },
+      include: { imageTags: { include: { tag: true } } },
+      orderBy: { id: 'desc' },
+    });
+
+    return { items: rows, nextCursor };
+  }
+
+  const where = buildPickRandomBaseWhere(filters);
+  if (cursor) {
+    where.id = { lt: cursor };
+  }
+
+  const rows = await prisma.image.findMany({
+    where,
+    include: { imageTags: { include: { tag: true } } },
+    orderBy: { id: 'desc' },
+    take: limit + 1,
+  });
+
+  const hasMore = rows.length > limit;
+  const pageRows = hasMore ? rows.slice(0, limit) : rows;
+  const nextCursor = hasMore && pageRows.length > 0 ? (pageRows[pageRows.length - 1] as any).id as bigint : null;
+
+  return { items: pageRows, nextCursor };
+}
+
 async function pickRandomByRandomKey(filters: PickRandomFilters, r: number) {
   if (filters.minPixels !== undefined && filters.minPixels !== null) {
     return pickRandomByRandomKeyRaw(filters, r);
