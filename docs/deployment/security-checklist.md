@@ -11,10 +11,24 @@
 
 - [ ] `REFRESH_TOKENS` 不进 git（使用部署平台 secret 注入或服务器本地 `.env`）
 - [ ] （可选）后台鉴权 `ADMIN_TOKEN` 不进 git
+- [ ] （可选）easy_proxies 密码（如启用）不进 git（同样用 secret 注入）
 - [ ] 数据库口令（`POSTGRES_PASSWORD` 等）不进 git
 - [ ] `.dockerignore` 已忽略 `.env*` 等敏感文件，避免被打包进 build context
 - [ ] Docker 镜像构建过程不复制 `.env`/secrets（仅通过运行时环境变量注入）
 - [ ] 日志/响应不得输出明文 token
+
+## 1.5) 管理后台（/admin）与导入能力
+
+> 说明：后台包含 ProxyEndpoint 管理、easy_proxies 导入、URL 导入与相关运行时配置。必须确保这些能力只在 admin 体系内可用。
+
+- [ ] 生产环境必须设置强随机 `ADMIN_TOKEN`（推荐 ≥ 32 字符），不要使用弱口令/默认值
+- [ ] `ADMIN_TOKEN` 仅用于 admin：不应在任何公开 API 响应/日志中出现（含 querystring、header、body）
+- [ ] （推荐）设置 `ADMIN_IP_ALLOWLIST` 将 `/admin` 访问限制在内网/VPN/IP 段内（见 `../admin.md`）
+- [ ] （推荐）如通过反代/HTTPS 终止部署：配置 `TRUST_PROXY`，确保 `req.secure` 与客户端 IP 获取正确（cookie Secure、IP allowlist 依赖）
+- [ ] （可选）启用账号+session 登录：`ADMIN_SESSION_AUTH_ENABLED=true` 并配置 `ADMIN_SESSION_*`（见 `../admin.md`）
+- [ ] （可选）启用 CSRF：`ADMIN_CSRF_ENABLED=true`（cookie/session 模式建议开启；反代场景可配 `ADMIN_CSRF_ALLOWED_ORIGINS`）
+- [ ] （可选）启用后台写操作限流：`ADMIN_RATE_LIMIT_ENABLED=true`（防爆破/误操作）
+- [ ] 确认导入与代理管理仅在 `/admin` 下可触达：不带 `ADMIN_TOKEN`（且未登录 session）访问应返回 `401/403`
 
 ## 2) 端口暴露 / 网络隔离
 

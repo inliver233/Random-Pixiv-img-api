@@ -232,9 +232,6 @@ function extractToken(req: Request): string | null {
   const headerToken = req.header('x-admin-token');
   if (headerToken && headerToken.trim()) return headerToken.trim();
 
-  const queryToken = req.query?.token;
-  if (typeof queryToken === 'string' && queryToken.trim()) return queryToken.trim();
-
   const cookieToken = parseCookie(req.header('cookie') || '', 'admin_token');
   if (cookieToken && cookieToken.trim()) return cookieToken.trim();
 
@@ -295,7 +292,15 @@ export default function adminAuth(req: Request, res: Response, next: NextFunctio
   }
 
   const expected = String(process.env.ADMIN_TOKEN || '').trim();
-  const provided = extractToken(req);
+  const queryToken = typeof req.query?.token === 'string' ? req.query.token.trim() : null;
+  const queryTokenAllowed = Boolean(queryToken)
+    && req.method === 'GET'
+    && String(req.path || '') === '/';
+
+  let provided = extractToken(req);
+  if (!provided && queryTokenAllowed) {
+    provided = queryToken;
+  }
 
   if (!expected || !provided || provided !== expected) {
     const accept = (req.header('accept') || '').toLowerCase();
@@ -335,17 +340,15 @@ export default function adminAuth(req: Request, res: Response, next: NextFunctio
     return;
   }
 
-  if (typeof req.query?.token === 'string') {
+  if (queryTokenAllowed) {
     // First-time browser access: persist token as cookie to allow subsequent asset/API requests.
     setAdminTokenCookie(req, res, provided);
 
-    if (req.method === 'GET') {
-      // Redirect to the same path without the token query param to keep it out of the URL bar.
-      const u = new URL(`http://localhost${req.originalUrl}`);
-      u.searchParams.delete('token');
-      res.redirect(302, `${u.pathname}${u.search}`);
-      return;
-    }
+    // Redirect to the same path without the token query param to keep it out of the URL bar.
+    const u = new URL(`http://localhost${req.originalUrl}`);
+    u.searchParams.delete('token');
+    res.redirect(302, `${u.pathname}${u.search}`);
+    return;
   }
 
   next();

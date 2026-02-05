@@ -204,9 +204,6 @@ function extractToken(req) {
   const headerToken = req.get('x-admin-token');
   if (headerToken && headerToken.trim()) return headerToken.trim();
 
-  const queryToken = req.query && req.query.token;
-  if (typeof queryToken === 'string' && queryToken.trim()) return queryToken.trim();
-
   const cookieToken = parseCookie(req.get('cookie') || '', 'admin_token');
   if (cookieToken && cookieToken.trim()) return cookieToken.trim();
 
@@ -267,7 +264,15 @@ function adminAuth(req, res, next) {
   }
 
   const expected = String(process.env.ADMIN_TOKEN || '').trim();
-  const provided = extractToken(req);
+  const queryToken = req.query && typeof req.query.token === 'string' ? req.query.token.trim() : null;
+  const queryTokenAllowed = Boolean(queryToken)
+    && req.method === 'GET'
+    && String(req.path || '') === '/';
+
+  let provided = extractToken(req);
+  if (!provided && queryTokenAllowed) {
+    provided = queryToken;
+  }
 
   if (!expected || !provided || provided !== expected) {
     const accept = String(req.get('accept') || '').toLowerCase();
@@ -307,15 +312,13 @@ function adminAuth(req, res, next) {
     return;
   }
 
-  if (req.query && typeof req.query.token === 'string') {
+  if (queryTokenAllowed) {
     setAdminTokenCookie(res, provided);
 
-    if (req.method === 'GET') {
-      const u = new URL(`http://localhost${req.originalUrl}`);
-      u.searchParams.delete('token');
-      res.redirect(302, `${u.pathname}${u.search}`);
-      return;
-    }
+    const u = new URL(`http://localhost${req.originalUrl}`);
+    u.searchParams.delete('token');
+    res.redirect(302, `${u.pathname}${u.search}`);
+    return;
   }
 
   next();
