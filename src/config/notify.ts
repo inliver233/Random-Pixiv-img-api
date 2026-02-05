@@ -26,7 +26,7 @@ type RuntimeCacheNotifyState = {
   started: boolean;
   startError: string | null;
   client: Client | null;
-  reconnectTimer: NodeJS.Timeout | null;
+  reconnectTimer: ReturnType<typeof setTimeout> | null;
   reconnectDelayMs: number;
   listener: RuntimeCacheNotifyListenerParams | null;
 };
@@ -275,4 +275,3 @@ export async function publishRuntimeCacheInvalidation(options: RuntimeCacheInval
     }
   }
 }
-

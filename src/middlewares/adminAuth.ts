@@ -1,8 +1,19 @@
 import type { NextFunction, Request, Response } from 'express';
+import crypto from 'node:crypto';
 import net from 'node:net';
 
 function getRequestId(req: Request, res: Response): string | undefined {
   return (req as any).request_id || res.locals.request_id;
+}
+
+function timingSafeEquals(provided: string, expected: string): boolean {
+  try {
+    const a = crypto.createHash('sha256').update(provided).digest();
+    const b = crypto.createHash('sha256').update(expected).digest();
+    return crypto.timingSafeEqual(a, b);
+  } catch {
+    return false;
+  }
 }
 
 type AdminIpAllowlist = {
@@ -302,7 +313,9 @@ export default function adminAuth(req: Request, res: Response, next: NextFunctio
     provided = queryToken;
   }
 
-  if (!expected || !provided || provided !== expected) {
+  const authorized = Boolean(expected) && Boolean(provided) && timingSafeEquals(provided, expected);
+
+  if (!authorized) {
     const accept = (req.header('accept') || '').toLowerCase();
     const wantsHtml = accept.includes('text/html');
 
