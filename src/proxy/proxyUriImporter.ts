@@ -84,25 +84,27 @@ export async function importProxyUriLines(params: ImportProxyUriLinesParams): Pr
     try {
       const parsed = parseProxyUri(uri);
 
-      const existing = await prisma.proxyEndpoint.findUnique({
-        where: {
-          scheme_host_port_username: {
-            scheme: parsed.scheme as ProxyScheme,
-            host: parsed.host,
-            port: parsed.port,
-            username: parsed.username,
+      if (conflictPolicy !== 'overwrite') {
+        const existing = await prisma.proxyEndpoint.findUnique({
+          where: {
+            scheme_host_port_username: {
+              scheme: parsed.scheme as ProxyScheme,
+              host: parsed.host,
+              port: parsed.port,
+              username: parsed.username,
+            },
           },
-        },
-        select: { source: true },
-      });
+          select: { source: true },
+        });
 
-      if (shouldSkipByPolicy({
-        existingSource: existing?.source ?? null,
-        source,
-        conflictPolicy,
-      })) {
-        conflicts += 1;
-        continue;
+        if (shouldSkipByPolicy({
+          existingSource: existing?.source ?? null,
+          source,
+          conflictPolicy,
+        })) {
+          conflicts += 1;
+          continue;
+        }
       }
 
       await prisma.proxyEndpoint.upsert({
