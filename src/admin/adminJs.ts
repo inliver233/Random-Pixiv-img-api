@@ -5,7 +5,12 @@ import { getPrismaClient } from '../db/prismaClient';
 import { auditAdminModelChange } from '../audit/adminAudit';
 import { getOutboundErrorsTotalCounter } from '../metrics/outboundMetrics';
 import { extractFirstSampleValue, extractVectorSamples, queryPrometheusInstant } from '../metrics/prometheusQueryClient';
-import { importProxyEndpointsFromEasyProxies } from '../proxy/easyProxiesImporter';
+import {
+  ensureEasyProxiesAutoRefreshStarted,
+  getEasyProxiesAutoRefreshSnapshot,
+  importProxyEndpointsFromEasyProxies,
+  loadEasyProxiesRuntimeConfig,
+} from '../proxy/easyProxiesImporter';
 import { getProxyHealthOptions, getProxyHealthReport, runProxyHealthCheckOnce } from '../proxy/healthCheck';
 import { pickPrimaryProxyRendezvous, resolveEffectiveProxy } from '../proxy/tokenProxyBinding';
 import * as PrismaModule from '@prisma/client';
@@ -319,6 +324,12 @@ export async function getAdminJsRouter(): Promise<Router> {
     const prisma = getPrismaClient();
     const auditViewEnabled = parseBooleanEnv(process.env.ADMIN_AUDIT_VIEW_ENABLED, true);
 
+    try {
+      ensureEasyProxiesAutoRefreshStarted({ prisma });
+    } catch {
+      // best-effort
+    }
+
     const ComponentLoader = (adminJSImport as any).ComponentLoader as new () => any;
     const componentLoader = new ComponentLoader();
     // AdminJS bundler parses JSX reliably from .jsx/.tsx but not from plain .js in some environments.
@@ -326,6 +337,7 @@ export async function getAdminJsRouter(): Promise<Router> {
     const ImportUrls = componentLoader.add('ImportUrls', path.join(__dirname, 'pages', 'importUrls.jsx'));
     const TokenProxyBindings = componentLoader.add('TokenProxyBindings', path.join(__dirname, 'pages', 'tokenProxyBindings.jsx'));
     const ProxyPoolOverview = componentLoader.add('ProxyPoolOverview', path.join(__dirname, 'pages', 'proxyPoolOverview.jsx'));
+    const EasyProxiesImport = componentLoader.add('EasyProxiesImport', path.join(__dirname, 'pages', 'easyProxiesImport.jsx'));
 
     const admin = new AdminJS({
       rootPath: '/admin',
@@ -350,6 +362,52 @@ export async function getAdminJsRouter(): Promise<Router> {
               adminImportMaxLines: env.ADMIN_IMPORT_MAX_LINES,
               note: '实际导入接口：/admin/images/import。本页面用于预览、去重与分批提交（更适合 1Panel/Cloudflare 反代）。',
             };
+          },
+        },
+        easyProxiesImport: {
+          label: 'easy_proxies 导入/刷新',
+          component: EasyProxiesImport,
+          handler: async () => {
+            try {
+              const config = await loadEasyProxiesRuntimeConfig({ prisma });
+              const autoRefresh = getEasyProxiesAutoRefreshSnapshot();
+
+              const envBaseUrl = String(process.env.EASY_PROXIES_BASE_URL || '').trim() || null;
+              const envPasswordConfigured = Boolean(String(process.env.EASY_PROXIES_PASSWORD || '').trim());
+
+              let proxyCounts: { total: number; enabled_total: number; easy_total: number; easy_enabled: number } | null = null;
+              try {
+                const [total, enabledTotal, easyTotal, easyEnabled] = await Promise.all([
+                  prisma.proxyEndpoint.count(),
+                  prisma.proxyEndpoint.count({ where: { enabled: true } }),
+                  prisma.proxyEndpoint.count({ where: { source: 'easy_proxies' } }),
+                  prisma.proxyEndpoint.count({ where: { source: 'easy_proxies', enabled: true } }),
+                ]);
+                proxyCounts = { total, enabled_total: enabledTotal, easy_total: easyTotal, easy_enabled: easyEnabled };
+              } catch {
+                proxyCounts = null;
+              }
+
+              return {
+                ok: true,
+                generated_at: new Date().toISOString(),
+                config: {
+                  source: config.source,
+                  base_url: config.baseUrl,
+                  password_configured: Boolean(config.password),
+                  auto_refresh_enabled: config.autoRefreshEnabled,
+                  refresh_interval_ms: config.refreshIntervalMs,
+                },
+                auto_refresh: autoRefresh,
+                proxies: proxyCounts,
+                env: {
+                  base_url: envBaseUrl,
+                  password_configured: envPasswordConfigured,
+                },
+              };
+            } catch (err: unknown) {
+              return { ok: false, error: err instanceof Error ? err.message : String(err) };
+            }
           },
         },
         tokenProxyBindings: {
@@ -1553,6 +1611,136 @@ export async function getAdminJsRouter(): Promise<Router> {
                     }
                   },
                 },
+                easyProxiesConfigSave: {
+                  actionType: 'resource',
+                  icon: 'Settings',
+                  label: 'easy_proxies 配置保存',
+                  guard: 'Save easy_proxies config? (Password will not be displayed)',
+                  handler: async (request: any, _res: any, context: any) => {
+                    if (String(request?.method || '').toLowerCase() === 'get') {
+                      return {};
+                    }
+
+                    const normalizeOptionalText = (value: unknown): string | null => {
+                      if (value === undefined || value === null) return null;
+                      const s = String(value).trim();
+                      return s ? s : null;
+                    };
+
+                    const coerceBoolean = (value: unknown, defaultValue: boolean): boolean => {
+                      if (typeof value === 'boolean') return value;
+                      if (typeof value === 'number') return value !== 0;
+                      if (typeof value !== 'string') return defaultValue;
+                      const normalized = value.trim().toLowerCase();
+                      if (['1', 'true', 'yes', 'y', 'on'].includes(normalized)) return true;
+                      if (['0', 'false', 'no', 'n', 'off'].includes(normalized)) return false;
+                      return defaultValue;
+                    };
+
+                    const payload = request?.payload && typeof request.payload === 'object' ? request.payload : {};
+
+                    const baseUrlRaw = normalizeOptionalText((payload as any).base_url ?? (payload as any).baseUrl);
+                    let baseUrl: string | null = null;
+                    try {
+                      baseUrl = baseUrlRaw ? new URL(baseUrlRaw).origin : null;
+                    } catch (err: unknown) {
+                      return {
+                        notice: { type: 'error', message: err instanceof Error ? err.message : String(err) },
+                        redirectUrl: context.h.resourceUrl({ resourceId: context.resource.id() }),
+                      };
+                    }
+
+                    const clearPassword = coerceBoolean((payload as any).clear_password ?? (payload as any).clearPassword, false);
+                    const passwordInput = normalizeOptionalText((payload as any).password);
+
+                    const autoRefreshEnabled = coerceBoolean(
+                      (payload as any).auto_refresh_enabled ?? (payload as any).autoRefreshEnabled,
+                      true,
+                    );
+
+                    const refreshIntervalRaw = (payload as any).refresh_interval_ms ?? (payload as any).refreshIntervalMs;
+                    const refreshIntervalParsed = safeParseNumber(refreshIntervalRaw);
+                    const refreshIntervalMs = Math.max(
+                      60_000,
+                      Number.isFinite(Number(refreshIntervalParsed))
+                        ? Math.trunc(Number(refreshIntervalParsed))
+                        : 30 * 60_000,
+                    );
+
+                    let previousValue: any = null;
+                    try {
+                      previousValue = await prisma.runtimeSetting.findUnique({
+                        where: { key: 'easy_proxies_config' },
+                        select: { value: true },
+                      });
+                    } catch {
+                      previousValue = null;
+                    }
+
+                    const previousObj = previousValue?.value && typeof previousValue.value === 'object'
+                      ? (previousValue.value as Record<string, unknown>)
+                      : null;
+                    const previousPassword =
+                      previousObj && typeof previousObj.password === 'string' && previousObj.password.trim()
+                        ? previousObj.password
+                        : undefined;
+                    const previousBaseUrl =
+                      previousObj && typeof (previousObj as any).baseUrl === 'string' && String((previousObj as any).baseUrl).trim()
+                        ? String((previousObj as any).baseUrl).trim()
+                        : previousObj && typeof (previousObj as any).base_url === 'string' && String((previousObj as any).base_url).trim()
+                          ? String((previousObj as any).base_url).trim()
+                          : null;
+
+                    const nextPassword = clearPassword ? undefined : (passwordInput || previousPassword);
+                    const passwordConfigured = Boolean(nextPassword);
+
+                    try {
+                      // eslint-disable-next-line @typescript-eslint/no-var-requires
+                      const { upsertRuntimeSetting } = require('../config/runtimeSettings') as typeof import('../config/runtimeSettings');
+
+                      await upsertRuntimeSetting('easy_proxies_config', {
+                        baseUrl,
+                        password: nextPassword,
+                        autoRefreshEnabled,
+                        refreshIntervalMs,
+                      }, {
+                        updatedBy: request?.session?.admin_user,
+                        updatedFromIp: request?.ip,
+                        updatedRequestId: request?.request_id || request?.headers?.['x-request-id'],
+                      }, prisma);
+
+                      try {
+                        ensureEasyProxiesAutoRefreshStarted({ prisma });
+                      } catch {
+                        // best-effort
+                      }
+
+                      auditAdminModelChange({
+                        action: 'easy_proxies_config_save',
+                        resource: 'RuntimeSetting',
+                        record_id: 'easy_proxies_config',
+                        req: request,
+                        detail: {
+                          previous_base_url: previousBaseUrl,
+                          next_base_url: baseUrl,
+                          password_configured: passwordConfigured,
+                          auto_refresh_enabled: autoRefreshEnabled,
+                          refresh_interval_ms: refreshIntervalMs,
+                        },
+                      });
+
+                      return {
+                        notice: { type: 'success', message: 'easy_proxies config saved' },
+                        redirectUrl: context.h.resourceUrl({ resourceId: context.resource.id() }),
+                      };
+                    } catch (err: unknown) {
+                      return {
+                        notice: { type: 'error', message: err instanceof Error ? err.message : String(err) },
+                        redirectUrl: context.h.resourceUrl({ resourceId: context.resource.id() }),
+                      };
+                    }
+                  },
+                },
                 easyProxiesImport: {
                   actionType: 'resource',
                   icon: 'Download',
@@ -1563,17 +1751,25 @@ export async function getAdminJsRouter(): Promise<Router> {
                       return {};
                     }
 
-                    const baseUrl = String(process.env.EASY_PROXIES_BASE_URL || '').trim();
-                    const password = String(process.env.EASY_PROXIES_PASSWORD || '').trim() || undefined;
-                    if (!baseUrl) {
+                    const config = await loadEasyProxiesRuntimeConfig({ prisma });
+                    if (!config.baseUrl) {
                       return {
-                        notice: { type: 'error', message: 'Missing EASY_PROXIES_BASE_URL.' },
+                        notice: { type: 'error', message: 'Missing easy_proxies baseUrl. Configure it in the easy_proxies 导入/刷新 page.' },
                         redirectUrl: context.h.resourceUrl({ resourceId: context.resource.id() }),
                       };
                     }
 
+                    const conflictPolicy = 'skip_non_easy_proxies' as const;
+
                     try {
-                      const result = await importProxyEndpointsFromEasyProxies({ baseUrl, password });
+                      const result = await importProxyEndpointsFromEasyProxies({
+                        baseUrl: config.baseUrl,
+                        password: config.password,
+                        prisma,
+                        conflictPolicy,
+                        sourceRef: config.baseUrl,
+                        enabled: true,
+                      });
                       if (!result.ok) {
                         return {
                           notice: { type: 'error', message: `easy_proxies import failed: ${result.status}` },
@@ -1598,15 +1794,84 @@ export async function getAdminJsRouter(): Promise<Router> {
                           total_lines: result.total_lines,
                           imported: result.imported,
                           invalid: result.invalid,
+                          conflicts: result.conflicts,
                           token_used: result.token_used,
+                          conflict_policy: conflictPolicy,
                         },
                       });
 
                       return {
                         notice: {
                           type: 'success',
-                          message: `Imported: ${result.imported}/${result.total_lines} (invalid:${result.invalid})`,
+                          message: `Imported: ${result.imported}/${result.total_lines} (invalid:${result.invalid} conflicts:${result.conflicts})`,
                         },
+                        redirectUrl: context.h.resourceUrl({ resourceId: context.resource.id() }),
+                      };
+                    } catch (err: unknown) {
+                      return {
+                        notice: { type: 'error', message: err instanceof Error ? err.message : String(err) },
+                        redirectUrl: context.h.resourceUrl({ resourceId: context.resource.id() }),
+                      };
+                    }
+                  },
+                },
+                easyProxiesRollback: {
+                  actionType: 'resource',
+                  icon: 'Undo',
+                  label: 'easy_proxies 回滚到手动代理列表',
+                  guard: 'Disable easy_proxies endpoints and disable auto-refresh? Continue?',
+                  handler: async (request: any, _res: any, context: any) => {
+                    if (String(request?.method || '').toLowerCase() === 'get') {
+                      return {};
+                    }
+
+                    try {
+                      const disabled = await prisma.proxyEndpoint.updateMany({
+                        where: { source: 'easy_proxies' },
+                        data: { enabled: false },
+                      });
+
+                      const config = await loadEasyProxiesRuntimeConfig({ prisma });
+                      if (config.baseUrl) {
+                        try {
+                          // eslint-disable-next-line @typescript-eslint/no-var-requires
+                          const { upsertRuntimeSetting } = require('../config/runtimeSettings') as typeof import('../config/runtimeSettings');
+                          await upsertRuntimeSetting('easy_proxies_config', {
+                            baseUrl: config.baseUrl,
+                            password: config.password,
+                            autoRefreshEnabled: false,
+                            refreshIntervalMs: config.refreshIntervalMs,
+                          }, {
+                            updatedBy: request?.session?.admin_user,
+                            updatedFromIp: request?.ip,
+                            updatedRequestId: request?.request_id || request?.headers?.['x-request-id'],
+                          }, prisma);
+                        } catch {
+                          // ignore
+                        }
+                      }
+
+                      try {
+                        // eslint-disable-next-line @typescript-eslint/no-var-requires
+                        const { invalidateRuntimeCaches } = require('../config/runtimeConfig') as typeof import('../config/runtimeConfig');
+                        invalidateRuntimeCaches({ proxies: true });
+                      } catch {
+                        // best-effort
+                      }
+
+                      auditAdminModelChange({
+                        action: 'easy_proxies_rollback',
+                        resource: 'ProxyEndpoint',
+                        req: request,
+                        detail: {
+                          disabled_count: disabled.count,
+                          auto_refresh_disabled: true,
+                          baseUrl: config.baseUrl,
+                        },
+                      });
+
+                      return {
+                        notice: { type: 'success', message: `Rollback ok (disabled=${disabled.count} auto_refresh_enabled=false)` },
                         redirectUrl: context.h.resourceUrl({ resourceId: context.resource.id() }),
                       };
                     } catch (err: unknown) {
