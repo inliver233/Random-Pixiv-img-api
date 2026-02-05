@@ -343,6 +343,13 @@ export const getAccessToken = async (): Promise<string> => {
 
     const now = Date.now();
     if (auth[tokenIndex].expireTimestamp >= now && auth[tokenIndex].accessToken) {
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-var-requires
+        const { incrementPixivTokenUseTotal } = require('../metrics/pixivTokenMetrics') as typeof import('../metrics/pixivTokenMetrics');
+        incrementPixivTokenUseTotal(auth[tokenIndex].tokenId);
+      } catch {
+        // best-effort
+      }
       return auth[tokenIndex].accessToken;
     }
   }
@@ -375,6 +382,13 @@ export const getAccessTokenWithMeta = async (): Promise<{ accessToken: string; t
 
     const now = Date.now();
     if (auth[tokenIndex].expireTimestamp >= now && auth[tokenIndex].accessToken) {
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-var-requires
+        const { incrementPixivTokenUseTotal } = require('../metrics/pixivTokenMetrics') as typeof import('../metrics/pixivTokenMetrics');
+        incrementPixivTokenUseTotal(auth[tokenIndex].tokenId);
+      } catch {
+        // best-effort
+      }
       return { accessToken: auth[tokenIndex].accessToken, tokenIndex, tokenId: auth[tokenIndex].tokenId };
     }
   }

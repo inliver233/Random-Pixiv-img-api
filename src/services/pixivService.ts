@@ -152,7 +152,7 @@ const getPixivIllustIdData = async (illustId: string | number, cache = true, opt
         }),
       );
 
-    const fetchWithRetry = async (accessToken: string, proxyUri?: string, tokenIndex?: number, proxyId?: string) =>
+    const fetchWithRetry = async (accessToken: string, proxyUri?: string, tokenId?: string, tokenIndex?: number, proxyId?: string) =>
       retryWithBackoff(
         async () => {
           const fetchWithLimits = async () => {
@@ -179,7 +179,18 @@ const getPixivIllustIdData = async (illustId: string | number, cache = true, opt
             const usedProxy = Boolean((err as any)?.config?.__pixivcat_usedProxy);
             const classification = classifyOutboundError(err, { usedProxy });
             // Avoid amplifying rate limit signals; let the caller handle it explicitly.
-            if (classification.type === 'pixiv_rate_limit') return false;
+            if (classification.type === 'pixiv_rate_limit') {
+              if (typeof tokenId === 'string' && tokenId.trim() !== '') {
+                try {
+                  // eslint-disable-next-line @typescript-eslint/no-var-requires
+                  const { incrementPixivTokenRateLimitTotal } = require('../metrics/pixivTokenMetrics') as typeof import('../metrics/pixivTokenMetrics');
+                  incrementPixivTokenRateLimitTotal(tokenId);
+                } catch {
+                  // best-effort
+                }
+              }
+              return false;
+            }
             return classification.retryable;
           },
         },
@@ -192,10 +203,10 @@ const getPixivIllustIdData = async (illustId: string | number, cache = true, opt
       ? (await runWithTokenProxyFailover({
         getToken,
         proxies,
-        request: async ({ accessToken, tokenIndex, proxyUri, proxyId }) => {
+        request: async ({ accessToken, tokenId, tokenIndex, proxyUri, proxyId }) => {
           const limiterIndex = options.rateLimit ? tokenIndex : undefined;
           const limiterProxyId = options.rateLimit ? proxyId : undefined;
-          return fetchWithRetry(accessToken, proxyUri, limiterIndex, limiterProxyId);
+          return fetchWithRetry(accessToken, proxyUri, tokenId, limiterIndex, limiterProxyId);
         },
         options: {
           poolSalt: 'pool:default',
@@ -205,9 +216,9 @@ const getPixivIllustIdData = async (illustId: string | number, cache = true, opt
         },
       })).value
       : await (async () => {
-        const { accessToken, tokenIndex } = await getToken();
+        const { accessToken, tokenIndex, tokenId } = await getToken();
         const limiterIndex = options.rateLimit ? tokenIndex : undefined;
-        return fetchWithRetry(accessToken, undefined, limiterIndex, undefined);
+        return fetchWithRetry(accessToken, undefined, tokenId, limiterIndex, undefined);
       })();
 
     const status = Number((response as any)?.status);
@@ -254,8 +265,17 @@ const getPixivIllustIdData = async (illustId: string | number, cache = true, opt
     else if (Number.isFinite(status) && status === 404) incrementUpstreamError('404');
     else if (Number.isFinite(status) && status >= 500) incrementUpstreamError('5xx');
 
-    // Other upstream errors
-    logger.error({ err: error }, 'Pixiv service error');
+    // Other upstream errors (avoid logging full Axios error objects that may include tokens).
+    logger.error(
+      {
+        err: {
+          message: error instanceof Error ? error.message : String(error?.message ?? error),
+          code: (error as any)?.code,
+          status: (error as any)?.response?.status,
+        },
+      },
+      'Pixiv service error',
+    );
     const err: any = new Error('Pixiv API request failed');
     err.code = 'upstream';
     throw err;

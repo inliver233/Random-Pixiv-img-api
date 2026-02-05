@@ -8,6 +8,14 @@ const logger = pino({
     paths: [
       'req.headers.authorization',
       'req.headers.cookie',
+      'err.config.headers.authorization',
+      'err.config.headers.Authorization',
+      'err.config.headers.cookie',
+      'err.config.headers.Cookie',
+      'err.config.data',
+      'err.response.config.headers.authorization',
+      'err.response.config.headers.Authorization',
+      'err.response.config.data',
       'refreshToken',
       'refresh_token',
       'accessToken',
@@ -20,4 +28,3 @@ const logger = pino({
 });
 
 module.exports = logger;
-
