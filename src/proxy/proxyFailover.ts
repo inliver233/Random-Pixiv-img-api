@@ -4,6 +4,50 @@ import { classifyOutboundError } from '../resilience/outboundErrors';
 
 import { pickPrimaryProxyRendezvous, planOverride, resolveEffectiveProxy, type TokenProxyBindingLike } from './tokenProxyBinding';
 
+function recordOutboundErrorMetric(type: string): void {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { incrementOutboundError } = require('../metrics/outboundMetrics') as typeof import('../metrics/outboundMetrics');
+    incrementOutboundError(type);
+  } catch {
+    // best-effort
+  }
+}
+
+function isProxyTunnelError(err: unknown): boolean {
+  const msg = String((err as any)?.message ?? '').toLowerCase();
+  if (!msg) return false;
+  return (
+    msg.includes('tunneling socket') ||
+    msg.includes('tunnel') && msg.includes('connect') ||
+    msg.includes('proxy connection ended') && msg.includes('connect')
+  );
+}
+
+function mapClassificationToMetric(err: unknown, type: OutboundErrorClassification['type']): string {
+  switch (type) {
+    case 'proxy_connect':
+      return isProxyTunnelError(err) ? 'proxy_tunnel_error' : 'proxy_connect_error';
+    case 'proxy_auth':
+      return 'proxy_auth_error';
+    case 'pixiv_rate_limit':
+      return 'upstream_rate_limit';
+    case 'pixiv_403':
+      return 'upstream_403';
+    case 'pixiv_5xx':
+      return 'upstream_5xx';
+    case 'timeout':
+      return 'timeout_error';
+    case 'network':
+      return 'network_error';
+    case 'upstream':
+      return 'upstream_error';
+    case 'unknown':
+    default:
+      return 'unknown_error';
+  }
+}
+
 export type TokenMeta = {
   tokenId: string;
   tokenIndex: number;
@@ -143,6 +187,7 @@ export async function runWithTokenProxyFailover<T>(params: {
       } catch (err: unknown) {
         lastErr = err;
         const classification = classify(err, { usedProxy: true });
+        recordOutboundErrorMetric(mapClassificationToMetric(err, classification.type));
         evidence.attempts.push({
           attempt: attemptCounter,
           tokenId: token.tokenId,
@@ -217,6 +262,7 @@ export async function runWithProxyFailover<T>(params: {
     } catch (err: unknown) {
       lastErr = err;
       const classification = classify(err, { usedProxy: true });
+      recordOutboundErrorMetric(mapClassificationToMetric(err, classification.type));
       evidence.attempts.push({ attempt: i, proxyId: p.id, errorType: classification.type });
       if (!isProxyClassFailure(classification.type)) {
         throw attachEvidence(err, evidence);
@@ -226,4 +272,3 @@ export async function runWithProxyFailover<T>(params: {
 
   throw attachEvidence(lastErr, evidence);
 }
-

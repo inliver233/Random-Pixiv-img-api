@@ -4,6 +4,7 @@ const { getMetricsRegistry } = require('../metrics/registry');
 const { ensureHttpMetricsInitialized } = require('../metrics/httpMetrics');
 const { ensureRandomMetricsInitialized } = require('../metrics/randomMetrics');
 const { ensureUpstreamMetricsInitialized } = require('../metrics/upstreamMetrics');
+const { ensureOutboundMetricsInitialized } = require('../metrics/outboundMetrics');
 const { ensureDbMetricsInitialized } = require('../metrics/dbMetrics');
 const { ensureJobMetricsInitialized } = require('../metrics/jobMetrics');
 
@@ -46,6 +47,7 @@ router.get('/', async (req, res) => {
   ensureHttpMetricsInitialized();
   ensureRandomMetricsInitialized();
   ensureUpstreamMetricsInitialized();
+  ensureOutboundMetricsInitialized();
   ensureDbMetricsInitialized();
   ensureJobMetricsInitialized();
 

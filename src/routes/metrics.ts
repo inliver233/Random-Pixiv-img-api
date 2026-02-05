@@ -36,6 +36,8 @@ router.get('/', async (req, res) => {
   // eslint-disable-next-line @typescript-eslint/no-var-requires
   const { ensureUpstreamMetricsInitialized } = require('../metrics/upstreamMetrics') as { ensureUpstreamMetricsInitialized: () => void };
   // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const { ensureOutboundMetricsInitialized } = require('../metrics/outboundMetrics') as { ensureOutboundMetricsInitialized: () => void };
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
   const { ensureDbMetricsInitialized } = require('../metrics/dbMetrics') as { ensureDbMetricsInitialized: () => void };
   // eslint-disable-next-line @typescript-eslint/no-var-requires
   const { ensureJobMetricsInitialized } = require('../metrics/jobMetrics') as { ensureJobMetricsInitialized: () => void };
@@ -55,6 +57,7 @@ router.get('/', async (req, res) => {
   ensureHttpMetricsInitialized();
   ensureRandomMetricsInitialized();
   ensureUpstreamMetricsInitialized();
+  ensureOutboundMetricsInitialized();
   ensureDbMetricsInitialized();
   ensureJobMetricsInitialized();
 
