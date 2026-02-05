@@ -29,11 +29,15 @@ Purpose: consistent verification across projects while allowing framework-specif
 - After all issues in a batch are DONE, run a regression pass.
 - Failures must be fixed before marking Regression_Status = DONE.
 - For this repo, prefer `npm run test:all` (lint + tests + smoke).
+- For proxy-related delivery, also run `pwsh test/proxy-smoke.ps1` against a live backend.
+- One-shot regression helper (repo-specific): `pwsh test/run-regression.ps1`.
 
 ## Command format (examples)
 - `pytest -q`
 - `npm test`
 - `npm run test:all`
 - `npm run smoke`
+- `pwsh test/proxy-smoke.ps1 -BaseUrl http://127.0.0.1:3000`
+- `pwsh test/run-regression.ps1`
 - `pnpm test:e2e`
 - `go test ./...`
