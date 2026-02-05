@@ -5,6 +5,7 @@ import { getPrismaClient } from '../db/prismaClient';
 import { auditAdminModelChange } from '../audit/adminAudit';
 import { extractFirstSampleValue, extractVectorSamples, queryPrometheusInstant } from '../metrics/prometheusQueryClient';
 import { importProxyEndpointsFromEasyProxies } from '../proxy/easyProxiesImporter';
+import { runProxyHealthCheckOnce } from '../proxy/healthCheck';
 import * as PrismaModule from '@prisma/client';
 import { Prisma } from '@prisma/client';
 
@@ -840,6 +841,119 @@ export async function getAdminJsRouter(): Promise<Router> {
                       return {
                         notice: { type: 'error', message: err instanceof Error ? err.message : String(err) },
                         redirectUrl: context.h.resourceUrl({ resourceId: context.resource.id() }),
+                      };
+                    }
+                  },
+                },
+                probe: {
+                  actionType: 'record',
+                  icon: 'Activity',
+                  label: 'Probe',
+                  guard: 'Probe this proxy endpoint now?',
+                  handler: async (request: any, _res: any, context: any) => {
+                    const { record, currentAdmin, h, resource } = context;
+                    if (!record) throw new Error('Record is required');
+
+                    if (String(request?.method || '').toLowerCase() === 'get') {
+                      return { record: record.toJSON(currentAdmin) };
+                    }
+
+                    const idRaw = record.id?.() ?? record.params?.id;
+                    let id: bigint;
+                    try {
+                      id = typeof idRaw === 'bigint' ? idRaw : BigInt(String(idRaw));
+                    } catch {
+                      return {
+                        notice: { type: 'error', message: 'Invalid record id.' },
+                        redirectUrl: h.resourceUrl({ resourceId: resource.id() }),
+                      };
+                    }
+
+                    try {
+                      const endpoint = await prisma.proxyEndpoint.findUnique({
+                        where: { id },
+                        select: { id: true, enabled: true, scheme: true, host: true, port: true, username: true, password: true },
+                      });
+
+                      if (!endpoint) {
+                        return {
+                          notice: { type: 'error', message: 'Not Found' },
+                          redirectUrl: h.resourceUrl({ resourceId: resource.id() }),
+                        };
+                      }
+
+                      const formatHostForUri = (host: string): string => {
+                        const trimmed = String(host ?? '').trim();
+                        if (!trimmed) throw new Error('Proxy host is required.');
+                        if (trimmed.includes(':') && !trimmed.startsWith('[') && !trimmed.endsWith(']')) return `[${trimmed}]`;
+                        return trimmed;
+                      };
+
+                      const scheme = String(endpoint.scheme ?? '').trim().toLowerCase();
+                      const host = formatHostForUri(String(endpoint.host ?? ''));
+                      const port = Number(endpoint.port);
+                      if (!scheme) throw new Error('Proxy scheme is required.');
+                      if (!Number.isFinite(port) || port <= 0 || port > 65535) throw new Error('Proxy port is invalid.');
+
+                      const username = String(endpoint.username ?? '');
+                      const password = String(endpoint.password ?? '');
+                      const authNeeded = username !== '' || password !== '';
+                      const auth = authNeeded
+                        ? `${encodeURIComponent(username)}:${encodeURIComponent(password)}@`
+                        : '';
+                      const proxyUri = `${scheme}://${auth}${host}:${port}`;
+
+                      const report = await runProxyHealthCheckOnce({
+                        candidates: [{ id: endpoint.id.toString(), proxyUri }],
+                        options: { maxConcurrency: 1, minHealthy: 0, windowSize: 1 },
+                      });
+                      const entry = report.entries.find((e) => e.id === endpoint.id.toString()) ?? null;
+
+                      const ok = Boolean(entry?.lastOk);
+                      const status = entry?.status ?? 'unknown';
+                      const latencyMs = entry?.lastLatencyMs;
+                      const error = entry?.lastError;
+
+                      auditAdminModelChange({
+                        action: ok ? 'proxy_endpoint_probe_ok' : 'proxy_endpoint_probe_fail',
+                        resource: 'ProxyEndpoint',
+                        record_id: endpoint.id.toString(),
+                        req: request,
+                        detail: {
+                          enabled: endpoint.enabled,
+                          status,
+                          latencyMs: typeof latencyMs === 'number' && Number.isFinite(latencyMs) ? Math.round(latencyMs) : null,
+                          error,
+                          probeUrl: report.probeUrl,
+                          timeoutMs: report.timeoutMs,
+                        },
+                      });
+
+                      const messageParts: string[] = [];
+                      messageParts.push(`status:${status}`);
+                      if (typeof latencyMs === 'number' && Number.isFinite(latencyMs)) messageParts.push(`latency_ms:${Math.round(latencyMs)}`);
+                      if (error) messageParts.push(`error:${error}`);
+
+                      return {
+                        record: record.toJSON(currentAdmin),
+                        notice: { type: ok ? 'success' : 'error', message: messageParts.join(' ') },
+                        redirectUrl: h.recordActionUrl({ resourceId: resource.id(), recordId: record.id(), actionName: 'show' }),
+                      };
+                    } catch (err: unknown) {
+                      auditAdminModelChange({
+                        action: 'proxy_endpoint_probe_error',
+                        resource: 'ProxyEndpoint',
+                        record_id: idRaw === undefined || idRaw === null ? undefined : String(idRaw),
+                        req: request,
+                        detail: {
+                          error: err instanceof Error ? err.message : String(err),
+                        },
+                      });
+
+                      return {
+                        record: record.toJSON(currentAdmin),
+                        notice: { type: 'error', message: err instanceof Error ? err.message : String(err) },
+                        redirectUrl: h.recordActionUrl({ resourceId: resource.id(), recordId: record.id(), actionName: 'show' }),
                       };
                     }
                   },
