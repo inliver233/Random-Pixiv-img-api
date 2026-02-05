@@ -245,6 +245,52 @@ export default function Dashboard() {
         </div>
 
         <div style={{ border: '1px solid #e5e7eb', borderRadius: 12, padding: 12 }}>
+          <h3 style={{ marginTop: 0 }}>easy_proxies</h3>
+          {!data.easy_proxies?.configured ? (
+            <p style={{ marginTop: 0, color: '#666' }}>未配置 EASY_PROXIES_BASE_URL</p>
+          ) : data.easy_proxies?.error ? (
+            <p style={{ marginTop: 0, color: '#b91c1c' }}>easy_proxies_error: {String(data.easy_proxies.error)}</p>
+          ) : (
+            <>
+              <p style={{ marginTop: 0, color: '#666' }}>
+                可用节点：<b>{String(data.easy_proxies.available_nodes)}</b> / {String(data.easy_proxies.total_nodes)}
+              </p>
+              <details>
+                <summary>节点（按延迟排序）</summary>
+                {(data.easy_proxies.nodes || []).length === 0 ? (
+                  <p style={{ marginTop: 0, color: '#666' }}>暂无数据。</p>
+                ) : (
+                  <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: 8 }}>
+                    <thead>
+                      <tr>
+                        <th style={{ textAlign: 'left', padding: '4px 8px', borderBottom: '1px solid #eee' }}>Tag</th>
+                        <th style={{ textAlign: 'left', padding: '4px 8px', borderBottom: '1px solid #eee' }}>Region</th>
+                        <th style={{ textAlign: 'right', padding: '4px 8px', borderBottom: '1px solid #eee' }}>Latency</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {data.easy_proxies.nodes.slice(0, 15).map((node) => (
+                        <tr key={node.tag}>
+                          <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee' }}>{String(node.tag)}</td>
+                          <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee' }}>{String(node.region || 'other')}</td>
+                          <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee', textAlign: 'right' }}>
+                            {Number.isFinite(node.last_latency_ms) ? `${Math.round(node.last_latency_ms)} ms` : '无'}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </details>
+              <details style={{ marginTop: 8 }}>
+                <summary>区域统计</summary>
+                <pre style={{ whiteSpace: 'pre-wrap' }}>{JSON.stringify(data.easy_proxies.region_stats || {}, null, 2)}</pre>
+              </details>
+            </>
+          )}
+        </div>
+
+        <div style={{ border: '1px solid #e5e7eb', borderRadius: 12, padding: 12 }}>
           <h3 style={{ marginTop: 0 }}>指标</h3>
           <p style={{ marginTop: 0, color: '#666' }}>
             启用：<b>{String(Boolean(data.metrics?.enabled))}</b>

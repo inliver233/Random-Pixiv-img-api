@@ -550,6 +550,75 @@ export async function getAdminJsRouter(): Promise<Router> {
 
           const mem = process.memoryUsage();
 
+          const easyProxies: any = {
+            configured: false,
+            ok: false,
+            error: null,
+            total_nodes: 0,
+            available_nodes: 0,
+            nodes: [],
+            region_stats: {},
+            region_healthy: {},
+          };
+
+          const easyProxiesBaseUrl = String(process.env.EASY_PROXIES_BASE_URL || '').trim();
+          if (easyProxiesBaseUrl) {
+            easyProxies.configured = true;
+            try {
+              const password = String(process.env.EASY_PROXIES_PASSWORD || '').trim() || undefined;
+
+              const fetchWithTimeout = (timeoutMs: number) => (input: any, init: any = {}) => {
+                const controller = new AbortController();
+                const timer = setTimeout(() => controller.abort(), timeoutMs);
+                return fetch(input, { ...(init ?? {}), signal: controller.signal })
+                  .finally(() => clearTimeout(timer));
+              };
+
+              // eslint-disable-next-line @typescript-eslint/no-var-requires
+              const { easyProxiesNodes } = require('../proxy/easyProxiesClient') as typeof import('../proxy/easyProxiesClient');
+
+              const nodesRes = await easyProxiesNodes({
+                baseUrl: easyProxiesBaseUrl,
+                password,
+                fetch: fetchWithTimeout(2000),
+              });
+
+              if (nodesRes.ok) {
+                easyProxies.ok = true;
+                easyProxies.total_nodes = nodesRes.total_nodes;
+                easyProxies.available_nodes = nodesRes.nodes.length;
+                easyProxies.region_stats = nodesRes.region_stats;
+                easyProxies.region_healthy = nodesRes.region_healthy;
+
+                easyProxies.nodes = nodesRes.nodes
+                  .map((n) => ({
+                    tag: n.tag,
+                    name: n.name,
+                    mode: n.mode,
+                    port: n.port ?? null,
+                    region: n.region ?? null,
+                    country: n.country ?? null,
+                    last_latency_ms: n.last_latency_ms ?? null,
+                    available: n.available ?? null,
+                    initial_check_done: n.initial_check_done ?? null,
+                    blacklisted: n.blacklisted ?? null,
+                  }))
+                  .sort((a, b) => {
+                    const la = typeof a.last_latency_ms === 'number' ? a.last_latency_ms : Number.POSITIVE_INFINITY;
+                    const lb = typeof b.last_latency_ms === 'number' ? b.last_latency_ms : Number.POSITIVE_INFINITY;
+                    return la - lb;
+                  })
+                  .slice(0, 100);
+              } else {
+                easyProxies.ok = false;
+                easyProxies.error = nodesRes.error;
+              }
+            } catch (err: unknown) {
+              easyProxies.ok = false;
+              easyProxies.error = err instanceof Error ? err.message : String(err);
+            }
+          }
+
           return {
             generated_at: new Date().toISOString(),
             images: {
@@ -574,6 +643,7 @@ export async function getAdminJsRouter(): Promise<Router> {
               array_buffers_bytes: (mem as any).arrayBuffers ?? 0,
             },
             queue,
+            easy_proxies: easyProxies,
             metrics: {
               enabled: env.METRICS_ENABLED,
               metric_names: metricNames,
