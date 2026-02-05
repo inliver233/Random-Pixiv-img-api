@@ -1,6 +1,14 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ApiClient } from 'adminjs';
-import { pageRootStyle } from './uiKit';
+import {
+  createButtonStyle,
+  createCalloutStyle,
+  createCardStyle,
+  createInputStyle,
+  createTextareaStyle,
+  pageRootStyle,
+  pageTitleStyle,
+} from './uiKit';
 
 const api = new ApiClient();
 
@@ -117,22 +125,15 @@ export default function EasyProxiesImportPage() {
     return r;
   }, [autoRefresh]);
 
-  const buttonStyle = {
-    padding: '6px 10px',
-    borderRadius: 8,
-    border: '1px solid #e5e7eb',
-    background: '#fff',
-    color: '#111827',
-    cursor: loading ? 'not-allowed' : 'pointer',
-  };
+  const buttonStyle = createButtonStyle({ disabled: loading });
 
   return (
     <div style={pageRootStyle}>
-      <h2 style={{ marginTop: 0 }}>easy_proxies 导入/刷新</h2>
+      <h2 style={pageTitleStyle}>easy_proxies 导入与即时生效</h2>
       <p style={{ marginTop: 0, color: '#666' }}>生成时间：{safeString(data?.generated_at || '')}</p>
 
       {error ? (
-        <div style={{ padding: 12, border: '1px solid #fecaca', background: '#fef2f2', borderRadius: 12, color: '#991b1b' }}>
+        <div style={createCalloutStyle('danger')}>
           <b>加载失败：</b>{safeString(error)}
         </div>
       ) : null}
@@ -141,18 +142,14 @@ export default function EasyProxiesImportPage() {
         <div
           style={{
             marginTop: 12,
-            padding: 12,
-            borderRadius: 12,
-            border: notice.type === 'error' ? '1px solid #fecaca' : '1px solid #bbf7d0',
-            background: notice.type === 'error' ? '#fef2f2' : '#f0fdf4',
-            color: notice.type === 'error' ? '#991b1b' : '#166534',
+            ...(notice.type === 'error' ? createCalloutStyle('danger') : createCalloutStyle('success')),
           }}
         >
           {safeString(notice.message)}
         </div>
       ) : null}
 
-      <div style={{ marginTop: 12, border: '1px solid #e5e7eb', borderRadius: 12, padding: 12 }}>
+      <div style={{ marginTop: 12, ...createCardStyle() }}>
         <h3 style={{ marginTop: 0 }}>当前配置（只显示脱敏摘要）</h3>
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <tbody>
@@ -184,7 +181,7 @@ export default function EasyProxiesImportPage() {
         </p>
       </div>
 
-      <div style={{ marginTop: 12, border: '1px solid #e5e7eb', borderRadius: 12, padding: 12 }}>
+      <div style={{ marginTop: 12, ...createCardStyle({ alt: true }) }}>
         <h3 style={{ marginTop: 0 }}>配置编辑</h3>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 12 }}>
@@ -195,7 +192,7 @@ export default function EasyProxiesImportPage() {
               value={baseUrl}
               onChange={(e) => setBaseUrl(e.target.value)}
               placeholder="http://127.0.0.1:8080"
-              style={{ width: '100%', marginTop: 6, padding: 8, borderRadius: 8, border: '1px solid #e5e7eb' }}
+              style={createInputStyle({ disabled: loading })}
               disabled={loading}
             />
           </div>
@@ -207,7 +204,7 @@ export default function EasyProxiesImportPage() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder={config?.password_configured ? '****** (已配置；留空表示不修改)' : '留空表示无密码'}
-              style={{ width: '100%', marginTop: 6, padding: 8, borderRadius: 8, border: '1px solid #e5e7eb' }}
+              style={createInputStyle({ disabled: loading || clearPassword })}
               disabled={loading || clearPassword}
             />
             <label style={{ display: 'block', marginTop: 8, color: '#374151' }}>
@@ -239,7 +236,7 @@ export default function EasyProxiesImportPage() {
               type="number"
               value={safeString(refreshIntervalMs)}
               onChange={(e) => setRefreshIntervalMs(Number(e.target.value))}
-              style={{ width: '100%', marginTop: 6, padding: 8, borderRadius: 8, border: '1px solid #e5e7eb' }}
+              style={createInputStyle({ disabled: loading })}
               disabled={loading}
             />
           </div>
@@ -281,18 +278,18 @@ export default function EasyProxiesImportPage() {
             type="button"
             disabled={loading}
             onClick={() => runAction('easyProxiesRollback', {})}
-            style={{ ...buttonStyle, border: '1px solid #fecaca', color: '#991b1b' }}
+            style={createButtonStyle({ danger: true, disabled: loading })}
           >
             回滚到手动代理列表
           </button>
 
-          <button type="button" disabled={loading} onClick={() => refresh()} style={buttonStyle}>
+          <button type="button" disabled={loading} onClick={() => refresh()} style={createButtonStyle({ tone: 'ghost', disabled: loading })}>
             {loading ? '刷新中…' : '刷新页面'}
           </button>
         </div>
       </div>
 
-      <div style={{ marginTop: 12, border: '1px solid #e5e7eb', borderRadius: 12, padding: 12 }}>
+      <div style={{ marginTop: 12, ...createCardStyle() }}>
         <h3 style={{ marginTop: 0 }}>URI 一键导入（单行/多行）</h3>
         <p style={{ marginTop: 0, color: '#666' }}>
           支持直接粘贴代理 URI（每行一条），保存后立即可用于代理池，不需要重启服务。
@@ -313,18 +310,7 @@ export default function EasyProxiesImportPage() {
           placeholder={'http://user:pass@127.0.0.1:18080\nsocks5://127.0.0.1:19090'}
           spellCheck="false"
           disabled={loading}
-          style={{
-            width: '100%',
-            minHeight: 160,
-            marginTop: 6,
-            padding: 10,
-            borderRadius: 10,
-            border: '1px solid #e5e7eb',
-            fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, \"Liberation Mono\", \"Courier New\", monospace',
-            fontSize: 12,
-            lineHeight: 1.5,
-            resize: 'vertical',
-          }}
+          style={createTextareaStyle({ disabled: loading, minHeight: 160 })}
         />
 
         <div style={{ marginTop: 10, display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 10 }}>
@@ -334,7 +320,7 @@ export default function EasyProxiesImportPage() {
               value={importConflictPolicy}
               onChange={(e) => setImportConflictPolicy(e.target.value)}
               disabled={loading}
-              style={{ width: '100%', marginTop: 6, padding: 8, borderRadius: 8, border: '1px solid #e5e7eb' }}
+              style={createInputStyle({ disabled: loading })}
             >
               <option value="skip_non_source">skip_non_source（推荐）</option>
               <option value="overwrite">overwrite</option>
@@ -373,14 +359,14 @@ export default function EasyProxiesImportPage() {
             type="button"
             disabled={loading}
             onClick={() => setProxyUriText('')}
-            style={buttonStyle}
+            style={createButtonStyle({ tone: 'ghost', disabled: loading })}
           >
             清空输入
           </button>
         </div>
       </div>
 
-      <div style={{ marginTop: 12, border: '1px solid #e5e7eb', borderRadius: 12, padding: 12 }}>
+      <div style={{ marginTop: 12, ...createCardStyle({ alt: true }) }}>
         <h3 style={{ marginTop: 0 }}>自动刷新状态</h3>
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <tbody>
@@ -412,7 +398,7 @@ export default function EasyProxiesImportPage() {
         </table>
       </div>
 
-      <div style={{ marginTop: 12, border: '1px solid #e5e7eb', borderRadius: 12, padding: 12 }}>
+      <div style={{ marginTop: 12, ...createCardStyle({ alt: true }) }}>
         <h3 style={{ marginTop: 0 }}>代理端点统计</h3>
         {!proxies || typeof proxies !== 'object' ? (
           <p style={{ marginTop: 0, color: '#666' }}>未获取到统计数据（需要 DATABASE_URL）。</p>

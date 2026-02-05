@@ -1,6 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ApiClient } from 'adminjs';
-import { mutedTextStyle, pageCardStyle, pageRootStyle } from './uiKit';
+import {
+  createButtonStyle,
+  createCardStyle,
+  mutedTextStyle,
+  pageCardStyle,
+  pageRootStyle,
+  pageTitleStyle,
+} from './uiKit';
 
 const api = new ApiClient();
 
@@ -93,7 +100,7 @@ export default function Dashboard() {
   if (error) {
     return (
       <div style={pageRootStyle}>
-        <h2>仪表盘</h2>
+        <h2 style={pageTitleStyle}>仪表盘</h2>
         <p style={{ color: '#b91c1c' }}>仪表盘加载失败：{error}</p>
       </div>
     );
@@ -102,7 +109,7 @@ export default function Dashboard() {
   if (!data) {
     return (
       <div style={pageRootStyle}>
-        <h2>仪表盘</h2>
+        <h2 style={pageTitleStyle}>仪表盘</h2>
         <p>加载中…</p>
       </div>
     );
@@ -152,7 +159,7 @@ export default function Dashboard() {
 
   return (
     <div style={pageRootStyle}>
-      <h2 style={{ marginTop: 0 }}>仪表盘</h2>
+      <h2 style={pageTitleStyle}>仪表盘</h2>
       <p style={{ marginTop: 0, ...mutedTextStyle }}>生成时间：{data.generated_at}</p>
       <div style={{ ...pageCardStyle, marginBottom: 12 }}>
         <h3 style={{ marginTop: 0, marginBottom: 8 }}>快捷导航</h3>
@@ -171,6 +178,7 @@ export default function Dashboard() {
         borderRadius: 12,
         padding: 12,
         marginBottom: 12,
+        boxShadow: proxyEnabled === false ? '0 8px 24px rgba(185, 28, 28, 0.08)' : undefined,
       }}
       >
         <h3 style={{ marginTop: 0, marginBottom: 8 }}>代理出站（回退开关）</h3>
@@ -199,14 +207,7 @@ export default function Dashboard() {
                 type="button"
                 disabled={proxyToggleBusy || proxyEnabled === true}
                 onClick={() => handleProxyToggle(true)}
-                style={{
-                  padding: '6px 10px',
-                  borderRadius: 8,
-                  border: '1px solid #111827',
-                  background: proxyEnabled === true ? '#e5e7eb' : '#111827',
-                  color: proxyEnabled === true ? '#111827' : '#fff',
-                  cursor: proxyToggleBusy || proxyEnabled === true ? 'not-allowed' : 'pointer',
-                }}
+                style={createButtonStyle({ primary: true, disabled: proxyToggleBusy || proxyEnabled === true })}
               >
                 启用代理
               </button>
@@ -214,14 +215,7 @@ export default function Dashboard() {
                 type="button"
                 disabled={proxyToggleBusy || proxyEnabled === false}
                 onClick={() => handleProxyToggle(false)}
-                style={{
-                  padding: '6px 10px',
-                  borderRadius: 8,
-                  border: '1px solid #b91c1c',
-                  background: proxyEnabled === false ? '#fecaca' : '#fff',
-                  color: '#b91c1c',
-                  cursor: proxyToggleBusy || proxyEnabled === false ? 'not-allowed' : 'pointer',
-                }}
+                style={createButtonStyle({ danger: true, disabled: proxyToggleBusy || proxyEnabled === false })}
               >
                 关闭代理（直连）
               </button>
@@ -237,14 +231,14 @@ export default function Dashboard() {
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 12 }}>
-        <div style={{ border: '1px solid #e5e7eb', borderRadius: 12, padding: 12 }}>
+        <div style={createCardStyle()}>
           <h3 style={{ marginTop: 0 }}>概览</h3>
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <tbody>{renderKeyValueRows(summary)}</tbody>
           </table>
         </div>
 
-        <div style={{ border: '1px solid #e5e7eb', borderRadius: 12, padding: 12 }}>
+        <div style={createCardStyle({ alt: true })}>
           <h3 style={{ marginTop: 0 }}>进程</h3>
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <tbody>
@@ -276,7 +270,7 @@ export default function Dashboard() {
       </div>
 
       <div style={{ marginTop: 16, display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: 12 }}>
-        <div style={{ border: '1px solid #e5e7eb', borderRadius: 12, padding: 12 }}>
+        <div style={createCardStyle()}>
           <h3 style={{ marginTop: 0 }}>图片</h3>
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <tbody>
@@ -324,7 +318,7 @@ export default function Dashboard() {
           )}
         </div>
 
-        <div style={{ border: '1px solid #e5e7eb', borderRadius: 12, padding: 12 }}>
+        <div style={createCardStyle({ alt: true })}>
           <h3 style={{ marginTop: 0 }}>导入</h3>
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <tbody>
@@ -346,7 +340,7 @@ export default function Dashboard() {
       </div>
 
       <div style={{ marginTop: 16, display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: 12 }}>
-        <div style={{ border: '1px solid #e5e7eb', borderRadius: 12, padding: 12 }}>
+        <div style={createCardStyle()}>
           <h3 style={{ marginTop: 0 }}>请求统计</h3>
           {!data.traffic?.ok ? (
             <p style={{ marginTop: 0, color: '#666' }}>无</p>
@@ -393,7 +387,7 @@ export default function Dashboard() {
           </p>
         </div>
 
-        <div style={{ border: '1px solid #e5e7eb', borderRadius: 12, padding: 12 }}>
+        <div style={createCardStyle({ alt: true })}>
           <h3 style={{ marginTop: 0 }}>easy_proxies</h3>
           {!data.easy_proxies?.configured ? (
             <p style={{ marginTop: 0, color: '#666' }}>未配置 EASY_PROXIES_BASE_URL</p>
@@ -439,7 +433,7 @@ export default function Dashboard() {
           )}
         </div>
 
-        <div style={{ border: '1px solid #e5e7eb', borderRadius: 12, padding: 12 }}>
+        <div style={createCardStyle()}>
           <h3 style={{ marginTop: 0 }}>Pixiv Tokens（运行时）</h3>
           {!data.pixiv_tokens?.ok ? (
             <p style={{ marginTop: 0, color: '#b91c1c' }}>pixiv_tokens_error: {String(data.pixiv_tokens?.error || 'unknown')}</p>
@@ -488,7 +482,7 @@ export default function Dashboard() {
           )}
         </div>
 
-        <div style={{ border: '1px solid #e5e7eb', borderRadius: 12, padding: 12 }}>
+        <div style={createCardStyle({ alt: true })}>
           <h3 style={{ marginTop: 0 }}>指标</h3>
           <p style={{ marginTop: 0, color: '#666' }}>
             启用：<b>{String(Boolean(data.metrics?.enabled))}</b>
@@ -499,7 +493,7 @@ export default function Dashboard() {
           </details>
         </div>
 
-        <div style={{ border: '1px solid #e5e7eb', borderRadius: 12, padding: 12 }}>
+        <div style={createCardStyle()}>
           <h3 style={{ marginTop: 0 }}>Prometheus（24 小时）</h3>
           <p style={{ marginTop: 0, color: '#666' }}>
             数据来源：Prometheus HTTP API（可选）。配置 PROMETHEUS_URL 后启用。

@@ -1,6 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ApiClient } from 'adminjs';
-import { pageRootStyle } from './uiKit';
+import {
+  createButtonStyle,
+  createCalloutStyle,
+  createCardStyle,
+  createInputStyle,
+  createTextareaStyle,
+  pageRootStyle,
+  pageTitleStyle,
+} from './uiKit';
 
 const api = new ApiClient();
 
@@ -372,19 +380,19 @@ export default function ImportUrlsPage() {
 
   return (
     <div style={{ ...pageRootStyle, maxWidth: 980 }}>
-      <h2 style={{ marginTop: 0 }}>批量导入 URL</h2>
+      <h2 style={pageTitleStyle}>批量导入 URL</h2>
       <p style={{ marginTop: 0, color: '#666' }}>
         批量导入 Pixiv 原图（pximg）URL，一行一个。支持注释行（以 <code>#</code> 开头）。后端会做解析与去重（illustId + page）。
       </p>
 
       {error ? (
-        <div style={{ padding: 12, border: '1px solid #fecaca', background: '#fef2f2', borderRadius: 10, color: '#991b1b' }}>
+        <div style={createCalloutStyle('danger')}>
           <b>错误：</b> {error}
         </div>
       ) : null}
 
       <div style={{ marginTop: 12, display: 'grid', gridTemplateColumns: '1fr 320px', gap: 12 }}>
-        <div style={{ border: '1px solid #e5e7eb', borderRadius: 12, padding: 12 }}>
+        <div style={createCardStyle()}>
           <h3 style={{ marginTop: 0 }}>粘贴导入</h3>
           <textarea
             value={text}
@@ -392,16 +400,11 @@ export default function ImportUrlsPage() {
             placeholder="https://i.pximg.net/img-original/img/.../123456789_p0.jpg"
             spellCheck="false"
             style={{
-              width: '100%',
-              minHeight: 320,
-              padding: 10,
-              borderRadius: 10,
-              border: '1px solid #e5e7eb',
+              ...createTextareaStyle({ disabled: loading, minHeight: 320 }),
               fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, \"Liberation Mono\", \"Courier New\", monospace',
               fontSize: 12,
-              lineHeight: 1.5,
-              resize: 'vertical',
             }}
+            disabled={loading}
           />
 
           <div style={{ marginTop: 10, display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center' }}>
@@ -422,7 +425,8 @@ export default function ImportUrlsPage() {
                 min={100}
                 max={10000}
                 step={100}
-                style={{ width: 96, padding: '4px 6px', border: '1px solid #e5e7eb', borderRadius: 8 }}
+                style={{ ...createInputStyle({ disabled: loading }), width: 96, marginTop: 0, padding: '4px 6px' }}
+                disabled={loading}
               />
             </label>
             <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
@@ -436,14 +440,7 @@ export default function ImportUrlsPage() {
               type="button"
               onClick={() => handleSubmit(preview ? 'preview' : 'import')}
               disabled={loading}
-              style={{
-                padding: '8px 12px',
-                borderRadius: 10,
-                border: '1px solid #111827',
-                background: '#111827',
-                color: '#fff',
-                cursor: loading ? 'not-allowed' : 'pointer',
-              }}
+              style={createButtonStyle({ primary: true, disabled: loading })}
             >
               {preview ? '预览（不写入）' : '开始导入'}
             </button>
@@ -451,13 +448,7 @@ export default function ImportUrlsPage() {
               type="button"
               onClick={() => handleSubmit('preview')}
               disabled={loading}
-              style={{
-                padding: '8px 12px',
-                borderRadius: 10,
-                border: '1px solid #e5e7eb',
-                background: '#fff',
-                cursor: loading ? 'not-allowed' : 'pointer',
-              }}
+              style={createButtonStyle({ disabled: loading })}
             >
               预览（不写入）
             </button>
@@ -465,13 +456,7 @@ export default function ImportUrlsPage() {
               type="button"
               onClick={() => handleSubmit('import')}
               disabled={loading}
-              style={{
-                padding: '8px 12px',
-                borderRadius: 10,
-                border: '1px solid #e5e7eb',
-                background: '#fff',
-                cursor: loading ? 'not-allowed' : 'pointer',
-              }}
+              style={createButtonStyle({ disabled: loading })}
             >
               开始导入
             </button>
@@ -479,13 +464,7 @@ export default function ImportUrlsPage() {
               type="button"
               onClick={() => handleSubmit('hydrate')}
               disabled={loading}
-              style={{
-                padding: '8px 12px',
-                borderRadius: 10,
-                border: '1px solid #e5e7eb',
-                background: '#fff',
-                cursor: loading ? 'not-allowed' : 'pointer',
-              }}
+              style={createButtonStyle({ disabled: loading })}
             >
               仅补全（入队 hydrate_metadata）
             </button>
@@ -502,7 +481,7 @@ export default function ImportUrlsPage() {
           ) : null}
         </div>
 
-        <div style={{ border: '1px solid #e5e7eb', borderRadius: 12, padding: 12 }}>
+        <div style={createCardStyle({ alt: true })}>
           <h3 style={{ marginTop: 0 }}>上传文件</h3>
           <p style={{ marginTop: 0, color: '#666' }}>
             大量（例如 10w~20w 行）建议用文件：浏览器读取后分批提交到服务端，避免单请求超时（Cloudflare 524 / 反代 504）。
@@ -538,7 +517,7 @@ export default function ImportUrlsPage() {
       </div>
 
       {result ? (
-        <div style={{ marginTop: 12, border: '1px solid #e5e7eb', borderRadius: 12, padding: 12 }}>
+        <div style={{ marginTop: 12, ...createCardStyle() }}>
           <h3 style={{ marginTop: 0 }}>结果</h3>
           <p style={{ marginTop: 0, color: '#666' }}>
             批次数：<b>{result.batches}</b>
@@ -594,11 +573,7 @@ export default function ImportUrlsPage() {
                   result.combined.error_urls_text || (result.combined.errors || []).map((e) => e.url).join('\n'),
                 )}
                 style={{
-                  padding: '6px 10px',
-                  borderRadius: 10,
-                  border: '1px solid #e5e7eb',
-                  background: '#fff',
-                  cursor: 'pointer',
+                  ...createButtonStyle(),
                   marginBottom: 8,
                 }}
               >
@@ -612,11 +587,7 @@ export default function ImportUrlsPage() {
                     || (result.combined.errors || []).map((e) => `# code=${e.code}\n${e.url}`).join('\n'),
                 )}
                 style={{
-                  padding: '6px 10px',
-                  borderRadius: 10,
-                  border: '1px solid #e5e7eb',
-                  background: '#fff',
-                  cursor: 'pointer',
+                  ...createButtonStyle(),
                   marginBottom: 8,
                   marginLeft: 8,
                 }}
