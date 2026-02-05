@@ -59,7 +59,7 @@ export type ProxyHealthOptions = {
 type ProxyHealthState = {
   samplesById: Map<string, ProxyProbeSample[]>;
   lastReport: ProxyHealthReport | null;
-  timer: NodeJS.Timeout | null;
+  timer: ReturnType<typeof setInterval> | null;
   inFlight: Promise<ProxyHealthReport> | null;
   schedulerRunParams: {
     prisma?: PrismaClient;

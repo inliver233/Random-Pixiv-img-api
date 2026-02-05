@@ -1,10 +1,16 @@
 import logger from '../logger/logger';
 
+import { classifyOutboundError } from './outboundErrors';
+
 export type CircuitAction<T> = () => Promise<T>;
 
 type PixivCircuitState = {
   breaker: any | null;
   listenersAttached: boolean;
+  lastFailureType: string | null;
+  lastFailureAtMs: number | null;
+  lastFilteredType: string | null;
+  lastFilteredAtMs: number | null;
 };
 
 declare global {
@@ -34,6 +40,10 @@ function ensurePixivCircuitState(): PixivCircuitState {
   globalThis.__pixivcatPixivApiCircuit ??= {
     breaker: null,
     listenersAttached: false,
+    lastFailureType: null,
+    lastFailureAtMs: null,
+    lastFilteredType: null,
+    lastFilteredAtMs: null,
   };
 
   // eslint-disable-next-line no-underscore-dangle
@@ -51,6 +61,22 @@ function createPixivApiCircuit(): any {
     volumeThreshold: numberFromEnv('PIXIV_CIRCUIT_VOLUME_THRESHOLD', 10),
     rollingCountTimeout: numberFromEnv('PIXIV_CIRCUIT_ROLLING_COUNT_TIMEOUT_MS', 10_000),
     rollingCountBuckets: numberFromEnv('PIXIV_CIRCUIT_ROLLING_COUNT_BUCKETS', 10),
+    errorFilter: (err: unknown) => {
+      try {
+        const usedProxy = Boolean((err as any)?.config?.__pixivcat_usedProxy);
+        const classification = classifyOutboundError(err, { usedProxy });
+        if (classification.type !== 'proxy_connect' && classification.type !== 'proxy_auth') {
+          return false;
+        }
+
+        const state = ensurePixivCircuitState();
+        state.lastFilteredType = classification.type;
+        state.lastFilteredAtMs = Date.now();
+        return true;
+      } catch {
+        return false;
+      }
+    },
   });
 
   if (!booleanFromEnv('PIXIV_CIRCUIT_ENABLED', true) && typeof breaker.disable === 'function') {
@@ -67,9 +93,29 @@ export function getPixivApiCircuit(): any {
   state.breaker = createPixivApiCircuit();
 
   if (!state.listenersAttached && state.breaker && typeof state.breaker.on === 'function') {
-    state.breaker.on('open', () => logger.warn({ circuit: 'pixiv_api' }, 'Pixiv API circuit open'));
-    state.breaker.on('halfOpen', () => logger.info({ circuit: 'pixiv_api' }, 'Pixiv API circuit half-open'));
-    state.breaker.on('close', () => logger.info({ circuit: 'pixiv_api' }, 'Pixiv API circuit closed'));
+    state.breaker.on('failure', (err: unknown) => {
+      try {
+        const usedProxy = Boolean((err as any)?.config?.__pixivcat_usedProxy);
+        const classification = classifyOutboundError(err, { usedProxy });
+
+        const next = ensurePixivCircuitState();
+        next.lastFailureType = classification.type;
+        next.lastFailureAtMs = Date.now();
+      } catch {
+        // best-effort
+      }
+    });
+
+    state.breaker.on('open', () => logger.warn({
+      circuit: 'pixiv_api',
+      layer: 'pixiv_upstream',
+      last_failure_type: state.lastFailureType,
+      last_failure_at: state.lastFailureAtMs ? new Date(state.lastFailureAtMs).toISOString() : null,
+      last_filtered_type: state.lastFilteredType,
+      last_filtered_at: state.lastFilteredAtMs ? new Date(state.lastFilteredAtMs).toISOString() : null,
+    }, 'Pixiv API circuit open'));
+    state.breaker.on('halfOpen', () => logger.info({ circuit: 'pixiv_api', layer: 'pixiv_upstream' }, 'Pixiv API circuit half-open'));
+    state.breaker.on('close', () => logger.info({ circuit: 'pixiv_api', layer: 'pixiv_upstream' }, 'Pixiv API circuit closed'));
     state.listenersAttached = true;
   }
 
@@ -93,4 +139,8 @@ export function resetPixivApiCircuitForTest(): void {
   }
   state.breaker = null;
   state.listenersAttached = false;
+  state.lastFailureType = null;
+  state.lastFailureAtMs = null;
+  state.lastFilteredType = null;
+  state.lastFilteredAtMs = null;
 }
