@@ -3,9 +3,10 @@ import path from 'node:path';
 
 import { getPrismaClient } from '../db/prismaClient';
 import { auditAdminModelChange } from '../audit/adminAudit';
+import { getOutboundErrorsTotalCounter } from '../metrics/outboundMetrics';
 import { extractFirstSampleValue, extractVectorSamples, queryPrometheusInstant } from '../metrics/prometheusQueryClient';
 import { importProxyEndpointsFromEasyProxies } from '../proxy/easyProxiesImporter';
-import { runProxyHealthCheckOnce } from '../proxy/healthCheck';
+import { getProxyHealthOptions, getProxyHealthReport, runProxyHealthCheckOnce } from '../proxy/healthCheck';
 import { pickPrimaryProxyRendezvous, resolveEffectiveProxy } from '../proxy/tokenProxyBinding';
 import * as PrismaModule from '@prisma/client';
 import { Prisma } from '@prisma/client';
@@ -324,6 +325,7 @@ export async function getAdminJsRouter(): Promise<Router> {
     const Dashboard = componentLoader.add('Dashboard', path.join(__dirname, 'pages', 'dashboard.jsx'));
     const ImportUrls = componentLoader.add('ImportUrls', path.join(__dirname, 'pages', 'importUrls.jsx'));
     const TokenProxyBindings = componentLoader.add('TokenProxyBindings', path.join(__dirname, 'pages', 'tokenProxyBindings.jsx'));
+    const ProxyPoolOverview = componentLoader.add('ProxyPoolOverview', path.join(__dirname, 'pages', 'proxyPoolOverview.jsx'));
 
     const admin = new AdminJS({
       rootPath: '/admin',
@@ -480,6 +482,157 @@ export async function getAdminJsRouter(): Promise<Router> {
                 },
                 note: '手动 rebind/override 会写入 token_proxy_bindings，并写入 AdminAudit（不含敏感信息）。',
                 proxy_by_id: Object.fromEntries(Array.from(proxyById.entries()).map(([id, p]) => [id, { display: formatProxyDisplay(p) }])),
+              };
+            } catch (err: unknown) {
+              return { ok: false, error: err instanceof Error ? err.message : String(err) };
+            }
+          },
+        },
+        proxyPoolOverview: {
+          label: '代理池概览',
+          component: ProxyPoolOverview,
+          handler: async () => {
+            try {
+              const generatedAt = new Date().toISOString();
+
+              const proxies = await prisma.proxyEndpoint.findMany({
+                where: { enabled: true },
+                select: { id: true, scheme: true, host: true, port: true, username: true, enabled: true, source: true, sourceRef: true },
+                orderBy: [{ id: 'asc' }],
+              });
+
+              const formatProxyDisplay = (p: any): string => {
+                if (!p) return '';
+                const scheme = String(p.scheme ?? '').toLowerCase();
+                const host = String(p.host ?? '').trim();
+                const port = Number(p.port);
+                const username = String(p.username ?? '').trim();
+                const auth = username ? `${username}@` : '';
+                const hostForUri = host.includes(':') && !host.startsWith('[') && !host.endsWith(']') ? `[${host}]` : host;
+                return `${scheme}://${auth}${hostForUri}:${port}`;
+              };
+
+              const proxyDisplayById: Record<string, string> = {};
+              for (const p of proxies) {
+                proxyDisplayById[p.id.toString()] = formatProxyDisplay(p);
+              }
+
+              const options = getProxyHealthOptions();
+              let report = getProxyHealthReport();
+              const nowMs = Date.now();
+              const stale = report ? (nowMs - report.checkedAt) > Math.min(30_000, options.intervalMs) : true;
+              const canProbeNow = process.env.NODE_ENV !== 'test';
+
+              if ((report === null || stale) && canProbeNow) {
+                // Best-effort refresh for the admin page; the health checker caches samples in-memory.
+                report = await runProxyHealthCheckOnce({ prisma, options: { maxConcurrency: Math.min(options.maxConcurrency, 10) } });
+              }
+
+              const health = (() => {
+                if (!report) {
+                  return { ok: false, reason: 'no_report' };
+                }
+
+                const counts = { healthy: 0, warning: 0, error: 0, unknown: 0 };
+                let success = 0;
+                let failure = 0;
+                const latencies: number[] = [];
+
+                for (const entry of report.entries || []) {
+                  if (entry.status === 'healthy') counts.healthy += 1;
+                  else if (entry.status === 'warning') counts.warning += 1;
+                  else if (entry.status === 'error') counts.error += 1;
+                  else counts.unknown += 1;
+
+                  success += Number(entry.success || 0);
+                  failure += Number(entry.failure || 0);
+
+                  const latency = Number(entry.lastLatencyMs);
+                  if (Number.isFinite(latency) && latency >= 0) latencies.push(latency);
+                }
+
+                latencies.sort((a, b) => a - b);
+                const percentile = (p: number): number | null => {
+                  if (latencies.length === 0) return null;
+                  const idx = Math.floor((latencies.length - 1) * p);
+                  return latencies[Math.min(Math.max(idx, 0), latencies.length - 1)] ?? null;
+                };
+
+                const totalSamples = success + failure;
+                const successRate = totalSamples > 0 ? success / totalSamples : null;
+
+                const recentFailures = (report.entries || [])
+                  .filter((e) => e.lastOk === false && e.lastError)
+                  .sort((a, b) => (b.lastCheckedAt ?? 0) - (a.lastCheckedAt ?? 0))
+                  .slice(0, 20)
+                  .map((e) => ({
+                    id: e.id,
+                    display: proxyDisplayById[e.id] ?? e.id,
+                    status: e.status,
+                    lastCheckedAt: e.lastCheckedAt ? new Date(e.lastCheckedAt).toISOString() : null,
+                    lastLatencyMs: e.lastLatencyMs ?? null,
+                    successRate: e.successRate ?? null,
+                    lastError: e.lastError ?? null,
+                  }));
+
+                const entries = (report.entries || []).map((e) => ({
+                  id: e.id,
+                  display: proxyDisplayById[e.id] ?? e.id,
+                  status: e.status,
+                  lastOk: e.lastOk,
+                  lastCheckedAt: e.lastCheckedAt ? new Date(e.lastCheckedAt).toISOString() : null,
+                  lastLatencyMs: e.lastLatencyMs ?? null,
+                  lastError: e.lastError ?? null,
+                  samples: e.samples,
+                  success: e.success,
+                  failure: e.failure,
+                  successRate: e.successRate,
+                  avgLatencyMs: e.avgLatencyMs,
+                  score: e.score,
+                }));
+
+                return {
+                  ok: true,
+                  checked_at: new Date(report.checkedAt).toISOString(),
+                  probe_url: report.probeUrl,
+                  timeout_ms: report.timeoutMs,
+                  min_healthy: report.minHealthy,
+                  pool_total: report.total,
+                  pool_healthy: report.healthy,
+                  pool_ok: report.ok,
+                  counts,
+                  totals: { success, failure, samples: totalSamples, success_rate: successRate },
+                  latency_ms: {
+                    min: latencies.length ? latencies[0] : null,
+                    p50: percentile(0.5),
+                    p90: percentile(0.9),
+                    p95: percentile(0.95),
+                    max: latencies.length ? latencies[latencies.length - 1] : null,
+                  },
+                  recent_failures: recentFailures,
+                  entries,
+                };
+              })();
+
+              const outboundMetric = await getOutboundErrorsTotalCounter().get();
+              const outbound = {
+                metric: outboundMetric?.name ?? 'outbound_errors_total',
+                help: outboundMetric?.help ?? null,
+                values: (outboundMetric?.values || [])
+                  .map((row: any) => ({ type: String(row.labels?.type ?? 'unknown'), value: Number(row.value || 0) }))
+                  .sort((a: any, b: any) => b.value - a.value)
+                  .slice(0, 30),
+              };
+
+              return {
+                ok: true,
+                generated_at: generatedAt,
+                proxies: {
+                  enabled_total: proxies.length,
+                },
+                health,
+                outbound_errors_total: outbound,
+                note: 'outbound_errors_total 来自 prom-client registry（应与 /metrics 一致）；健康检查数据来自内存窗口采样（可用于排障/筛选）。',
               };
             } catch (err: unknown) {
               return { ok: false, error: err instanceof Error ? err.message : String(err) };
