@@ -34,6 +34,9 @@ export default function EasyProxiesImportPage() {
   const [clearPassword, setClearPassword] = useState(false);
   const [autoRefreshEnabled, setAutoRefreshEnabled] = useState(true);
   const [refreshIntervalMs, setRefreshIntervalMs] = useState(30 * 60_000);
+  const [proxyUriText, setProxyUriText] = useState('');
+  const [importEnabled, setImportEnabled] = useState(true);
+  const [importConflictPolicy, setImportConflictPolicy] = useState('skip_non_source');
 
   async function refresh() {
     setError(null);
@@ -285,6 +288,94 @@ export default function EasyProxiesImportPage() {
 
           <button type="button" disabled={loading} onClick={() => refresh()} style={buttonStyle}>
             {loading ? '刷新中…' : '刷新页面'}
+          </button>
+        </div>
+      </div>
+
+      <div style={{ marginTop: 12, border: '1px solid #e5e7eb', borderRadius: 12, padding: 12 }}>
+        <h3 style={{ marginTop: 0 }}>URI 一键导入（单行/多行）</h3>
+        <p style={{ marginTop: 0, color: '#666' }}>
+          支持直接粘贴代理 URI（每行一条），保存后立即可用于代理池，不需要重启服务。
+          支持格式：
+          {' '}
+          <code>http://user:pass@host:port</code>
+          {' '}
+          /
+          {' '}
+          <code>socks5://user:pass@host:port</code>
+          。
+          如果密码包含 <code>@</code>，可直接写入（最后一个 <code>@</code> 作为分隔）或用 <code>%40</code> 编码。
+        </p>
+
+        <textarea
+          value={proxyUriText}
+          onChange={(e) => setProxyUriText(e.target.value)}
+          placeholder={'http://user:pass@127.0.0.1:18080\nsocks5://127.0.0.1:19090'}
+          spellCheck="false"
+          disabled={loading}
+          style={{
+            width: '100%',
+            minHeight: 160,
+            marginTop: 6,
+            padding: 10,
+            borderRadius: 10,
+            border: '1px solid #e5e7eb',
+            fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, \"Liberation Mono\", \"Courier New\", monospace',
+            fontSize: 12,
+            lineHeight: 1.5,
+            resize: 'vertical',
+          }}
+        />
+
+        <div style={{ marginTop: 10, display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 10 }}>
+          <label style={{ color: '#374151', fontSize: 13 }}>
+            冲突策略
+            <select
+              value={importConflictPolicy}
+              onChange={(e) => setImportConflictPolicy(e.target.value)}
+              disabled={loading}
+              style={{ width: '100%', marginTop: 6, padding: 8, borderRadius: 8, border: '1px solid #e5e7eb' }}
+            >
+              <option value="skip_non_source">skip_non_source（推荐）</option>
+              <option value="overwrite">overwrite</option>
+              <option value="skip_non_manual">skip_non_manual</option>
+              <option value="skip_non_easy_proxies">skip_non_easy_proxies</option>
+            </select>
+          </label>
+
+          <label style={{ marginTop: 22, color: '#374151' }}>
+            <input
+              type="checkbox"
+              checked={importEnabled}
+              onChange={(e) => setImportEnabled(Boolean(e.target.checked))}
+              disabled={loading}
+              style={{ marginRight: 6 }}
+            />
+            导入后默认启用代理
+          </label>
+        </div>
+
+        <div style={{ marginTop: 10, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <button
+            type="button"
+            disabled={loading}
+            onClick={() => runAction('importProxyUris', {
+              proxy_uris: proxyUriText,
+              source: 'manual',
+              enabled: importEnabled ? '1' : '0',
+              conflict_policy: importConflictPolicy,
+            })}
+            style={buttonStyle}
+          >
+            导入 URI（立即生效）
+          </button>
+          <button
+            type="button"
+            disabled={loading}
+            onClick={() => setProxyUriText('')}
+            style={buttonStyle}
+          >
+            清空输入
           </button>
         </div>
       </div>
