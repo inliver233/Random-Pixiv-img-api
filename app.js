@@ -1,60 +1,21 @@
-const express = require('express');
-const path = require('path');
-require('dotenv').config();
-
-const { validateEnv, getEnv } = require('./src/config/env');
-const logger = require('./src/logger/logger');
-
-try {
-  validateEnv();
-} catch (err) {
-  logger.error({ err }, 'Invalid environment variables');
-  process.exit(1);
-}
-
-const env = getEnv();
-
-const requestIdMiddleware = require('./src/middlewares/requestIdMiddleware');
-const httpLoggerMiddleware = require('./src/middlewares/httpLoggerMiddleware');
-const corsMiddleware = require('./src/middlewares/cors');
-const securityHeaders = require('./src/middlewares/securityHeaders');
-const rateLimitMiddleware = require('./src/middlewares/rateLimit');
-const showVersion = require('./src/middlewares/headerMiddleware');
-const errorHandler = require('./src/middlewares/errorHandler');
-const apiRoutes = require('./src/routes/api');
-const pixivRoutes = require('./src/routes/pixivRoutes');
-
-const app = express();
-const PORT = process.env.PORT || 3000;
-const HOST = process.env.HOST || '127.0.0.1';
-
-if (env.TRUST_PROXY && Number(env.TRUST_PROXY) > 0) {
-  app.set('trust proxy', Number(env.TRUST_PROXY));
-}
-
-app.set('view engine', 'ejs');
-app.set('views', path.join(__dirname, 'views'));
-
-app.use(requestIdMiddleware);
-app.use(httpLoggerMiddleware);
-app.use(express.json({ limit: env.JSON_BODY_LIMIT }));
-app.use(express.urlencoded({ extended: false, limit: env.JSON_BODY_LIMIT }));
-app.use(corsMiddleware);
-app.use(['/random', '/images', '/healthz', '/metrics', '/admin'], securityHeaders);
-
-// Routes
-app.use(['/random', '/i', '/images'], rateLimitMiddleware);
-app.use('/', apiRoutes);
-app.use('/', showVersion, pixivRoutes);
-
-// Error handling middleware
-app.use(errorHandler);
-
-// Start the server (only when executed directly; allow importing app for tests)
-if (require.main === module) {
-  app.listen(PORT, HOST, () => {
-    logger.info({ host: HOST, port: PORT }, 'Server is running');
-  });
-}
+// Single source of truth: app.ts
+// Node >=24 supports running/require-ing TypeScript files (type stripping).
+const appModule = require('./app.ts');
+const app = appModule.default || appModule;
 
 module.exports = app;
+
+if (require.main === module) {
+  const runApp = appModule.runApp;
+  if (typeof runApp !== 'function') {
+    // eslint-disable-next-line no-console
+    console.error('runApp() is missing from app.ts');
+    process.exit(1);
+  }
+
+  Promise.resolve(runApp()).catch((err) => {
+    // eslint-disable-next-line no-console
+    console.error(err);
+    process.exit(1);
+  });
+}

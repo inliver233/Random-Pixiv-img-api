@@ -8,6 +8,17 @@ import logger from './src/logger/logger';
 
 dotenv.config();
 
+const argv = process.argv.slice(2);
+const isSmokeMode = argv.includes('smoke');
+
+if (isSmokeMode) {
+  // Provide minimal defaults so `node dist/app.js smoke` can run without external env.
+  process.env.REFRESH_TOKENS ??= '["smoke"]';
+  process.env.MEMCACHED_HOST ??= '127.0.0.1';
+  process.env.MEMCACHED_PORT ??= '11211';
+  process.env.MEMCACHED_NAMESPACE ??= 'pixiv';
+}
+
 try {
   validateEnv();
 } catch (err: unknown) {
@@ -17,19 +28,25 @@ try {
 
 const env = getEnv();
 
-const showVersion = require('./src/middlewares/headerMiddleware').default;
-const apiRoutes = require('./src/routes/api').default;
-const pixivRoutes = require('./src/routes/pixivRoutes').default;
-const requestIdMiddleware = require('./src/middlewares/requestIdMiddleware').default;
-const httpLoggerMiddleware = require('./src/middlewares/httpLoggerMiddleware').default;
-const corsMiddleware = require('./src/middlewares/cors').default;
-const securityHeaders = require('./src/middlewares/securityHeaders').default;
-const rateLimitMiddleware = require('./src/middlewares/rateLimit').default;
-const errorHandler = require('./src/middlewares/errorHandler').default;
+function requireDefault<T>(path: string): T {
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const mod = require(path) as any;
+  return (mod && 'default' in mod) ? (mod.default as T) : (mod as T);
+}
+
+const showVersion = requireDefault<express.RequestHandler>('./src/middlewares/headerMiddleware');
+const apiRoutes = requireDefault<express.Router>('./src/routes/api');
+const pixivRoutes = requireDefault<express.Router>('./src/routes/pixivRoutes');
+const requestIdMiddleware = requireDefault<express.RequestHandler>('./src/middlewares/requestIdMiddleware');
+const httpLoggerMiddleware = requireDefault<express.RequestHandler>('./src/middlewares/httpLoggerMiddleware');
+const corsMiddleware = requireDefault<express.RequestHandler>('./src/middlewares/cors');
+const securityHeaders = requireDefault<express.RequestHandler>('./src/middlewares/securityHeaders');
+const rateLimitMiddleware = requireDefault<express.RequestHandler>('./src/middlewares/rateLimit');
+const errorHandler = requireDefault<express.ErrorRequestHandler>('./src/middlewares/errorHandler');
 
 const app = express();
-const PORT = process.env.PORT ? Number(process.env.PORT) : 3000;
-const HOST = process.env.HOST || '127.0.0.1';
+const PORT = env.PORT;
+const HOST = env.HOST;
 
 if (env.TRUST_PROXY > 0) {
   app.set('trust proxy', env.TRUST_PROXY);
@@ -53,8 +70,14 @@ app.use('/', showVersion, pixivRoutes);
 // Error handling middleware
 app.use(errorHandler);
 
-// Start the server
-if (require.main === module) {
+export async function runApp(params: { argv?: string[] } = {}): Promise<void> {
+  const runArgv = params.argv ?? process.argv.slice(2);
+
+  if (runArgv.includes('smoke')) {
+    logger.info({ ok: true }, 'smoke_ok');
+    return;
+  }
+
   app.listen(PORT, HOST, () => {
     logger.info({ host: HOST, port: PORT }, 'Server is running');
   });
@@ -68,6 +91,17 @@ if (require.main === module) {
 
   void registerHealUrlWorker().catch((err: unknown) => {
     logger.error({ err }, 'register heal_url worker failed');
+  });
+}
+
+if (require.main === module) {
+  void runApp().then(() => {
+    if (isSmokeMode) {
+      process.exit(0);
+    }
+  }).catch((err: unknown) => {
+    logger.error({ err }, 'app startup failed');
+    process.exit(1);
   });
 }
 
