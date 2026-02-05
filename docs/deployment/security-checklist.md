@@ -23,12 +23,15 @@
 
 - [ ] 生产环境必须设置强随机 `ADMIN_TOKEN`（推荐 ≥ 32 字符），不要使用弱口令/默认值
 - [ ] `ADMIN_TOKEN` 仅用于 admin：不应在任何公开 API 响应/日志中出现（含 querystring、header、body）
+- [ ] URI 导入链路（`/admin/pages/easyProxiesImport`）中不得记录明文 proxy 密码；审计只保留脱敏摘要
+- [ ] `refresh_token`、proxy 密码、Authorization 头在日志中必须 redaction（`[REDACTED]`）
 - [ ] （推荐）设置 `ADMIN_IP_ALLOWLIST` 将 `/admin` 访问限制在内网/VPN/IP 段内（见 `../admin.md`）
 - [ ] （推荐）如通过反代/HTTPS 终止部署：配置 `TRUST_PROXY`，确保 `req.secure` 与客户端 IP 获取正确（cookie Secure、IP allowlist 依赖）
 - [ ] （可选）启用账号+session 登录：`ADMIN_SESSION_AUTH_ENABLED=true` 并配置 `ADMIN_SESSION_*`（见 `../admin.md`）
 - [ ] （可选）启用 CSRF：`ADMIN_CSRF_ENABLED=true`（cookie/session 模式建议开启；反代场景可配 `ADMIN_CSRF_ALLOWED_ORIGINS`）
 - [ ] （可选）启用后台写操作限流：`ADMIN_RATE_LIMIT_ENABLED=true`（防爆破/误操作）
 - [ ] 确认导入与代理管理仅在 `/admin` 下可触达：不带 `ADMIN_TOKEN`（且未登录 session）访问应返回 `401/403`
+- [ ] 对危险操作（关闭代理、回滚 easy_proxies、删除 DLQ 作业）启用二次确认并记录审计动作
 
 ## 2) 端口暴露 / 网络隔离
 
@@ -52,6 +55,7 @@
 3. [ ] （可选）启用 `BACKEND_READ_ONLY=true` 后启动，确认 `/healthz` 正常并可访问 `/admin`
 4. [ ] （可选）启用自定义 `BACKEND_LIMIT_*` 后启动，确认容器启动成功（必要时用 `docker inspect` 查看限制是否生效）
 5. [ ] （可选）确认 backend 的日志轮转策略（`docker inspect` 查看 LogConfig 或宿主侧日志采集/轮转）
+6. [ ] 运行 `pwsh test/admin-ui-smoke.ps1 -BaseUrl http://127.0.0.1:3000 -AdminToken <ADMIN_TOKEN>`，确认 Admin 关键页面可访问
 
 ## 5) 相关文件（本仓库）
 

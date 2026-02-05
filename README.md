@@ -145,6 +145,25 @@ npm run dev
 - 超详细使用手册（部署→使用→后台全流程）：`docs/usage/handbook.md`
 - Docker Compose 单文件生产部署：`docs/deployment/docker-compose-prod.md`
 - 部署安全清单：`docs/deployment/security-checklist.md`
+- easy_proxies 对接（含一行 URI 导入）：`docs/usage/easy-proxies-integration.md`
+- DB 迁移与回滚 Runbook：`docs/deployment/db-migrations.md`
+
+## easy_proxies 极简对接（推荐）
+
+后台路径：`/admin/pages/easyProxiesImport`
+
+你可以直接在页面里粘贴一行或多行 URI，保存后立即生效（无需重启）：
+
+```text
+http://user:pass@127.0.0.1:18080
+socks5://127.0.0.1:19090
+http://user:pa@ss@127.0.0.1:18081
+```
+
+说明：
+- 密码包含 `@` 时，可直接写（最后一个 `@` 作为 host 分隔）或使用 `%40` 编码。
+- 导入策略建议使用 `skip_non_source`，避免覆盖已有手工维护节点。
+- 导入完成后代理池会自动刷新运行时缓存，不需要重启服务。
 
 ## 环境变量（后续按 Issues 增量补齐）
 

@@ -52,6 +52,24 @@ curl -fsS http://<easy_proxies_host>:<port>/api/export \\
 - 管理端提供“一键导入/刷新”动作（手动触发）
 - 可选：定时任务自动刷新（避免节点变更后长期不更新）
 
+## 4.1 极简配置：一行 URI 直接导入（无需重启）
+
+后台页面：`/admin/pages/easyProxiesImport`
+
+支持直接粘贴单行/多行 URI：
+
+```text
+http://user:pass@host:port
+socks5://host:port
+http://user:pa@ss@host:port
+```
+
+要点：
+- 密码中含 `@`：支持“最后一个 `@` 作为分隔”的写法，也支持 `%40` 编码。
+- 批量导入：每行一个 URI，可混合 `http/https/socks4/socks5`。
+- 保存后立即生效：导入动作会自动触发 runtime proxy cache 失效，不需要重启 backend。
+- 冲突策略建议：`skip_non_source`（避免覆盖不属于当前来源的节点）。
+
 ## 5. Docker Compose 部署建议
 
 ### 5.1 建议 1：easy_proxies 外置（推荐）
@@ -81,3 +99,15 @@ easy_proxies 提供节点状态与探测信息接口（例如 `/api/nodes`、`/a
 pixivcat-backend 可选择把这些信息映射成 ProxyEndpoint 的健康评分输入，以提升调度稳定性；
 但核心转发与选择逻辑不应依赖这些接口的可用性（避免外部管理面抖动影响业务主链路）。
 
+## 8. 常见排障
+
+- 导入后看不到节点：
+  - 检查 `easy_proxies_base_url` 是否可达
+  - 检查 `source` 过滤与冲突策略是否把新节点跳过
+  - 检查后台通知中的 `invalid/conflicts` 计数
+- 提示认证失败：
+  - 确认 easy_proxies 管理密码是否变更
+  - 重新保存配置后再执行导入
+- 导入成功但请求仍不走代理：
+  - 检查全局代理开关（Dashboard “代理出站”）
+  - 检查 fail-open/fail-closed 与域名路由配置

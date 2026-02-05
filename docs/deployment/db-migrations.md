@@ -70,6 +70,22 @@ npm run prisma:migrate:deploy
 npm run prisma:generate
 ```
 
+### 4.3 compose 场景排障（推荐）
+
+如果 `migrate` 或 `backend` 启动失败，按顺序执行：
+
+```bash
+docker compose ps
+docker compose logs migrate --tail=200
+docker compose logs backend --tail=200
+docker compose logs postgres --tail=200
+```
+
+常见问题：
+- `P1001 / Can't reach database server`：`postgres` 尚未 ready，等待后重试 `docker compose run --rm migrate`
+- `permission denied for schema`：数据库账号权限不足，检查 `DATABASE_URL` 与 Postgres grants
+- `migrations table is dirty`：先备份，再评估是否需要 `prisma migrate resolve`（谨慎）
+
 ## 5. 验证（迁移后）
 
 1) 检查服务健康
@@ -114,9 +130,15 @@ docker compose up -d --build backend
 
 5) 复核健康与核心接口（/admin、/random、legacy 路由等）
 
+推荐追加：
+
+```bash
+pwsh test/proxy-smoke.ps1 -BaseUrl http://127.0.0.1:3000
+pwsh test/admin-ui-smoke.ps1 -BaseUrl http://127.0.0.1:3000 -AdminToken <ADMIN_TOKEN>
+```
+
 ## 7. 常见坑（务必注意）
 
 - `prisma migrate dev` 会创建 shadow database；生产环境通常权限不允许且不应使用。
 - 回滚不要依赖“手工删列/改表”来试图回到旧版本；除非你非常确定影响范围并有完整备份。
 - 迁移失败时，优先 `docker compose logs migrate` / `backend` 定位原因；必要时先恢复备份再排查。
-
