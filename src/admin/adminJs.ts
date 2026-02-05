@@ -634,6 +634,14 @@ export async function getAdminJsRouter(): Promise<Router> {
                         };
                       }
 
+                      try {
+                        // eslint-disable-next-line @typescript-eslint/no-var-requires
+                        const { invalidateRuntimeCaches } = require('../config/runtimeConfig') as typeof import('../config/runtimeConfig');
+                        invalidateRuntimeCaches({ proxies: true });
+                      } catch {
+                        // best-effort
+                      }
+
                       auditAdminModelChange({
                         action: 'easy_proxies_import',
                         resource: 'ProxyEndpoint',
@@ -693,6 +701,14 @@ export async function getAdminJsRouter(): Promise<Router> {
                       },
                     });
 
+                    try {
+                      // eslint-disable-next-line @typescript-eslint/no-var-requires
+                      const { invalidateRuntimeCaches } = require('../config/runtimeConfig') as typeof import('../config/runtimeConfig');
+                      invalidateRuntimeCaches({ proxies: true });
+                    } catch {
+                      // best-effort
+                    }
+
                     return response;
                   },
                 },
@@ -727,6 +743,14 @@ export async function getAdminJsRouter(): Promise<Router> {
                       },
                     });
 
+                    try {
+                      // eslint-disable-next-line @typescript-eslint/no-var-requires
+                      const { invalidateRuntimeCaches } = require('../config/runtimeConfig') as typeof import('../config/runtimeConfig');
+                      invalidateRuntimeCaches({ proxies: true });
+                    } catch {
+                      // best-effort
+                    }
+
                     return response;
                   },
                 },
@@ -759,6 +783,14 @@ export async function getAdminJsRouter(): Promise<Router> {
                           : undefined,
                       },
                     });
+
+                    try {
+                      // eslint-disable-next-line @typescript-eslint/no-var-requires
+                      const { invalidateRuntimeCaches } = require('../config/runtimeConfig') as typeof import('../config/runtimeConfig');
+                      invalidateRuntimeCaches({ proxies: true });
+                    } catch {
+                      // best-effort
+                    }
 
                     return response;
                   },
