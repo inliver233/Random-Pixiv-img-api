@@ -1,12 +1,14 @@
 import type { PrismaClient, RuntimeSetting } from '@prisma/client';
 
 import { getPrismaClient } from '../db/prismaClient';
+import { getEnv } from './env.ts';
 
 export const RUNTIME_SETTING_KEYS = {
   proxyFailClosed: 'proxy_fail_closed',
   proxyRetryAttempts: 'proxy_retry_attempts',
   proxyRouteMode: 'proxy_route_mode',
   proxyRouteAllowlistDomains: 'proxy_route_allowlist_domains',
+  adminImportMaxHydrateIllusts: 'admin_import_max_hydrate_illusts',
 } as const;
 
 export type ProxyRouteMode = 'pixiv_only' | 'all' | 'allowlist';
@@ -16,14 +18,23 @@ export type RuntimeConfig = {
   proxyRetryAttempts: number;
   proxyRouteMode: ProxyRouteMode;
   proxyRouteAllowlistDomains: string[];
+  hydrateOnImport: boolean;
+  opportunisticHydrate: boolean;
+  adminImportMaxHydrateIllusts: number;
 };
 
 export function getRuntimeConfigDefaults(): RuntimeConfig {
+  const env = getEnv();
+
   return {
     proxyFailClosed: false,
     proxyRetryAttempts: 2,
     proxyRouteMode: 'pixiv_only',
     proxyRouteAllowlistDomains: [],
+    // Backward compatible default: historically import always enqueued hydrate jobs (unless skipped by count guard).
+    hydrateOnImport: true,
+    opportunisticHydrate: false,
+    adminImportMaxHydrateIllusts: env.ADMIN_IMPORT_MAX_HYDRATE_ILLUSTS,
   };
 }
 
@@ -93,6 +104,9 @@ export function resolveRuntimeConfig(defaults: RuntimeConfig, settings: RuntimeS
       case RUNTIME_SETTING_KEYS.proxyRouteAllowlistDomains:
         resolved.proxyRouteAllowlistDomains = coerceStringArray(setting.value);
         break;
+      case RUNTIME_SETTING_KEYS.adminImportMaxHydrateIllusts:
+        resolved.adminImportMaxHydrateIllusts = Math.max(0, coerceInt(setting.value, defaults.adminImportMaxHydrateIllusts));
+        break;
       default:
         break;
     }
@@ -138,4 +152,3 @@ export async function upsertRuntimeSetting(
     },
   });
 }
-

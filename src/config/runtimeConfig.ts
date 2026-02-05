@@ -39,8 +39,34 @@ function hasDatabaseUrl(): boolean {
 
 async function loadFromDb(prisma: PrismaClient): Promise<RuntimeConfig> {
   const defaults = getRuntimeConfigDefaults();
-  const settings = await prisma.runtimeSetting.findMany({ select: { key: true, value: true } });
-  return resolveRuntimeConfig(defaults, settings);
+  const settings =
+    typeof (prisma as any)?.runtimeSetting?.findMany === 'function'
+      ? await (prisma as any).runtimeSetting.findMany({ select: { key: true, value: true } })
+      : [];
+
+  const resolved = resolveRuntimeConfig(defaults, settings);
+
+  const hydrationPolicyRow =
+    typeof (prisma as any)?.hydrationPolicy?.findFirst === 'function'
+      ? await (prisma as any).hydrationPolicy.findFirst({
+        orderBy: [{ enabled: 'desc' }, { updatedAt: 'desc' }, { id: 'desc' }],
+        select: { enabled: true, hydrateOnImport: true, opportunisticHydrate: true },
+      })
+      : null;
+
+  if (!hydrationPolicyRow) {
+    return resolved;
+  }
+
+  if (!hydrationPolicyRow.enabled) {
+    return { ...resolved, hydrateOnImport: false, opportunisticHydrate: false };
+  }
+
+  return {
+    ...resolved,
+    hydrateOnImport: Boolean(hydrationPolicyRow.hydrateOnImport),
+    opportunisticHydrate: Boolean(hydrationPolicyRow.opportunisticHydrate),
+  };
 }
 
 export type RuntimeCacheInvalidation = {

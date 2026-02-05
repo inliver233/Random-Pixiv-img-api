@@ -2,6 +2,7 @@ import { Router } from 'express';
 import fs from 'node:fs/promises';
 
 import { getEnv } from '../config/env';
+import { getEffectiveRuntimeConfig } from '../config/runtimeConfig';
 import { getPrismaClient } from '../db/prismaClient';
 import { enqueueHydrateMetadata } from '../jobs/hydrateMetadata';
 import { ensureQueue, getQueueHealth } from '../queue/queue';
@@ -415,8 +416,12 @@ router.post(
       const requestId = typeof requestIdRaw === 'string' && requestIdRaw.trim() ? requestIdRaw.trim() : undefined;
 
       if (!dryRun && illustIdsToHydrate.size > 0) {
-        const maxHydrateIllusts = Math.max(0, Math.trunc(env.ADMIN_IMPORT_MAX_HYDRATE_ILLUSTS || 0));
-        if (maxHydrateIllusts > 0 && illustIdsToHydrate.size > maxHydrateIllusts) {
+        const runtimeConfig = await getEffectiveRuntimeConfig({ prisma: prisma ?? undefined });
+        const maxHydrateIllusts = Math.max(0, Math.trunc(runtimeConfig.adminImportMaxHydrateIllusts || 0));
+
+        if (!runtimeConfig.hydrateOnImport) {
+          enqueueNote = 'skipped:policy_disabled';
+        } else if (maxHydrateIllusts > 0 && illustIdsToHydrate.size > maxHydrateIllusts) {
           enqueueNote = `skipped:too_many_illusts:${illustIdsToHydrate.size}`;
         } else if (useBulk) {
           try {
