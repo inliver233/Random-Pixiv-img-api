@@ -2,6 +2,8 @@ import type { PrismaClient, ProxyEndpoint } from '@prisma/client';
 
 import { getPrismaClient } from '../db/prismaClient';
 
+import { ensureProxyHealthSchedulerStarted, filterProxyCandidatesByHealth } from './healthCheck';
+
 export type ProxyCandidate = {
   id: string;
   proxyUri: string;
@@ -53,7 +55,8 @@ export async function loadEnabledProxyCandidates(params: {
 
   const cached = globalThis.__pixivcatProxyEndpointCache;
   if (cached && now - cached.fetchedAt < ttl) {
-    return cached.candidates;
+    ensureProxyHealthSchedulerStarted();
+    return filterProxyCandidatesByHealth(cached.candidates);
   }
 
   const prisma = params.prisma ?? getPrismaClient();
@@ -71,10 +74,10 @@ export async function loadEnabledProxyCandidates(params: {
     }));
 
     globalThis.__pixivcatProxyEndpointCache = { fetchedAt: now, candidates };
-    return candidates;
+    ensureProxyHealthSchedulerStarted();
+    return filterProxyCandidatesByHealth(candidates);
   } catch {
     globalThis.__pixivcatProxyEndpointCache = { fetchedAt: now, candidates: [] };
     return [];
   }
 }
-
