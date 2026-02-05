@@ -7,6 +7,7 @@ import { getEnv } from '../config/env';
 import logger from '../logger/logger';
 import { runWithTokenProxyFailover } from '../proxy/proxyFailover';
 import { loadEnabledProxyCandidates } from '../proxy/proxyEndpointStore';
+import { withProxyRateLimit } from '../proxy/rateLimit';
 
 import { getAccessTokenWithMeta, maskHeader } from './pixivAuthService';
 import memcachedService from './memcachedService';
@@ -151,13 +152,21 @@ const getPixivIllustIdData = async (illustId: string | number, cache = true, opt
         }),
       );
 
-    const fetchWithRetry = async (accessToken: string, proxyUri?: string, tokenIndex?: number) =>
+    const fetchWithRetry = async (accessToken: string, proxyUri?: string, tokenIndex?: number, proxyId?: string) =>
       retryWithBackoff(
         async () => {
-          if (typeof tokenIndex === 'number') {
-            return withHydrateRateLimit(tokenIndex, () => fetchOnce(accessToken, proxyUri));
+          const fetchWithLimits = async () => {
+            if (typeof tokenIndex === 'number') {
+              return withHydrateRateLimit(tokenIndex, () => fetchOnce(accessToken, proxyUri));
+            }
+            return fetchOnce(accessToken, proxyUri);
+          };
+
+          if (typeof proxyId === 'string' && proxyId.trim() !== '') {
+            return withProxyRateLimit(proxyId, fetchWithLimits);
           }
-          return fetchOnce(accessToken, proxyUri);
+
+          return fetchWithLimits();
         },
         {
           retries: 2,
@@ -183,9 +192,10 @@ const getPixivIllustIdData = async (illustId: string | number, cache = true, opt
       ? (await runWithTokenProxyFailover({
         getToken,
         proxies,
-        request: async ({ accessToken, tokenIndex, proxyUri }) => {
+        request: async ({ accessToken, tokenIndex, proxyUri, proxyId }) => {
           const limiterIndex = options.rateLimit ? tokenIndex : undefined;
-          return fetchWithRetry(accessToken, proxyUri, limiterIndex);
+          const limiterProxyId = options.rateLimit ? proxyId : undefined;
+          return fetchWithRetry(accessToken, proxyUri, limiterIndex, limiterProxyId);
         },
         options: {
           poolSalt: 'pool:default',
@@ -197,7 +207,7 @@ const getPixivIllustIdData = async (illustId: string | number, cache = true, opt
       : await (async () => {
         const { accessToken, tokenIndex } = await getToken();
         const limiterIndex = options.rateLimit ? tokenIndex : undefined;
-        return fetchWithRetry(accessToken, undefined, limiterIndex);
+        return fetchWithRetry(accessToken, undefined, limiterIndex, undefined);
       })();
 
     const status = Number((response as any)?.status);

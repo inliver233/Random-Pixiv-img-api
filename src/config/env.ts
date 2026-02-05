@@ -159,6 +159,8 @@ const envSchema = z.object({
   HYDRATE_MAX_IN_FLIGHT_PER_TOKEN: optionalCoercedIntWithDefault(z.number().int().min(0), 1),
   HYDRATE_RATE_LIMIT_GLOBAL_MS: optionalCoercedIntWithDefault(z.number().int().min(0), 200),
   HYDRATE_RATE_LIMIT_PER_TOKEN_MS: optionalCoercedIntWithDefault(z.number().int().min(0), 1000),
+  PROXY_RATE_LIMIT_MAX_IN_FLIGHT_PER_PROXY: optionalCoercedIntWithDefault(z.number().int().min(0), 1),
+  PROXY_RATE_LIMIT_PER_PROXY_MS: optionalCoercedIntWithDefault(z.number().int().min(0), 0),
 
   RANDOM_FAIL_COOLDOWN_MS: optionalCoercedIntWithDefault(z.number().int().min(0), 600_000),
   // When enabled and r18=0, do NOT treat xRestrict=NULL as all-ages.

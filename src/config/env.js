@@ -127,6 +127,9 @@ const envSchema = z
     HYDRATE_RATE_LIMIT_GLOBAL_MS: z.coerce.number().int().min(0).optional().default(200),
     HYDRATE_RATE_LIMIT_PER_TOKEN_MS: z.coerce.number().int().min(0).optional().default(1000),
 
+    PROXY_RATE_LIMIT_MAX_IN_FLIGHT_PER_PROXY: z.coerce.number().int().min(0).optional().default(1),
+    PROXY_RATE_LIMIT_PER_PROXY_MS: z.coerce.number().int().min(0).optional().default(0),
+
     RANDOM_FAIL_COOLDOWN_MS: z.coerce.number().int().min(0).optional().default(600_000),
     RANDOM_R18_STRICT: booleanSchema.optional().default(false),
 
