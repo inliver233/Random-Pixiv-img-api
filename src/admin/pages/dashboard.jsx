@@ -153,6 +153,16 @@ export default function Dashboard() {
     <div style={{ padding: 16, fontFamily: 'system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif' }}>
       <h2 style={{ marginTop: 0 }}>仪表盘</h2>
       <p style={{ marginTop: 0, color: '#666' }}>生成时间：{data.generated_at}</p>
+      <div style={{ border: '1px solid #e5e7eb', borderRadius: 12, padding: 12, marginBottom: 12 }}>
+        <h3 style={{ marginTop: 0, marginBottom: 8 }}>快捷导航</h3>
+        <p style={{ marginTop: 0, color: '#666' }}>
+          推荐先进入
+          {' '}
+          <a href="/admin/pages/opsNavigator" style={{ color: '#2563eb' }}>操作导航</a>
+          {' '}
+          ，按「导入 → 补全 → 代理 → 令牌 → 统计」顺序操作，减少误操作。
+        </p>
+      </div>
 
       <div style={{
         border: proxyEnabled === false ? '1px solid #fecaca' : '1px solid #e5e7eb',

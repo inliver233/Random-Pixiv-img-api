@@ -1,5 +1,5 @@
 export const adminAuditResourceOptions = {
-  navigation: { name: '审计', icon: 'Shield' },
+  navigation: { name: '统计与审计', icon: 'Shield' },
   label: '操作审计',
   listProperties: [
     'id',

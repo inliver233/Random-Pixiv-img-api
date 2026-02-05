@@ -334,6 +334,7 @@ export async function getAdminJsRouter(): Promise<Router> {
     const componentLoader = new ComponentLoader();
     // AdminJS bundler parses JSX reliably from .jsx/.tsx but not from plain .js in some environments.
     const Dashboard = componentLoader.add('Dashboard', path.join(__dirname, 'pages', 'dashboard.jsx'));
+    const OpsNavigator = componentLoader.add('OpsNavigator', path.join(__dirname, 'pages', 'opsNavigator.jsx'));
     const ImportUrls = componentLoader.add('ImportUrls', path.join(__dirname, 'pages', 'importUrls.jsx'));
     const HydrationOps = componentLoader.add('HydrationOps', path.join(__dirname, 'pages', 'hydrationOps.jsx'));
     const TokenProxyBindings = componentLoader.add('TokenProxyBindings', path.join(__dirname, 'pages', 'tokenProxyBindings.jsx'));
@@ -348,8 +349,13 @@ export async function getAdminJsRouter(): Promise<Router> {
       },
       componentLoader,
       pages: {
+        opsNavigator: {
+          label: '操作导航（导入/补全/代理/令牌/统计）',
+          component: OpsNavigator,
+          handler: async () => ({ ok: true, generated_at: new Date().toISOString() }),
+        },
         importUrls: {
-          label: '批量导入 URL',
+          label: '[导入] 批量导入 URL',
           component: ImportUrls,
           handler: async () => {
             // eslint-disable-next-line @typescript-eslint/no-var-requires
@@ -366,7 +372,7 @@ export async function getAdminJsRouter(): Promise<Router> {
           },
         },
         hydrationOps: {
-          label: '补全运行 / DLQ',
+          label: '[补全] 补全运行 / DLQ',
           component: HydrationOps,
           handler: async (request: any) => {
             const method = String(request?.method || 'get').toLowerCase();
@@ -690,7 +696,7 @@ export async function getAdminJsRouter(): Promise<Router> {
           },
         },
         easyProxiesImport: {
-          label: 'easy_proxies 导入/刷新',
+          label: '[代理] easy_proxies 导入/刷新',
           component: EasyProxiesImport,
           handler: async () => {
             try {
@@ -736,7 +742,7 @@ export async function getAdminJsRouter(): Promise<Router> {
           },
         },
         tokenProxyBindings: {
-          label: 'Token↔Proxy 绑定',
+          label: '[令牌] Token↔Proxy 绑定',
           component: TokenProxyBindings,
           handler: async () => {
             try {
@@ -872,7 +878,7 @@ export async function getAdminJsRouter(): Promise<Router> {
           },
         },
         proxyPoolOverview: {
-          label: '代理池概览',
+          label: '[统计] 代理池概览',
           component: ProxyPoolOverview,
           handler: async () => {
             try {
@@ -1370,7 +1376,7 @@ export async function getAdminJsRouter(): Promise<Router> {
           },
           {
             resource: { model: getModelByName('Tag', prismaClientModule), client: prisma, clientModule: prismaClientModule },
-            options: { navigation: { name: '数据', icon: 'Database' }, label: '标签' },
+            options: { navigation: { name: '导入与图片', icon: 'Database' }, label: '标签' },
           },
           {
             resource: { model: getModelByName('PixivToken', prismaClientModule), client: prisma, clientModule: prismaClientModule },

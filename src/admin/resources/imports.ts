@@ -1,5 +1,5 @@
 export const importResourceOptions = {
-  navigation: { name: '数据', icon: 'Database' },
+  navigation: { name: '导入与图片', icon: 'Database' },
   label: '导入记录',
   listProperties: [
     'id',

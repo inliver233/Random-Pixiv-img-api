@@ -1,5 +1,5 @@
 export const requestLogResourceOptions = {
-  navigation: { name: '审计', icon: 'Clock' },
+  navigation: { name: '统计与审计', icon: 'BarChart2' },
   label: '请求日志',
   listProperties: [
     'id',
@@ -39,4 +39,3 @@ export const requestLogResourceOptions = {
     bulkDelete: { isVisible: false },
   },
 } as const;
-
