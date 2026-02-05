@@ -1,5 +1,6 @@
 import { Router } from 'express';
 
+import { incClassificationRequest } from '../metrics/classificationMetrics';
 import { searchAuthors } from '../repositories/authorsRepo';
 
 const router = Router();
@@ -73,6 +74,9 @@ router.get('/', (req, res, next) => {
     const cursor = parseCursor((req.query as any).cursor);
 
     const result = await searchAuthors({ q, limit, cursor });
+    const hasMore = Boolean(result.nextCursor);
+
+    incClassificationRequest('authors', 'success');
 
     res.json({
       items: result.items.map((item) => ({
@@ -81,9 +85,18 @@ router.get('/', (req, res, next) => {
         image_count: item.imageCount,
       })),
       next_cursor: result.nextCursor ? result.nextCursor.toString() : null,
+      pagination: {
+        limit,
+        has_more: hasMore,
+      },
+      query: {
+        q: q ?? null,
+      },
     });
-  })().catch(next);
+  })().catch((err) => {
+    incClassificationRequest('authors', 'error');
+    next(err);
+  });
 });
 
 export default router;
-

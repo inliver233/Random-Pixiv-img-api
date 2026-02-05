@@ -7,6 +7,7 @@ const { ensureUpstreamMetricsInitialized } = require('../metrics/upstreamMetrics
 const { ensureOutboundMetricsInitialized } = require('../metrics/outboundMetrics');
 const { ensureDbMetricsInitialized } = require('../metrics/dbMetrics');
 const { ensureJobMetricsInitialized } = require('../metrics/jobMetrics');
+const { ensureClassificationMetricsInitialized } = require('../metrics/classificationMetrics');
 
 const router = express.Router();
 
@@ -50,6 +51,7 @@ router.get('/', async (req, res) => {
   ensureOutboundMetricsInitialized();
   ensureDbMetricsInitialized();
   ensureJobMetricsInitialized();
+  ensureClassificationMetricsInitialized();
 
   const registry = getMetricsRegistry();
   res.setHeader('Content-Type', registry.contentType);

@@ -41,6 +41,8 @@ router.get('/', async (req, res) => {
   const { ensureDbMetricsInitialized } = require('../metrics/dbMetrics') as { ensureDbMetricsInitialized: () => void };
   // eslint-disable-next-line @typescript-eslint/no-var-requires
   const { ensureJobMetricsInitialized } = require('../metrics/jobMetrics') as { ensureJobMetricsInitialized: () => void };
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const { ensureClassificationMetricsInitialized } = require('../metrics/classificationMetrics') as { ensureClassificationMetricsInitialized: () => void };
 
   const env = getEnv();
   if (!env.METRICS_ENABLED) {
@@ -60,6 +62,7 @@ router.get('/', async (req, res) => {
   ensureOutboundMetricsInitialized();
   ensureDbMetricsInitialized();
   ensureJobMetricsInitialized();
+  ensureClassificationMetricsInitialized();
 
   const registry = getMetricsRegistry();
   res.setHeader('Content-Type', registry.contentType);

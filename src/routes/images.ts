@@ -1,6 +1,7 @@
 import { Router } from 'express';
 
 import { getEnv } from '../config/env';
+import { incClassificationRequest } from '../metrics/classificationMetrics';
 import { IMAGE_STATUS_ACTIVE, IMAGE_STATUS_BROKEN, IMAGE_STATUS_DISABLED, getByIdWithTags, listImagesWithTags, type PickRandomFilters } from '../repositories/imagesRepo';
 
 const router = Router();
@@ -320,6 +321,9 @@ router.get('/', (req, res, next) => {
     if (illustId !== undefined) filters.illustId = illustId;
 
     const result = await listImagesWithTags(filters, { limit, cursor });
+    const hasMore = Boolean(result.nextCursor);
+
+    incClassificationRequest('images', 'success');
 
     res.json({
       items: result.items.map((image: any) => ({
@@ -336,8 +340,30 @@ router.get('/', (req, res, next) => {
         tags: (image.imageTags || []).map((row: any) => row?.tag?.name).filter((name: any) => typeof name === 'string'),
       })),
       next_cursor: result.nextCursor ? result.nextCursor.toString() : null,
+      pagination: {
+        limit,
+        has_more: hasMore,
+      },
+      query: {
+        cursor: cursor ? cursor.toString() : null,
+        filters: {
+          r18: xRestrict,
+          r18_strict: xRestrict === 0 ? Boolean(r18Strict) : false,
+          orientation: orientation ?? null,
+          min_width: minWidth ?? null,
+          min_height: minHeight ?? null,
+          min_pixels: minPixels ?? null,
+          included_tags: includedTags ?? [],
+          excluded_tags: excludedTags ?? [],
+          user_id: userId ? userId.toString() : null,
+          illust_id: illustId ? illustId.toString() : null,
+        },
+      },
     });
-  })().catch(next);
+  })().catch((err) => {
+    incClassificationRequest('images', 'error');
+    next(err);
+  });
 });
 
 router.get('/:id', (req, res, next) => {

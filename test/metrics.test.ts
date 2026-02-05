@@ -64,6 +64,7 @@ describe('GET /metrics', () => {
     expect(res.text).toContain('job_fail_total');
     expect(res.text).toContain('job_duration_seconds');
     expect(res.text).toContain('job_last_illust_id');
+    expect(res.text).toContain('classification_requests_total');
   });
 
   it('returns 404 when metrics are disabled', async () => {

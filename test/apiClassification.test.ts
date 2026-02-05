@@ -74,6 +74,13 @@ describe('Classification APIs (/tags /authors /images)', () => {
         { id: 2, name: 'dog', translated_name: null, image_count: 2 },
       ],
       next_cursor: '2',
+      pagination: {
+        limit: 2,
+        has_more: true,
+      },
+      query: {
+        q: null,
+      },
     });
 
     expect(prisma.tag.findMany).toHaveBeenCalledWith({
@@ -114,6 +121,13 @@ describe('Classification APIs (/tags /authors /images)', () => {
         { user_id: 11, user_name: 'alina', image_count: 2 },
       ],
       next_cursor: '11',
+      pagination: {
+        limit: 2,
+        has_more: true,
+      },
+      query: {
+        q: 'ali',
+      },
     });
 
     expect(prisma.image.groupBy).toHaveBeenCalled();
@@ -209,6 +223,25 @@ describe('Classification APIs (/tags /authors /images)', () => {
         },
       ],
       next_cursor: '4',
+      pagination: {
+        limit: 2,
+        has_more: true,
+      },
+      query: {
+        cursor: null,
+        filters: {
+          r18: 0,
+          r18_strict: false,
+          orientation: null,
+          min_width: null,
+          min_height: null,
+          min_pixels: null,
+          included_tags: [],
+          excluded_tags: [],
+          user_id: null,
+          illust_id: null,
+        },
+      },
     });
   });
 
@@ -259,6 +292,7 @@ describe('Classification APIs (/tags /authors /images)', () => {
 
     expect(res.body.next_cursor).toBe('2');
     expect(res.body.items).toHaveLength(2);
+    expect(res.body.pagination).toEqual({ limit: 2, has_more: true });
+    expect(res.body.query.filters.min_pixels).toBe(100);
   });
 });
-
