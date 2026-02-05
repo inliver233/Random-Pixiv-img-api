@@ -328,12 +328,16 @@ export async function registerHydrateMetadataWorker(): Promise<void> {
       } catch (err: unknown) {
         const durationSeconds = Number(process.hrtime.bigint() - startedAt) / 1e9;
         recordJobFail({ job: HYDRATE_METADATA_JOB, illustId: illustId.toString(), durationSeconds });
+        const evidence = (err as any)?.failoverEvidence;
+        const attempts = Array.isArray(evidence?.attempts) ? evidence.attempts : [];
         logger.warn(
           {
             request_id: requestId,
             job: { name: HYDRATE_METADATA_JOB, id: job.id },
             illust_id: illustId.toString(),
             duration_seconds: durationSeconds,
+            failover_attempts: attempts.length,
+            failover_last_attempt: attempts.length > 0 ? attempts[attempts.length - 1] : null,
             err,
           },
           'hydrate_metadata failed',

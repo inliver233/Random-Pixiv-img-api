@@ -280,6 +280,7 @@ const getPixivIllustIdData = async (illustId: string | number, cache = true, opt
       incrementUpstreamError('rate_limit');
       const err: any = new Error('Pixiv API rate limit exceeded.');
       err.code = 'rate_limit';
+      err.cause = error;
       throw err;
     }
 
@@ -288,6 +289,10 @@ const getPixivIllustIdData = async (illustId: string | number, cache = true, opt
       incrementUpstreamError('network');
       const err: any = new Error('Pixiv API network error');
       err.code = 'network';
+      err.cause = error;
+      if (error && typeof error === 'object' && (error as any).failoverEvidence) {
+        err.failoverEvidence = (error as any).failoverEvidence;
+      }
       throw err;
     }
 
@@ -304,11 +309,21 @@ const getPixivIllustIdData = async (illustId: string | number, cache = true, opt
           code: (error as any)?.code,
           status: (error as any)?.response?.status,
         },
+        failover_attempts: Array.isArray((error as any)?.failoverEvidence?.attempts)
+          ? (error as any).failoverEvidence.attempts.length
+          : 0,
+        failover_last_attempt: Array.isArray((error as any)?.failoverEvidence?.attempts) && (error as any).failoverEvidence.attempts.length > 0
+          ? (error as any).failoverEvidence.attempts[(error as any).failoverEvidence.attempts.length - 1]
+          : null,
       },
       'Pixiv service error',
     );
     const err: any = new Error('Pixiv API request failed');
     err.code = 'upstream';
+    err.cause = error;
+    if (error && typeof error === 'object' && (error as any).failoverEvidence) {
+      err.failoverEvidence = (error as any).failoverEvidence;
+    }
     throw err;
   }
 };

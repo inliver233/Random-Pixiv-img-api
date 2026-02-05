@@ -44,7 +44,7 @@ function normalizePages(pages: HydrateMetadataPage[], illustId: bigint): Array<{
 }
 
 export async function healUrl(illustId: bigint): Promise<{ updated: number; pages: number }> {
-  const pages = await hydrateMetadata(illustId);
+  const pages = await hydrateMetadata(illustId, { cache: false });
   const normalized = normalizePages(pages, illustId);
   const updated = await healOriginalUrlsForIllust(illustId, normalized);
   return { updated, pages: normalized.length };
@@ -107,12 +107,16 @@ export async function registerHealUrlWorker(): Promise<void> {
       } catch (err: unknown) {
         const durationSeconds = Number(process.hrtime.bigint() - startedAt) / 1e9;
         recordJobFail({ job: HEAL_URL_JOB, illustId: illustId.toString(), durationSeconds });
+        const evidence = (err as any)?.failoverEvidence;
+        const attempts = Array.isArray(evidence?.attempts) ? evidence.attempts : [];
         logger.warn(
           {
             request_id: requestId,
             job: { name: HEAL_URL_JOB, id: job.id },
             illust_id: illustId.toString(),
             duration_seconds: durationSeconds,
+            failover_attempts: attempts.length,
+            failover_last_attempt: attempts.length > 0 ? attempts[attempts.length - 1] : null,
             err,
           },
           'heal_url failed',
