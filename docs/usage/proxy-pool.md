@@ -30,6 +30,11 @@
 
 建议：如果你的目标是“绝不泄露真实 IP”，请务必使用 fail-closed，并在部署侧做网络级 egress 限制（仅允许代理出口）。
 
+补充：fail-open / fail-closed 支持**全局默认值**与**按域名覆盖**（子域名匹配）。优先级：
+1) `proxy_fail_open_domains`（命中则强制 fail-open）
+2) `proxy_fail_closed_domains`（命中则强制 fail-closed）
+3) `proxy_fail_closed`（全局默认值）
+
 ## 2. 数据源与热更新（DB 为运行时权威）
 代理池相关配置与资源支持后台热更新：
 - ProxyEndpoint / ProxyPool 等资源在 DB 中持久化
@@ -86,6 +91,17 @@ curl -i http://127.0.0.1:3000/random\n```
 ```bash
 docker compose exec -T postgres psql -U \"${POSTGRES_USER:-pixivcat}\" \"${POSTGRES_DB:-pixivcat}\" -c \"update runtime_settings set value='false', updated_at=now() where key='proxy_fail_closed';\"\n```
 
+### 示例 4.1：按域名覆盖 fail-open / fail-closed
+例如：全局保持 fail-open，但 pximg 图片源站必须 fail-closed（不允许直连）：
+```bash
+docker compose exec -T postgres psql -U \"${POSTGRES_USER:-pixivcat}\" \"${POSTGRES_DB:-pixivcat}\" -c \"insert into runtime_settings(key,value) values('proxy_fail_closed_domains','[\\\"pximg.net\\\"]') on conflict(key) do update set value=excluded.value, updated_at=now();\"\n```
+
+例如：全局启用 fail-closed，但 OAuth 刷新允许 fail-open（仅此域名允许直连兜底）：
+```bash
+docker compose exec -T postgres psql -U \"${POSTGRES_USER:-pixivcat}\" \"${POSTGRES_DB:-pixivcat}\" -c \"insert into runtime_settings(key,value) values('proxy_fail_open_domains','[\\\"oauth.secure.pixiv.net\\\"]') on conflict(key) do update set value=excluded.value, updated_at=now();\"\n```
+
+> 说明：域名列表支持子域名匹配，例如 `pximg.net` 会匹配 `i.pximg.net`。
+
 ### 示例 5：观测代理错误指标（Prometheus /metrics）
 ```bash
 curl -fsS http://127.0.0.1:3000/metrics | rg -n \"proxy_\" -S\n```
@@ -104,4 +120,3 @@ docker compose exec -T postgres psql -U \"${POSTGRES_USER:-pixivcat}\" \"${POSTG
 
 ### Q2: 为什么“只让 Pixiv 域名走代理”？
 减少误代理风险与性能损耗。若你需要所有出站都必须走代理，请显式配置域名路由范围并启用 fail-closed。
-

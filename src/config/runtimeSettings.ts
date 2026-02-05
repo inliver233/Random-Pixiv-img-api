@@ -1,10 +1,12 @@
 import type { PrismaClient, RuntimeSetting } from '@prisma/client';
 
 import { getPrismaClient } from '../db/prismaClient';
-import { getEnv } from './env.ts';
+import { getEnv } from './env';
 
 export const RUNTIME_SETTING_KEYS = {
   proxyFailClosed: 'proxy_fail_closed',
+  proxyFailClosedDomains: 'proxy_fail_closed_domains',
+  proxyFailOpenDomains: 'proxy_fail_open_domains',
   proxyRetryAttempts: 'proxy_retry_attempts',
   proxyRouteMode: 'proxy_route_mode',
   proxyRouteAllowlistDomains: 'proxy_route_allowlist_domains',
@@ -15,6 +17,8 @@ export type ProxyRouteMode = 'pixiv_only' | 'all' | 'allowlist';
 
 export type RuntimeConfig = {
   proxyFailClosed: boolean;
+  proxyFailClosedDomains: string[];
+  proxyFailOpenDomains: string[];
   proxyRetryAttempts: number;
   proxyRouteMode: ProxyRouteMode;
   proxyRouteAllowlistDomains: string[];
@@ -28,6 +32,8 @@ export function getRuntimeConfigDefaults(): RuntimeConfig {
 
   return {
     proxyFailClosed: false,
+    proxyFailClosedDomains: [],
+    proxyFailOpenDomains: [],
     proxyRetryAttempts: 2,
     proxyRouteMode: 'pixiv_only',
     proxyRouteAllowlistDomains: [],
@@ -94,6 +100,12 @@ export function resolveRuntimeConfig(defaults: RuntimeConfig, settings: RuntimeS
     switch (setting.key) {
       case RUNTIME_SETTING_KEYS.proxyFailClosed:
         resolved.proxyFailClosed = coerceBoolean(setting.value, defaults.proxyFailClosed);
+        break;
+      case RUNTIME_SETTING_KEYS.proxyFailClosedDomains:
+        resolved.proxyFailClosedDomains = coerceStringArray(setting.value);
+        break;
+      case RUNTIME_SETTING_KEYS.proxyFailOpenDomains:
+        resolved.proxyFailOpenDomains = coerceStringArray(setting.value);
         break;
       case RUNTIME_SETTING_KEYS.proxyRetryAttempts:
         resolved.proxyRetryAttempts = Math.max(0, coerceInt(setting.value, defaults.proxyRetryAttempts));

@@ -4,7 +4,7 @@ import { getPrismaClient } from '../db/prismaClient';
 import { invalidateProxyEndpointCache } from '../proxy/proxyEndpointStore';
 import { invalidateTokenStoreCache } from '../services/tokenStore';
 
-import { getRuntimeConfigDefaults, resolveRuntimeConfig, type RuntimeConfig } from './runtimeSettings.ts';
+import { getRuntimeConfigDefaults, resolveRuntimeConfig, type RuntimeConfig } from './runtimeSettings';
 
 export type RuntimeConfigSource = 'db' | 'defaults' | 'cache';
 

@@ -2,8 +2,12 @@ import crypto from 'node:crypto';
 import qs from 'qs';
 
 import { getEnv } from '../config/env';
+import { getEffectiveRuntimeConfig } from '../config/runtimeConfig';
 import { pixivApiRequest } from '../http/axiosClient';
 import logger from '../logger/logger';
+import { loadEnabledProxyCandidates } from '../proxy/proxyEndpointStore';
+import { runWithProxyFailover } from '../proxy/proxyFailover';
+import { shouldFailClosedForUrl, shouldProxyUrl } from '../proxy/routing';
 import { getTokenStoreSnapshot } from './tokenStore';
 
 const AUTH_TOKEN_URL = 'https://oauth.secure.pixiv.net/auth/token';
@@ -44,10 +48,35 @@ export const maskHeader: Record<string, string> = {
   'User-Agent': 'PixivIOSApp/6.7.1 (iOS 10.3.1; iPhone8,1)',
 };
 
+function buildProxyRequiredError(url: string): Error {
+  const err: any = new Error('Proxy required (fail-closed).');
+  err.code = 'proxy_required';
+  err.status = 503;
+  err.origin_url = url;
+  return err;
+}
+
 const refreshAccessToken = async (refreshToken: string): Promise<PixivAuthRefreshResponse> => {
   const localTime = `${new Date().toISOString().replace(/\..+/, '')}+00:00`;
   const request = pixivApiRequestOverride ?? pixivApiRequest;
-  const response = await request({
+
+  const runtimeConfig = await getEffectiveRuntimeConfig();
+  const routing = { mode: runtimeConfig.proxyRouteMode, allowlistDomains: runtimeConfig.proxyRouteAllowlistDomains };
+  const policy = {
+    defaultFailClosed: runtimeConfig.proxyFailClosed,
+    failClosedDomains: runtimeConfig.proxyFailClosedDomains,
+    failOpenDomains: runtimeConfig.proxyFailOpenDomains,
+  };
+
+  const shouldProxy = shouldProxyUrl(AUTH_TOKEN_URL, routing);
+  const failClosed = shouldFailClosedForUrl(AUTH_TOKEN_URL, { routing, policy });
+  const proxies = shouldProxy ? await loadEnabledProxyCandidates() : [];
+
+  if (shouldProxy && proxies.length === 0 && failClosed) {
+    throw buildProxyRequiredError(AUTH_TOKEN_URL);
+  }
+
+  const doRequest = (proxyUri?: string) => request({
     method: 'post',
     url: AUTH_TOKEN_URL,
     headers: {
@@ -66,7 +95,17 @@ const refreshAccessToken = async (refreshToken: string): Promise<PixivAuthRefres
       grant_type: 'refresh_token',
       refresh_token: refreshToken,
     }),
+    proxyUri,
+    proxyRouting: routing,
   });
+
+  const response = proxies.length > 0
+    ? (await runWithProxyFailover({
+      proxies,
+      maxProxySwitches: 2,
+      request: ({ proxyUri }) => doRequest(proxyUri),
+    })).value
+    : await doRequest(undefined);
   return response.data.response;
 };
 

@@ -4,10 +4,12 @@ import { classifyOutboundError } from '../resilience/outboundErrors';
 import { retryWithBackoff } from '../resilience/retry';
 import { incrementUpstreamError } from '../metrics/upstreamMetrics';
 import { getEnv } from '../config/env';
+import { getEffectiveRuntimeConfig } from '../config/runtimeConfig';
 import logger from '../logger/logger';
 import { runWithTokenProxyFailover } from '../proxy/proxyFailover';
 import { loadEnabledProxyCandidates } from '../proxy/proxyEndpointStore';
 import { withProxyRateLimit } from '../proxy/rateLimit';
+import { shouldFailClosedForUrl, shouldProxyUrl } from '../proxy/routing';
 
 import { getAccessTokenWithMeta, maskHeader } from './pixivAuthService';
 import memcachedService from './memcachedService';
@@ -58,6 +60,14 @@ function normalizeIntervalMs(value: unknown): number {
 function sleep(ms: number): Promise<void> {
   if (ms <= 0) return Promise.resolve();
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function buildProxyRequiredError(url: string): Error {
+  const err: any = new Error('Proxy required (fail-closed).');
+  err.code = 'proxy_required';
+  err.status = 503;
+  err.origin_url = url;
+  return err;
 }
 
 async function acquire(entry: LimiterEntry, maxInFlight: number): Promise<() => void> {
@@ -139,15 +149,28 @@ const getPixivIllustIdData = async (illustId: string | number, cache = true, opt
   try {
     logger.info({ illust_id: String(illustId) }, 'Fetching Pixiv API data for illust ID');
 
+    const runtimeConfig = await getEffectiveRuntimeConfig();
+    const routing = { mode: runtimeConfig.proxyRouteMode, allowlistDomains: runtimeConfig.proxyRouteAllowlistDomains };
+    const policy = {
+      defaultFailClosed: runtimeConfig.proxyFailClosed,
+      failClosedDomains: runtimeConfig.proxyFailClosedDomains,
+      failOpenDomains: runtimeConfig.proxyFailOpenDomains,
+    };
+
+    const requestUrl = `${PIXIV_BASE_URL}/illust/detail?illust_id=${illustId}`;
+    const shouldProxy = shouldProxyUrl(requestUrl, routing);
+    const failClosed = shouldFailClosedForUrl(requestUrl, { routing, policy });
+
     const fetchOnce = async (accessToken: string, proxyUri?: string) =>
       pixivApiCircuitFire(async () =>
-        pixivApiGet(`${PIXIV_BASE_URL}/illust/detail?illust_id=${illustId}`, {
+        pixivApiGet(requestUrl, {
           headers: {
             Accept: 'application/json',
             Authorization: `Bearer ${accessToken}`,
             ...maskHeader,
           },
           proxyUri,
+          proxyRouting: routing,
           validateStatus: (status) => (status >= 200 && status < 300) || status === 404,
         }),
       );
@@ -197,7 +220,11 @@ const getPixivIllustIdData = async (illustId: string | number, cache = true, opt
       );
 
     const getToken = async () => getAccessTokenWithMeta();
-    const proxies = await loadEnabledProxyCandidates();
+    const proxies = shouldProxy ? await loadEnabledProxyCandidates() : [];
+
+    if (shouldProxy && proxies.length === 0 && failClosed) {
+      throw buildProxyRequiredError(requestUrl);
+    }
 
     const response = proxies.length > 0
       ? (await runWithTokenProxyFailover({
@@ -240,6 +267,10 @@ const getPixivIllustIdData = async (illustId: string | number, cache = true, opt
       const err: any = new Error('Pixiv API circuit breaker is open.');
       err.code = 'circuit_open';
       throw err;
+    }
+
+    if (error && typeof error === 'object' && (error as any).code === 'proxy_required') {
+      throw error;
     }
 
     const response = error?.response;

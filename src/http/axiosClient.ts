@@ -2,11 +2,12 @@ import axios, { type AxiosRequestConfig, type AxiosResponse, type RawAxiosReques
 import axiosRetry from 'axios-retry';
 
 import { getDirectAgentPair, getProxyAgentPair, type AgentFactoryOptions } from '../proxy/agentFactory';
-import { shouldProxyUrl } from '../proxy/routing';
+import { shouldProxyUrl, type ProxyRoutingOptions } from '../proxy/routing';
 
 export type PixivAxiosRequestConfig = AxiosRequestConfig & {
   proxyUri?: string;
   proxyAgentOptions?: AgentFactoryOptions;
+  proxyRouting?: ProxyRoutingOptions;
 };
 
 const directAgents = getDirectAgentPair({ keepAlive: true });
@@ -95,7 +96,7 @@ function buildPixivConfig(
 ): AxiosRequestConfig {
   if (!override) return base;
 
-  const { proxyUri, proxyAgentOptions, ...axiosOverride } = override as any;
+  const { proxyUri, proxyAgentOptions, proxyRouting, ...axiosOverride } = override as any;
   const merged = mergeConfig(base, axiosOverride);
 
   const hasExplicitAgents = Boolean((axiosOverride as any).httpAgent || (axiosOverride as any).httpsAgent);
@@ -104,7 +105,7 @@ function buildPixivConfig(
     proxyUri.trim().length > 0 &&
     !hasExplicitAgents &&
     typeof requestUrl === 'string' &&
-    shouldProxyUrl(requestUrl);
+    shouldProxyUrl(requestUrl, proxyRouting);
 
   if (shouldApplyProxyUri) {
     const agents = getProxyAgentPair(proxyUri, proxyAgentOptions);

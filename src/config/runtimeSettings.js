@@ -13,6 +13,8 @@ if (!delegated) {
   module.exports = {
     RUNTIME_SETTING_KEYS: {
       proxyFailClosed: 'proxy_fail_closed',
+      proxyFailClosedDomains: 'proxy_fail_closed_domains',
+      proxyFailOpenDomains: 'proxy_fail_open_domains',
       proxyRetryAttempts: 'proxy_retry_attempts',
       proxyRouteMode: 'proxy_route_mode',
       proxyRouteAllowlistDomains: 'proxy_route_allowlist_domains',
@@ -20,6 +22,8 @@ if (!delegated) {
     getRuntimeConfigDefaults() {
       return {
         proxyFailClosed: false,
+        proxyFailClosedDomains: [],
+        proxyFailOpenDomains: [],
         proxyRetryAttempts: 2,
         proxyRouteMode: 'pixiv_only',
         proxyRouteAllowlistDomains: [],
@@ -27,4 +31,3 @@ if (!delegated) {
     },
   };
 }
-

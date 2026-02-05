@@ -5,13 +5,23 @@ export type ProxyRoutingOptions = {
   allowlistDomains?: string[];
 };
 
+export type ProxyFailurePolicy = {
+  defaultFailClosed?: boolean;
+  failClosedDomains?: string[];
+  failOpenDomains?: string[];
+};
+
 const DEFAULT_PIXIV_HOSTS = new Set<string>([
   'oauth.secure.pixiv.net',
   'app-api.pixiv.net',
 ]);
 
+function normalizeHostname(hostname: string): string {
+  return hostname.trim().toLowerCase().replace(/\.$/, '');
+}
+
 export function isPixivHostname(hostname: string): boolean {
-  const normalized = hostname.trim().toLowerCase().replace(/\.$/, '');
+  const normalized = normalizeHostname(hostname);
   if (!normalized) return false;
   if (DEFAULT_PIXIV_HOSTS.has(normalized)) return true;
   if (normalized === 'pximg.net' || normalized.endsWith('.pximg.net')) return true;
@@ -19,16 +29,31 @@ export function isPixivHostname(hostname: string): boolean {
 }
 
 function isAllowedByAllowlist(hostname: string, allowlist: string[]): boolean {
-  const normalized = hostname.trim().toLowerCase().replace(/\.$/, '');
+  const normalized = normalizeHostname(hostname);
   if (!normalized) return false;
 
   for (const raw of allowlist) {
-    const item = String(raw || '').trim().toLowerCase().replace(/\.$/, '');
+    const item = normalizeHostname(String(raw || ''));
     if (!item) continue;
     if (normalized === item) return true;
     if (normalized.endsWith(`.${item}`)) return true;
   }
   return false;
+}
+
+export function resolveProxyFailClosedForHostname(hostname: string, policy: ProxyFailurePolicy = {}): boolean {
+  const normalized = normalizeHostname(hostname);
+  const defaultFailClosed = Boolean(policy.defaultFailClosed);
+
+  if (!normalized) return defaultFailClosed;
+
+  const failOpen = policy.failOpenDomains ?? [];
+  if (failOpen.length > 0 && isAllowedByAllowlist(normalized, failOpen)) return false;
+
+  const failClosed = policy.failClosedDomains ?? [];
+  if (failClosed.length > 0 && isAllowedByAllowlist(normalized, failClosed)) return true;
+
+  return defaultFailClosed;
 }
 
 export function shouldProxyUrl(url: string, options: ProxyRoutingOptions = {}): boolean {
@@ -55,3 +80,17 @@ export function shouldProxyUrl(url: string, options: ProxyRoutingOptions = {}): 
   return isPixivHostname(hostname);
 }
 
+export function shouldFailClosedForUrl(
+  url: string,
+  params: { routing?: ProxyRoutingOptions; policy?: ProxyFailurePolicy } = {},
+): boolean {
+  const routing = params.routing ?? {};
+  if (!shouldProxyUrl(url, routing)) return false;
+
+  try {
+    const parsed = new URL(url);
+    return resolveProxyFailClosedForHostname(parsed.hostname, params.policy);
+  } catch {
+    return false;
+  }
+}
