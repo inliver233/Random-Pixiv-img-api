@@ -12,6 +12,7 @@ import {
   loadEasyProxiesRuntimeConfig,
 } from '../proxy/easyProxiesImporter';
 import { getProxyHealthOptions, getProxyHealthReport, runProxyHealthCheckOnce } from '../proxy/healthCheck';
+import { importProxyUriLines, parseProxyUriTextLines, type ProxyUriImportConflictPolicy } from '../proxy/proxyUriImporter';
 import { pickPrimaryProxyRendezvous, resolveEffectiveProxy } from '../proxy/tokenProxyBinding';
 import * as PrismaModule from '@prisma/client';
 import { Prisma } from '@prisma/client';
@@ -1932,6 +1933,96 @@ export async function getAdminJsRouter(): Promise<Router> {
 
                       return {
                         notice: { type: 'success', message: enabled ? '已启用代理（出站将优先走代理）' : '已关闭代理：将直连出站（真实 IP 暴露风险）' },
+                        redirectUrl: context.h.resourceUrl({ resourceId: context.resource.id() }),
+                      };
+                    } catch (err: unknown) {
+                      return {
+                        notice: { type: 'error', message: err instanceof Error ? err.message : String(err) },
+                        redirectUrl: context.h.resourceUrl({ resourceId: context.resource.id() }),
+                      };
+                    }
+                  },
+                },
+                importProxyUris: {
+                  actionType: 'resource',
+                  icon: 'Upload',
+                  label: 'URI 批量导入',
+                  guard: 'Import proxy URIs now? Passwords in URI will be stored but never shown in the UI.',
+                  handler: async (request: any, _res: any, context: any) => {
+                    if (String(request?.method || '').toLowerCase() === 'get') {
+                      return {};
+                    }
+
+                    const payload = request?.payload && typeof request.payload === 'object' ? request.payload : {};
+                    const uriTextRaw =
+                      (payload as any).proxy_uris
+                      ?? (payload as any).proxyUris
+                      ?? (payload as any).uris
+                      ?? '';
+                    const lines = parseProxyUriTextLines(String(uriTextRaw || ''));
+                    if (lines.length === 0) {
+                      return {
+                        notice: { type: 'error', message: 'No proxy URI provided.' },
+                        redirectUrl: context.h.resourceUrl({ resourceId: context.resource.id() }),
+                      };
+                    }
+
+                    const sourceRaw = String((payload as any).source || 'manual').trim().toLowerCase();
+                    const source = sourceRaw || 'manual';
+
+                    const enabledRaw = (payload as any).enabled;
+                    const enabled = typeof enabledRaw === 'string'
+                      ? ['1', 'true', 'yes', 'y', 'on'].includes(enabledRaw.trim().toLowerCase())
+                      : enabledRaw === undefined || enabledRaw === null
+                        ? true
+                        : Boolean(enabledRaw);
+
+                    const conflictPolicyRaw = String((payload as any).conflict_policy || (payload as any).conflictPolicy || 'skip_non_source').trim();
+                    const conflictPolicy: ProxyUriImportConflictPolicy = (
+                      ['overwrite', 'skip_non_easy_proxies', 'skip_non_manual', 'skip_non_source'].includes(conflictPolicyRaw)
+                        ? conflictPolicyRaw
+                        : 'skip_non_source'
+                    ) as ProxyUriImportConflictPolicy;
+
+                    try {
+                      const summary = await importProxyUriLines({
+                        lines,
+                        source,
+                        sourceRef: source === 'manual' ? 'manual-uri-import' : source,
+                        enabled,
+                        conflictPolicy,
+                        prisma,
+                      });
+
+                      try {
+                        // eslint-disable-next-line @typescript-eslint/no-var-requires
+                        const { invalidateRuntimeCaches } = require('../config/runtimeConfig') as typeof import('../config/runtimeConfig');
+                        invalidateRuntimeCaches({ proxies: true });
+                      } catch {
+                        // best-effort
+                      }
+
+                      auditAdminModelChange({
+                        action: 'proxy_uri_import',
+                        resource: 'ProxyEndpoint',
+                        req: request,
+                        detail: {
+                          source,
+                          enabled,
+                          conflict_policy: conflictPolicy,
+                          total_lines: summary.total_lines,
+                          imported: summary.imported,
+                          invalid: summary.invalid,
+                          conflicts: summary.conflicts,
+                          invalid_lines: summary.errors.slice(0, 20).map((item) => ({ line: item.line, error: item.error })),
+                        },
+                      });
+
+                      return {
+                        notice: {
+                          type: summary.invalid > 0 ? 'warning' : 'success',
+                          message: `URI import done: imported=${summary.imported} invalid=${summary.invalid} conflicts=${summary.conflicts}`,
+                        },
                         redirectUrl: context.h.resourceUrl({ resourceId: context.resource.id() }),
                       };
                     } catch (err: unknown) {
