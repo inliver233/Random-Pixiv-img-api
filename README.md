@@ -2,6 +2,7 @@
 
 在 **不破坏现有 Pixivcat 兼容路由**（legacy）的前提下，将本项目逐步升级为「随机二次元图片 API」：
 - `/random`：随机返回图片流（默认） / JSON（`format=json`） / 302 跳转（`redirect=1`）
+- `/tags`、`/authors`、`/images`：分类检索接口（标签/作者/图片列表，JSON + 游标分页）
 - 强筛选：`r18`、`orientation`、`min_width/min_height/min_pixels`、`included_tags/excluded_tags`、`user_id`、`illust_id`、`seed`、`attempts`
 - 管理后台：`/admin`（导入/启用/禁用/软删/统计）
 - 可观测：结构化日志 + `request_id`、Prometheus `/metrics`
@@ -74,6 +75,47 @@ curl "http://127.0.0.1:3000/random?format=json&excluded_tags=ai_generated|gore"
 `/random?redirect=1` 推荐跳转到此稳定 URL（实现后生效）：
 - 从 DB 读取 `original_url/ext`，再进行流式代理
 - 成功响应使用长缓存（适合 CDN）
+
+## 分类检索 API
+
+- `GET /tags`：标签检索，参数：`q`、`limit(1..100)`、`cursor`
+- `GET /authors`：作者检索，参数：`q`、`limit(1..100)`、`cursor`
+- `GET /images`：图片列表检索，参数：`limit(1..200)`、`cursor` + `/random` 同款筛选参数
+- 所有分类检索接口返回 JSON，并强制 `Cache-Control: no-store`
+
+## 快速 curl 示例（10 条）
+
+```bash
+# 1) /random JSON
+curl "http://127.0.0.1:3000/random?format=json"
+
+# 2) /random 302 redirect（推荐生产）
+curl -I "http://127.0.0.1:3000/random?redirect=1"
+
+# 3) /random 高分辨率竖图筛选
+curl -I "http://127.0.0.1:3000/random?orientation=portrait&min_width=1080&min_height=1920&attempts=5"
+
+# 4) /random 指定作者 + 排除标签
+curl "http://127.0.0.1:3000/random?format=json&user_id=12345678&excluded_tags=ai_generated|gore"
+
+# 5) /random 固定 seed（可复现）
+curl "http://127.0.0.1:3000/random?format=json&seed=demo-seed-001"
+
+# 6) /tags 模糊搜索 + limit
+curl "http://127.0.0.1:3000/tags?q=猫&limit=20"
+
+# 7) /authors 搜索
+curl "http://127.0.0.1:3000/authors?q=alice&limit=20"
+
+# 8) /images 列表筛选（含分页游标）
+curl "http://127.0.0.1:3000/images?limit=50&cursor=0&r18=0&included_tags=cat|blue"
+
+# 9) /images/:id 单图元信息
+curl "http://127.0.0.1:3000/images/1"
+
+# 10) legacy 兼容路由单图
+curl -I "http://127.0.0.1:3000/12345678.jpg"
+```
 
 ## 可观测与健康检查
 

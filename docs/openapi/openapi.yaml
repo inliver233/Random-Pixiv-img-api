@@ -5,6 +5,9 @@ info:
   description: |
     本 OpenAPI 文档用于描述本项目新增的随机图片 API 与管理端点：
       - /random（image/json/redirect）
+      - /tags（标签检索）
+      - /authors（作者检索）
+      - /images（列表检索）
       - /images/:id（JSON 元信息）
       - /i/:id.:ext（稳定图片 URL 的流式代理）
       - /healthz
@@ -18,6 +21,7 @@ servers:
 
 tags:
   - name: Random
+  - name: Classification
   - name: Images
   - name: Health
   - name: Metrics
@@ -38,6 +42,7 @@ paths:
         - $ref: '#/components/parameters/RandomAttempts'
         - $ref: '#/components/parameters/RandomSeed'
         - $ref: '#/components/parameters/FilterR18'
+        - $ref: '#/components/parameters/FilterR18Strict'
         - $ref: '#/components/parameters/FilterOrientation'
         - $ref: '#/components/parameters/FilterMinWidth'
         - $ref: '#/components/parameters/FilterMinHeight'
@@ -104,6 +109,111 @@ paths:
               schema: { type: string }
         '503':
           $ref: '#/components/responses/JsonServiceUnavailable'
+
+  /tags:
+    get:
+      tags: [Classification]
+      summary: Search tags with cursor pagination
+      parameters:
+        - $ref: '#/components/parameters/SearchQuery'
+        - $ref: '#/components/parameters/TagsLimit'
+        - $ref: '#/components/parameters/TagsCursor'
+      responses:
+        '200':
+          description: Tag search result
+          headers:
+            Cache-Control:
+              schema: { type: string }
+              description: Always `no-store` for this endpoint
+            X-Request-Id:
+              schema: { type: string }
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TagListResponse'
+        '400':
+          $ref: '#/components/responses/JsonBadRequest'
+        '500':
+          description: Internal Server Error
+          headers:
+            X-Request-Id:
+              schema: { type: string }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /authors:
+    get:
+      tags: [Classification]
+      summary: Search authors with cursor pagination
+      parameters:
+        - $ref: '#/components/parameters/SearchQuery'
+        - $ref: '#/components/parameters/AuthorsLimit'
+        - $ref: '#/components/parameters/AuthorsCursor'
+      responses:
+        '200':
+          description: Author search result
+          headers:
+            Cache-Control:
+              schema: { type: string }
+              description: Always `no-store` for this endpoint
+            X-Request-Id:
+              schema: { type: string }
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthorListResponse'
+        '400':
+          $ref: '#/components/responses/JsonBadRequest'
+        '500':
+          description: Internal Server Error
+          headers:
+            X-Request-Id:
+              schema: { type: string }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /images:
+    get:
+      tags: [Classification]
+      summary: List images with filters and cursor pagination
+      parameters:
+        - $ref: '#/components/parameters/ImagesLimit'
+        - $ref: '#/components/parameters/ImagesCursor'
+        - $ref: '#/components/parameters/FilterR18'
+        - $ref: '#/components/parameters/FilterR18Strict'
+        - $ref: '#/components/parameters/FilterOrientation'
+        - $ref: '#/components/parameters/FilterMinWidth'
+        - $ref: '#/components/parameters/FilterMinHeight'
+        - $ref: '#/components/parameters/FilterMinPixels'
+        - $ref: '#/components/parameters/FilterIncludedTags'
+        - $ref: '#/components/parameters/FilterExcludedTags'
+        - $ref: '#/components/parameters/FilterUserId'
+        - $ref: '#/components/parameters/FilterIllustId'
+      responses:
+        '200':
+          description: Image list result
+          headers:
+            Cache-Control:
+              schema: { type: string }
+              description: Always `no-store` for this endpoint
+            X-Request-Id:
+              schema: { type: string }
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImageListResponse'
+        '400':
+          $ref: '#/components/responses/JsonBadRequest'
+        '500':
+          description: Internal Server Error
+          headers:
+            X-Request-Id:
+              schema: { type: string }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
 
   /images/{id}:
     get:
@@ -456,6 +566,99 @@ components:
           value: demo
         date:
           value: 2026-02-02
+    SearchQuery:
+      name: q
+      in: query
+      required: false
+      schema:
+        type: string
+      description: 模糊检索关键字（为空时返回全量游标分页结果）。
+      examples:
+        author_name:
+          value: alice
+        tag_name:
+          value: 猫
+    TagsLimit:
+      name: limit
+      in: query
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 20
+      description: /tags 每页条数，默认 20，最大 100。
+      examples:
+        default:
+          value: 20
+        max:
+          value: 100
+    AuthorsLimit:
+      name: limit
+      in: query
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 20
+      description: /authors 每页条数，默认 20，最大 100。
+      examples:
+        default:
+          value: 20
+        max:
+          value: 100
+    ImagesLimit:
+      name: limit
+      in: query
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 200
+        default: 50
+      description: /images 每页条数，默认 50，最大 200。
+      examples:
+        default:
+          value: 50
+        max:
+          value: 200
+    TagsCursor:
+      name: cursor
+      in: query
+      required: false
+      schema:
+        type: integer
+        minimum: 0
+        format: int64
+      description: /tags 游标（上一页最后一条 tag.id）。
+      examples:
+        next_page:
+          value: 1024
+    AuthorsCursor:
+      name: cursor
+      in: query
+      required: false
+      schema:
+        type: integer
+        minimum: 0
+        format: int64
+      description: /authors 游标（上一页最后一条 user_id）。
+      examples:
+        next_page:
+          value: 998877
+    ImagesCursor:
+      name: cursor
+      in: query
+      required: false
+      schema:
+        type: integer
+        minimum: 0
+        format: int64
+      description: /images 游标（上一页最后一条 image.id）。
+      examples:
+        next_page:
+          value: 778899
 
     FilterR18:
       name: r18
@@ -478,6 +681,23 @@ components:
           value: 1
         r18g:
           value: 2
+    FilterR18Strict:
+      name: r18_strict
+      in: query
+      required: false
+      schema:
+        type: integer
+        enum: [0, 1]
+      description: |
+        当 `r18=0` 时是否严格排除 `xRestrict IS NULL` 的记录。
+        - `1`：严格模式（仅保留 xRestrict=0）
+        - `0`：允许 xRestrict 为空的历史数据
+        未传时使用服务端默认配置。
+      examples:
+        strict:
+          value: 1
+        non_strict:
+          value: 0
     FilterOrientation:
       name: orientation
       in: query
@@ -620,6 +840,79 @@ components:
           type: string
         request_id:
           type: string
+
+    TagListResponse:
+      type: object
+      required: [items, next_cursor]
+      properties:
+        items:
+          type: array
+          items:
+            type: object
+            required: [id, name, translated_name, image_count]
+            properties:
+              id: { type: integer }
+              name: { type: string }
+              translated_name:
+                type: string
+                nullable: true
+              image_count: { type: integer }
+        next_cursor:
+          type: string
+          nullable: true
+
+    AuthorListResponse:
+      type: object
+      required: [items, next_cursor]
+      properties:
+        items:
+          type: array
+          items:
+            type: object
+            required: [user_id, user_name, image_count]
+            properties:
+              user_id: { type: integer }
+              user_name:
+                type: string
+                nullable: true
+              image_count: { type: integer }
+        next_cursor:
+          type: string
+          nullable: true
+
+    ImageListResponse:
+      type: object
+      required: [items, next_cursor]
+      properties:
+        items:
+          type: array
+          items:
+            type: object
+            required: [id, illust_id, page_index, ext, width, height, x_restrict, user_id, user_name, status, tags]
+            properties:
+              id: { type: integer }
+              illust_id: { type: integer }
+              page_index: { type: integer, minimum: 0 }
+              ext:
+                type: string
+                enum: [jpg, jpeg, png, gif]
+              width: { type: integer, nullable: true }
+              height: { type: integer, nullable: true }
+              x_restrict:
+                type: integer
+                nullable: true
+                description: 'Pixiv restriction: 0/1/2'
+              user_id: { type: integer, nullable: true }
+              user_name: { type: string, nullable: true }
+              status:
+                type: string
+                enum: [active, disabled, broken]
+              tags:
+                type: array
+                items: { type: string }
+        next_cursor:
+          type: string
+          nullable: true
 
     RandomJsonResponse:
       type: object

@@ -5,6 +5,7 @@
 ## 目标
 - 作为接口契约的单一来源：参数、响应 schema、错误码、关键响应头（Cache-Control/Location/Retry-After 等）
 - 与仓库真实路由结构保持一致（新增/变更路由时必须同步更新）
+- 当前覆盖：`/random`、`/tags`、`/authors`、`/images`、`/images/{id}`、`/i/{id}.{ext}`、`/healthz`、`/metrics`、`/admin`。
 
 ## 校验建议（可选）
 
@@ -19,4 +20,3 @@ npx @redocly/cli lint docs/openapi/openapi.yaml
 ```bash
 npx swagger-cli validate docs/openapi/openapi.yaml
 ```
-

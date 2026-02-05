@@ -6,7 +6,7 @@
 本文覆盖：
 - 部署（Ubuntu 22.04）：Docker Compose 推荐；裸机部署可选
 - 升级/回滚/备份/排错
-- API 使用：`/random`、`/i/:id.:ext`、`/images/:id`、`/healthz`、`/metrics`、legacy 兼容路由
+- API 使用：`/random`、`/tags`、`/authors`、`/images`、`/images/:id`、`/i/:id.:ext`、`/healthz`、`/metrics`、legacy 兼容路由
 - 后台（AdminJS）：每个页面/资源/按钮/字段的使用方法
 - 术语/字段/环境变量“使用字典”
 
@@ -46,6 +46,7 @@
 
 2) 新增“随机二次元图片 API”（核心）  
 - `GET /random`：默认返回图片流；`format=json` 返回 JSON；`redirect=1` 返回 302 跳转到稳定 URL  
+- `GET /tags`、`GET /authors`、`GET /images`：分类检索接口（JSON + 游标分页）  
 - 强筛选：`r18`、`orientation`、`min_width/min_height/min_pixels`、`included_tags/excluded_tags`、`user_id`、`illust_id`、`seed`、`attempts`
 - 稳定图片：`GET /i/:id.:ext`（长缓存，适合 CDN）
 
@@ -697,6 +698,43 @@ curl -i "http://127.0.0.1:3000/random?redirect=1"
 2) 返回 400 `BAD_REQUEST`：  
 - 说明：参数非法（例如 `attempts=abc`、`r18=` 空值、`seed` 为空）  
 - 处理：按 `docs/api/random.md` 修正参数
+
+#### 7.1.5 分类检索接口（/tags /authors /images）
+
+这些接口都返回 JSON，且响应头固定 `Cache-Control: no-store`，适合后台筛选/联想和排障。
+
+1) `GET /tags`（标签检索）：
+
+```bash
+# 按名称/翻译名模糊搜索
+curl -s "http://127.0.0.1:3000/tags?q=猫&limit=20" | jq .
+
+# 使用游标继续翻页
+curl -s "http://127.0.0.1:3000/tags?cursor=1024&limit=20" | jq .
+```
+
+2) `GET /authors`（作者检索）：
+
+```bash
+# 按作者名搜索（q 也支持纯数字 user_id）
+curl -s "http://127.0.0.1:3000/authors?q=alice&limit=20" | jq .
+
+# 游标翻页
+curl -s "http://127.0.0.1:3000/authors?cursor=998877&limit=20" | jq .
+```
+
+3) `GET /images`（图片列表检索）：
+
+```bash
+# 基础分页
+curl -s "http://127.0.0.1:3000/images?limit=50" | jq .
+
+# 与 /random 共享筛选参数（示例：标签 + 作者 + 尺寸）
+curl -s "http://127.0.0.1:3000/images?included_tags=cat|blue&user_id=12345678&min_width=1080&min_height=1920&limit=50" | jq .
+
+# r18_strict=1 时，r18=0 会排除 x_restrict 为空的历史数据
+curl -s "http://127.0.0.1:3000/images?r18=0&r18_strict=1&limit=50" | jq .
+```
 
 ### 7.2 GET /i/:id.:ext（稳定图片 URL，长缓存）
 
