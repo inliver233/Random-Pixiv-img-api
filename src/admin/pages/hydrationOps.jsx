@@ -327,8 +327,12 @@ export default function HydrationOpsPage() {
           <>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 12 }}>
               <div style={createCardStyle({ alt: true })}>
-                <div style={{ fontSize: 12, color: '#666' }}>选择 DLQ 队列</div>
+                <label htmlFor="hydration-dlq-queue" style={{ fontSize: 12, color: '#666', display: 'block' }}>
+                  选择 DLQ 队列
+                </label>
                 <select
+                  id="hydration-dlq-queue"
+                  name="hydration_dlq_queue"
                   value={selectedDlq}
                   onChange={(e) => {
                     const q = e.target.value;

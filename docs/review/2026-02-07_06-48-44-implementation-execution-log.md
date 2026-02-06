@@ -105,3 +105,13 @@
   - `Invoke-WebRequest https://i.mukyu.ru/favicon.ico` -> 400（线上仍是旧版本）
 - Risk/blocked:
   - `blocked:remote_env_not_deployed_yet`
+### FRD-0010 DONE
+- Status flow: TODO -> DOING -> DONE
+- Code:
+  - `src/admin/pages/hydrationOps.jsx`: 为 DLQ 队列选择控件补齐 `<label htmlFor>`、`id`、`name`，修复可访问性基础告警。
+  - `test/hydrationOps_accessibility_markup.test.ts`: 标记性校验 label/id/name 存在。
+- Test evidence:
+  - `npx vitest run test/hydrationOps_accessibility_markup.test.ts` -> PASS (1 file, 1 test)
+  - `Invoke-WebRequest https://i.mukyu.ru/admin/pages/hydrationOps` -> 401 (missing admin credential)
+- Risk/blocked:
+  - `blocked:manual_admin_page_verify_requires_token`
