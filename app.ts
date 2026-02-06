@@ -5,6 +5,7 @@ import dotenv from 'dotenv';
 
 import { getEnv, validateEnv } from './src/config/env';
 import logger from './src/logger/logger';
+import { resolveRuntimeModulePath } from './src/utils/runtimeModulePath';
 
 dotenv.config();
 
@@ -28,9 +29,10 @@ try {
 
 const env = getEnv();
 
-function requireDefault<T>(path: string): T {
+function requireDefault<T>(moduleBasePath: string): T {
+  const runtimePath = resolveRuntimeModulePath(moduleBasePath, __dirname);
   // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const mod = require(path) as any;
+  const mod = require(runtimePath) as any;
   return (mod && 'default' in mod) ? (mod.default as T) : (mod as T);
 }
 
