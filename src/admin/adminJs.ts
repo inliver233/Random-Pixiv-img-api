@@ -748,6 +748,47 @@ export async function getAdminJsRouter(): Promise<Router> {
                 return { ok: true, new_job_id: newJobId, deleted, message: `已入队 ${baseQueue}` };
               }
 
+              if (action === 'start_backfill') {
+                const rawBatchSize = payload.batch_size ?? payload.batchSize;
+                const batchSize = Math.max(1, Math.min(1000, coerceInt(rawBatchSize, 200)));
+                const criteria = { batch_size: batchSize } as Prisma.InputJsonValue;
+
+                try {
+                  // eslint-disable-next-line @typescript-eslint/no-var-requires
+                  const { startHydrationBackfillRun } = require('../jobs/hydrationBackfill') as typeof import('../jobs/hydrationBackfill');
+                  const run = await startHydrationBackfillRun({
+                    criteria,
+                    requestedBy: request?.session?.admin_user ? String(request.session.admin_user) : null,
+                    requestId: typeof request?.request_id === 'string' ? request.request_id : undefined,
+                  });
+
+                  auditAdminModelChange({
+                    action: 'hydration_run_start_from_ops',
+                    resource: 'HydrationRun',
+                    record_id: run.run_id,
+                    req: request,
+                    detail: {
+                      criteria,
+                      job_id: run.job_id,
+                    },
+                  });
+
+                  return {
+                    ok: true,
+                    run_id: run.run_id,
+                    job_id: run.job_id,
+                    message: `已创建 backfill run #${run.run_id}${run.job_id ? `，job=${run.job_id}` : ''}`,
+                  };
+                } catch (err: unknown) {
+                  const normalized = normalizeRuntimeError(err);
+                  return {
+                    ok: false,
+                    error: normalized.message,
+                    error_code: normalized.code,
+                  };
+                }
+              }
+
               return { ok: false, error: 'unknown_action' };
             }
 
@@ -2824,7 +2865,10 @@ export async function getAdminJsRouter(): Promise<Router> {
 
                   const run = await prisma.hydrationRun.findUnique({ where: { id }, select: { id: true, type: true, status: true } });
                   if (!run) {
-                    return { notice: { type: 'error', message: '记录不存在。' }, redirectUrl: h.resourceUrl({ resourceId: resource.id() }) };
+                    return {
+                      notice: { type: 'warning', message: '未找到该任务。请前往“补全运行 / DLQ”页面先创建 backfill run。' },
+                      redirectUrl: '/admin/pages/hydrationOps',
+                    };
                   }
 
                   if (run.type !== 'backfill') {
@@ -2881,7 +2925,10 @@ export async function getAdminJsRouter(): Promise<Router> {
 
                   const run = await prisma.hydrationRun.findUnique({ where: { id }, select: { id: true, type: true, status: true, startedAt: true } });
                   if (!run) {
-                    return { notice: { type: 'error', message: '记录不存在。' }, redirectUrl: h.resourceUrl({ resourceId: resource.id() }) };
+                    return {
+                      notice: { type: 'warning', message: '未找到该任务。请前往“补全运行 / DLQ”页面先创建 backfill run。' },
+                      redirectUrl: '/admin/pages/hydrationOps',
+                    };
                   }
 
                   if (run.type !== 'backfill') {
@@ -2968,7 +3015,10 @@ export async function getAdminJsRouter(): Promise<Router> {
 
                   const run = await prisma.hydrationRun.findUnique({ where: { id }, select: { id: true, type: true, status: true } });
                   if (!run) {
-                    return { notice: { type: 'error', message: '记录不存在。' }, redirectUrl: h.resourceUrl({ resourceId: resource.id() }) };
+                    return {
+                      notice: { type: 'warning', message: '未找到该任务。请前往“补全运行 / DLQ”页面先创建 backfill run。' },
+                      redirectUrl: '/admin/pages/hydrationOps',
+                    };
                   }
 
                   if (run.type !== 'backfill') {

@@ -150,6 +150,23 @@ export default function HydrationOpsPage() {
     await loadDlqJobs(q);
   }
 
+  async function startBackfillRun() {
+    if (loading) return;
+    const confirmed = globalThis.confirm
+      ? globalThis.confirm('将创建一个新的 backfill run 并立即入队。是否继续？')
+      : true;
+    if (!confirmed) return;
+
+    const res = await postAction('start_backfill', { batch_size: 200 });
+    if (!res) return;
+    if (res.ok === false) {
+      setNotice({ type: 'error', message: safeString(res.error || '创建 backfill run 失败') });
+      return;
+    }
+    setNotice({ type: 'success', message: safeString(res.message || `已创建 run #${safeString(res.run_id)}`) });
+    await refresh();
+  }
+
   useEffect(() => {
     void refresh();
   }, []);
@@ -220,6 +237,16 @@ export default function HydrationOpsPage() {
         <button type="button" disabled={loading} onClick={() => refresh()} style={{ ...buttonStyle, marginTop: 8 }}>
           {loading ? '刷新中…' : '刷新'}
         </button>
+        <button
+          type="button"
+          disabled={loading}
+          onClick={() => {
+            void startBackfillRun();
+          }}
+          style={{ ...buttonStyle, marginTop: 8, marginLeft: 8 }}
+        >
+          创建 backfill run
+        </button>
       </div>
 
       <div style={{ marginTop: 12, ...createCardStyle({ alt: true }) }}>
@@ -243,6 +270,18 @@ export default function HydrationOpsPage() {
                 <tr>
                   <td colSpan={8} style={{ padding: '10px 8px', color: '#6b7280' }}>
                     暂无补全运行记录。若刚部署或数据库不可用，请先恢复依赖后再刷新。
+                    <div style={{ marginTop: 10 }}>
+                      <button
+                        type="button"
+                        disabled={loading}
+                        onClick={() => {
+                          void startBackfillRun();
+                        }}
+                        style={buttonStyle}
+                      >
+                        立即创建首个 backfill run
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ) : runs.map((run) => {

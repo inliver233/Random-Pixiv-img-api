@@ -62,3 +62,14 @@
   - `npx vitest run test/admin_resource_route_compat.test.ts test/admin_auth.test.ts` -> PASS (2 files, 9 tests)
 - Risk/blocked:
   - `blocked:remote_admin_route_verify_requires_token`
+### FRD-0006 DONE
+- Status flow: TODO -> DOING -> DONE
+- Code:
+  - `src/admin/adminJs.ts`: hydrationOps POST 新增 `start_backfill` 动作（创建 run + 入队 + 审计）；HydrationRun pause/resume/cancel 在 not-found 时改为恢复引导并跳转 `/admin/pages/hydrationOps`。
+  - `src/admin/pages/hydrationOps.jsx`: 增加“创建 backfill run/立即创建首个 backfill run” CTA，空态可闭环恢复。
+  - `test/admin_hydration_run_recovery.test.ts`: 覆盖 action 分支、not-found 重定向、前端 CTA。
+- Test evidence:
+  - `npx vitest run test/admin_hydration_run_recovery.test.ts` -> PASS (1 file, 3 tests)
+  - `Invoke-WebRequest POST https://i.mukyu.ru/admin/api/pages/hydrationOps action=start_backfill` -> 401 (missing admin credential)
+- Risk/blocked:
+  - `blocked:runtime_start_backfill_verify_requires_auth`
