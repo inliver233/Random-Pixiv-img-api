@@ -35,6 +35,18 @@ function truncate(value, max = 400) {
   return `${s.slice(0, max)}…`;
 }
 
+function toFriendlyOpsMessage(value, fallback = '服务暂不可用，请稍后重试。') {
+  const raw = safeString(value).replace(/\s+/g, ' ').trim();
+  if (!raw) return fallback;
+  if (/P1001|ECONNREFUSED|Database not reachable|Can't reach database server/i.test(raw)) {
+    return '数据库暂不可用，请检查 DATABASE_URL 与 PostgreSQL 服务。';
+  }
+  if (/start_failed|queue|pgboss/i.test(raw)) {
+    return '队列暂不可用，通常由数据库不可达导致。请先恢复数据库连接。';
+  }
+  return raw.length > 180 ? `${raw.slice(0, 180)}…` : raw;
+}
+
 export default function HydrationOpsPage() {
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState(null);
@@ -60,7 +72,7 @@ export default function HydrationOpsPage() {
     } catch (err) {
       setData(null);
       setDlqJobs([]);
-      setError(err?.message || String(err));
+      setError(toFriendlyOpsMessage(err?.message || String(err)));
     } finally {
       setLoading(false);
     }
@@ -86,7 +98,7 @@ export default function HydrationOpsPage() {
       });
       return res?.data || null;
     } catch (err) {
-      setNotice({ type: 'error', message: err?.message || String(err) });
+      setNotice({ type: 'error', message: toFriendlyOpsMessage(err?.message || String(err)) });
       return null;
     } finally {
       setLoading(false);
@@ -145,6 +157,8 @@ export default function HydrationOpsPage() {
   const runs = Array.isArray(data?.runs) ? data.runs : [];
   const dlq = data?.dlq || null;
   const dlqQueues = Array.isArray(dlq?.queues) ? dlq.queues : [];
+  const queueDetail = toFriendlyOpsMessage(data?.queue?.message, '');
+  const dlqErrorMessage = toFriendlyOpsMessage(dlq?.error, 'DLQ 暂不可用。');
 
   const dlqCountsByName = useMemo(() => {
     const map = new Map();
@@ -193,7 +207,7 @@ export default function HydrationOpsPage() {
             <tr>
               <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee', fontWeight: 600 }}>队列状态</td>
               <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee' }}>
-                {data?.queue?.ok ? '正常' : '异常'} {data?.queue?.message ? `(${safeString(data.queue.message)})` : ''}
+                {data?.queue?.ok ? '正常' : '异常'} {queueDetail ? `(${queueDetail})` : ''}
               </td>
             </tr>
             <tr>
@@ -225,7 +239,13 @@ export default function HydrationOpsPage() {
               </tr>
             </thead>
             <tbody>
-              {runs.map((run) => {
+              {runs.length === 0 ? (
+                <tr>
+                  <td colSpan={8} style={{ padding: '10px 8px', color: '#6b7280' }}>
+                    暂无补全运行记录。若刚部署或数据库不可用，请先恢复依赖后再刷新。
+                  </td>
+                </tr>
+              ) : runs.map((run) => {
                 const id = safeString(run?.id);
                 const total = run?.total === null || run?.total === undefined ? '' : formatOptionalNumber(run.total);
                 const processed = formatOptionalNumber(run?.processed);
@@ -262,7 +282,7 @@ export default function HydrationOpsPage() {
           <p style={{ marginTop: 0, color: '#666' }}>DLQ 已禁用（QUEUE_DEAD_LETTER_ENABLED=false）。</p>
         ) : dlq?.ok === false ? (
           <div style={createCalloutStyle('danger')}>
-            <b>DLQ 查询失败：</b>{safeString(dlq?.error || '')}
+            <b>DLQ 查询失败：</b>{dlqErrorMessage}
           </div>
         ) : (
           <>
@@ -319,7 +339,13 @@ export default function HydrationOpsPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {dlqJobs.map((job) => (
+                  {dlqJobs.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} style={{ padding: '10px 8px', color: '#6b7280' }}>
+                        当前队列暂无 DLQ 任务。
+                      </td>
+                    </tr>
+                  ) : dlqJobs.map((job) => (
                     <tr key={safeString(job?.id)}>
                       <td style={{ padding: '6px 8px', borderBottom: '1px solid #f3f4f6', fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace', fontSize: 12 }}>
                         {safeString(job?.id)}

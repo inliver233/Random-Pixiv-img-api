@@ -378,13 +378,38 @@ export async function getAdminJsRouter(): Promise<Router> {
           handler: async (request: any) => {
             const method = String(request?.method || 'get').toLowerCase();
 
+            const normalizeRuntimeError = (err: unknown): { code: string; message: string } => {
+              const raw = err instanceof Error ? err.message : String(err ?? '');
+              const normalized = raw.replace(/\s+/g, ' ').trim();
+              const dbPattern = /(P1001|ECONNREFUSED|Can't reach database server|Database not reachable)/i;
+              const queuePattern = /(start_failed|pgboss|queue)/i;
+
+              if (!normalized) {
+                return { code: 'runtime_error', message: '服务暂不可用，请稍后重试。' };
+              }
+
+              if (dbPattern.test(normalized)) {
+                return { code: 'db_unreachable', message: '数据库暂不可用，请检查 DATABASE_URL 与 PostgreSQL 连接。' };
+              }
+
+              if (queuePattern.test(normalized)) {
+                return { code: 'queue_unavailable', message: '队列服务暂不可用，请先恢复数据库连接后重试。' };
+              }
+
+              return {
+                code: 'runtime_error',
+                message: normalized.length > 180 ? `${normalized.slice(0, 180)}...` : normalized,
+              };
+            };
+
             let queue: { ok: boolean; message: string | null } = { ok: false, message: 'unknown' };
             try {
               // eslint-disable-next-line @typescript-eslint/no-var-requires
               const { getQueueHealth } = require('../queue/queue') as typeof import('../queue/queue');
               queue = await getQueueHealth();
             } catch (err: unknown) {
-              queue = { ok: false, message: err instanceof Error ? err.message : String(err) };
+              const normalized = normalizeRuntimeError(err);
+              queue = { ok: false, message: normalized.message };
             }
 
             const dlqEnabled = parseBooleanEnv(process.env.QUEUE_DEAD_LETTER_ENABLED, true);
@@ -482,7 +507,13 @@ export async function getAdminJsRouter(): Promise<Router> {
                 const queues = dlqQueues.map((name) => countsByName.get(name) ?? { name, count: 0, oldest: null, newest: null });
                 return { ok: true, queues };
               } catch (err: unknown) {
-                return { ok: false, error: err instanceof Error ? err.message : String(err), queues: [] as any[] };
+                const normalized = normalizeRuntimeError(err);
+                return {
+                  ok: false,
+                  error: normalized.message,
+                  error_code: normalized.code,
+                  queues: [] as any[],
+                };
               }
             };
 
@@ -525,8 +556,8 @@ export async function getAdminJsRouter(): Promise<Router> {
                   };
                 });
               } catch (err: unknown) {
-                const message = err instanceof Error ? err.message : String(err);
-                const output = extractOutputMessage({ value: { message } });
+                const normalized = normalizeRuntimeError(err);
+                const output = extractOutputMessage({ value: { message: normalized.message } });
                 return [{
                   id: 'query_failed',
                   queue: queueName,
@@ -616,7 +647,8 @@ export async function getAdminJsRouter(): Promise<Router> {
                     return { ok: false, error: 'unsupported_base_queue' };
                   }
                 } catch (err: unknown) {
-                  return { ok: false, error: err instanceof Error ? err.message : String(err) };
+                  const normalized = normalizeRuntimeError(err);
+                  return { ok: false, error: normalized.message, error_code: normalized.code };
                 }
 
                 if (!newJobId) {
