@@ -49,9 +49,23 @@ describe('AdminJS components bundle route', () => {
 
     const res = await request(app)
       .get('/admin/frontend/assets/components.bundle.js')
-      .set('authorization', 'Bearer test_admin_token')
+      .set('x-admin-token', 'test_admin_token')
       .expect(200);
 
     expect(res.text).toContain('console.log');
+    expect(res.headers['cache-control']).toBe('no-store');
+  });
+
+  it('falls through outside production mode', async () => {
+    process.env.NODE_ENV = 'development';
+
+    const app = express();
+    app.use(express.urlencoded({ extended: false }));
+    app.use('/admin', adminRoute);
+
+    await request(app)
+      .get('/admin/frontend/assets/components.bundle.js')
+      .set('authorization', 'Bearer test_admin_token')
+      .expect(404);
   });
 });

@@ -16,7 +16,10 @@
     "prisma:migrate:deploy": "prisma migrate deploy",
     "test": "vitest run",
     "smoke": "vitest run test/smoke.test.ts",
+    "test:admin-runtime": "vitest run test/admin_components_bundle_route.test.ts test/proxyUriImporter.test.ts",
+    "smoke:admin-ui": "pwsh -NoProfile -File test/admin-ui-smoke.ps1",
     "test:all": "npm run lint && npm test && npm run smoke",
+    "test:runtime-regression": "npm run test:all && npm run test:admin-runtime",
     "lint": "eslint ."
   },
   "author": "jongcs",
