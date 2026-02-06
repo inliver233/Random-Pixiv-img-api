@@ -1,7 +1,8 @@
 param(
   [string]$BaseUrl = 'http://127.0.0.1:3000',
   [string]$AdminToken = $env:ADMIN_TOKEN,
-  [int]$TimeoutSec = 20
+  [int]$TimeoutSec = 20,
+  [switch]$RequireAuthChecks
 )
 
 $ErrorActionPreference = 'Stop'
@@ -59,6 +60,10 @@ Invoke-Endpoint -Path '/healthz' -AllowStatus @(200, 503) -Headers @{}
 
 # When token is unavailable, verify admin surface is protected and exit as degraded-success.
 if ([string]::IsNullOrWhiteSpace($AdminToken)) {
+  if ($RequireAuthChecks) {
+    throw '[admin-ui-smoke] RequireAuthChecks=true but ADMIN_TOKEN is empty.'
+  }
+
   Write-Host '[admin-ui-smoke] ADMIN_TOKEN is empty; only verifying admin endpoint is protected.'
   Invoke-Endpoint -Path '/admin' -AllowStatus @(401, 403, 302, 503) -Headers @{}
   Write-Host '[admin-ui-smoke] skipped authenticated admin page checks (set -AdminToken to enable).'
