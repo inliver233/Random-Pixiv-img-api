@@ -126,3 +126,31 @@
   - `pwsh -NoProfile -File test/proxy-smoke.ps1 -BaseUrl https://i.mukyu.ru` -> FAIL: `/favicon.ico` status 400
 - Risk/blocked:
   - `blocked:remote_env_not_deployed_yet`
+### FRD-0012 DONE
+- Status flow: TODO -> DOING -> DONE
+- Regression command evidence:
+  - `npm run lint` -> PASS
+  - `npm run test:all` -> PASS (`100 files`, `445 tests`)
+  - `npm run test:admin-runtime` -> PASS (`2 files`, `6 tests`)
+  - `pwsh -NoProfile -File test/proxy-smoke.ps1 -BaseUrl https://i.mukyu.ru` -> FAIL (`Unexpected /favicon.ico status: 400`)
+  - `pwsh -NoProfile -File test/admin-ui-smoke.ps1 -BaseUrl https://i.mukyu.ru` -> FAIL (`Unexpected status 400 for /favicon.ico`)
+- API sampling evidence (`Invoke-WebRequest -SkipHttpErrorCheck`):
+  - `/random?format=json&orientation=portrait&r18=1` -> `404` JSON (`NO_MATCH`, no `hints` in remote response)
+  - `/images` -> `200` JSON
+  - `/tags` -> `200` JSON
+  - `/authors` -> `200` JSON
+  - `/healthz` -> `200` JSON
+  - `/metrics` -> `200` text/plain
+  - `/favicon.ico` -> `400` HTML
+  - `/136551599-0.jpg` -> `400` HTML
+- Admin sampling evidence (`Invoke-WebRequest -SkipHttpErrorCheck`):
+  - `/admin` -> `401` JSON
+  - `/admin/pages/proxyPoolOverview` -> `401` JSON
+  - `/admin/pages/hydrationOps` -> `401` JSON
+  - `/admin/resources/TokenProxyBinding/new` -> `401` JSON
+  - `/admin/resources/TokenProxyBinding/actions/new` -> `401` JSON
+  - `/admin/api/resources/TokenProxyBinding/actions/list` -> `401` JSON
+  - `/admin/api/pages/proxyPoolOverview` -> `401` JSON
+- Risk/blocked:
+  - `blocked:runtime_admin_verify_requires_auth` (current shell has no `ADMIN_TOKEN`)
+  - `blocked:remote_env_not_deployed_yet` (remote still old for favicon/legacy/no-match hints)
