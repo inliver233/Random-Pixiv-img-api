@@ -2811,23 +2811,31 @@ export async function getAdminJsRouter(): Promise<Router> {
       })(),
     });
 
-    // AdminJS Express starts bundling asynchronously (not awaited). In production that can lead to the
-    // first request for `/admin/frontend/assets/components.bundle.js` hitting before the file exists.
-    // Ensure the bundle is built before serving the admin UI.
-    const shouldEnsureBundle = process.env.NODE_ENV === 'production'
+    // AdminJS Express starts bundling asynchronously (not awaited). If we serve pages before the
+    // bundle is refreshed, custom pages can fall back to "no component specified".
+    const shouldEnsureBundle = process.env.NODE_ENV !== 'test'
       && String(process.env.ADMIN_JS_SKIP_BUNDLE || '').trim().toLowerCase() !== 'true';
 
     let router: Router;
     if (shouldEnsureBundle) {
       const prevSkip = process.env.ADMIN_JS_SKIP_BUNDLE;
+      const prevNodeEnv = process.env.NODE_ENV;
       process.env.ADMIN_JS_SKIP_BUNDLE = 'true';
+      if (process.env.NODE_ENV !== 'production') {
+        process.env.NODE_ENV = 'production';
+      }
       try {
         router = AdminJSExpress.buildRouter(admin);
       } finally {
         if (prevSkip === undefined) delete process.env.ADMIN_JS_SKIP_BUNDLE;
         else process.env.ADMIN_JS_SKIP_BUNDLE = prevSkip;
       }
-      await admin.initialize();
+      try {
+        await admin.initialize();
+      } finally {
+        if (prevNodeEnv === undefined) delete process.env.NODE_ENV;
+        else process.env.NODE_ENV = prevNodeEnv;
+      }
     } else {
       router = AdminJSExpress.buildRouter(admin);
     }
