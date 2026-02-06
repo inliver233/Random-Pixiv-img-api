@@ -115,3 +115,14 @@
   - `Invoke-WebRequest https://i.mukyu.ru/admin/pages/hydrationOps` -> 401 (missing admin credential)
 - Risk/blocked:
   - `blocked:manual_admin_page_verify_requires_token`
+### FRD-0011 DONE
+- Status flow: TODO -> DOING -> DONE
+- Code:
+  - `test/admin-ui-smoke.ps1`: 新增 `/favicon.ico` 回归检查、`/new -> /actions/new` 路由兼容检查、proxyPoolOverview health payload 校验。
+  - `test/proxy-smoke.ps1`: 新增 favicon 检查、filtered NO_MATCH hints 检查、legacy page0 JSON 合同检查。
+  - `test/README.md`: 同步新增 smoke 检查项说明。
+- Test evidence:
+  - `pwsh -NoProfile -File test/admin-ui-smoke.ps1 -BaseUrl https://i.mukyu.ru` -> FAIL: `/favicon.ico` status 400
+  - `pwsh -NoProfile -File test/proxy-smoke.ps1 -BaseUrl https://i.mukyu.ru` -> FAIL: `/favicon.ico` status 400
+- Risk/blocked:
+  - `blocked:remote_env_not_deployed_yet`

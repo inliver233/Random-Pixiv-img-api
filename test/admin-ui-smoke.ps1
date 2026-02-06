@@ -57,6 +57,7 @@ Write-Host "[admin-ui-smoke] base_url=$BaseUrl"
 
 # Baseline availability.
 Invoke-Endpoint -Path '/healthz' -AllowStatus @(200, 503) -Headers @{}
+Invoke-Endpoint -Path '/favicon.ico' -AllowStatus @(200, 204) -Headers @{}
 
 # When token is unavailable, verify admin surface is protected and exit as degraded-success.
 if ([string]::IsNullOrWhiteSpace($AdminToken)) {
@@ -92,6 +93,15 @@ foreach ($path in $pages) {
   }
 }
 
+# Route compatibility: /new should redirect to /actions/new.
+$newCompat = Invoke-Endpoint -Path '/admin/resources/Import/new?smoke=1' -AllowStatus @(302, 503) -Headers $authHeaders
+if ([int]$newCompat.StatusCode -eq 302) {
+  $location = [string]$newCompat.Headers['Location']
+  if ($location -notmatch '/admin/resources/Import/actions/new') {
+    throw "Expected /admin/resources/Import/new to redirect to /actions/new, got: $location"
+  }
+}
+
 # Admin page-data APIs.
 $pageApis = @(
   '/admin/api/pages/opsNavigator',
@@ -124,6 +134,19 @@ foreach ($path in $pageApis) {
 
     if ([string]::IsNullOrWhiteSpace($component)) {
       throw "Expected page component metadata on $path"
+    }
+
+    if ($path -eq '/admin/api/pages/proxyPoolOverview') {
+      $health = $null
+      if ($payload -and $payload.PSObject.Properties.Name -contains 'data') {
+        $health = $payload.data.health
+      } elseif ($payload -and $payload.PSObject.Properties.Name -contains 'health') {
+        $health = $payload.health
+      }
+
+      if ($null -eq $health) {
+        throw 'proxyPoolOverview payload missing health section.'
+      }
     }
   }
 }
