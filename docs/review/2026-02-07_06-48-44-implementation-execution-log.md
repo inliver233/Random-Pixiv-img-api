@@ -154,3 +154,11 @@
 - Risk/blocked:
   - `blocked:runtime_admin_verify_requires_auth` (current shell has no `ADMIN_TOKEN`)
   - `blocked:remote_env_not_deployed_yet` (remote still old for favicon/legacy/no-match hints)
+### FRD-0013 DONE
+- Status flow: TODO -> DOING -> DONE
+- Deliverables:
+  - `docs/review/2026-02-07_06-48-44-post-remediation-audit.md` created.
+  - `issues/2026-02-07_06-48-44-full-remediation-and-delivery.csv` finalized to full DONE status set with blocked notes preserved.
+  - 执行日志与复盘文档完成闭环对齐（路径/统计/证据/blocked/风险）。
+- Risk/blocked:
+  - 当前未解除的阻塞项与 FRD-0012 一致：`runtime_admin_verify_requires_auth`、`remote_env_not_deployed_yet`。
