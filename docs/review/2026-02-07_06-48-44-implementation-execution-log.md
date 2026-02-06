@@ -30,3 +30,13 @@
   - `Invoke-WebRequest https://i.mukyu.ru/admin/api/pages/proxyPoolOverview` -> 401 (blocked by missing admin credential)
 - Risk/blocked:
   - `blocked:runtime_admin_verify_requires_auth`
+### FRD-0003 DONE
+- Status flow: TODO -> DOING -> DONE
+- Code:
+  - `src/admin/adminJs.ts`: ProxyEndpoint `probe` action now uses bounded timeout (`ADMIN_PROXY_PROBE_TIMEOUT_MS`, default 4500ms) via `runWithTimeout`, records timeout audit, returns structured error notice instead of hanging.
+  - `test/admin_proxy_probe_action.test.ts`: verifies timeout guard around health check workflow.
+- Test evidence:
+  - `npx vitest run test/admin_proxy_probe_action.test.ts test/proxyHealthCheck.test.ts` -> PASS (2 files, 5 tests)
+  - `Invoke-WebRequest POST https://i.mukyu.ru/admin/api/resources/ProxyEndpoint/records/1/probe` -> 401 (missing admin credential)
+- Risk/blocked:
+  - `blocked:runtime_admin_verify_requires_auth`

@@ -2532,10 +2532,49 @@ export async function getAdminJsRouter(): Promise<Router> {
                         : '';
                       const proxyUri = `${scheme}://${auth}${host}:${port}`;
 
-                      const report = await runProxyHealthCheckOnce({
-                        candidates: [{ id: endpoint.id.toString(), proxyUri }],
-                        options: { maxConcurrency: 1, minHealthy: 0, windowSize: 1 },
-                      });
+                      const probeTimeoutMs = Math.max(
+                        1_500,
+                        Math.min(
+                          12_000,
+                          Number.parseInt(String(process.env.ADMIN_PROXY_PROBE_TIMEOUT_MS ?? '4500'), 10) || 4_500,
+                        ),
+                      );
+
+                      const probeResult = await runWithTimeout(
+                        runProxyHealthCheckOnce({
+                          candidates: [{ id: endpoint.id.toString(), proxyUri }],
+                          options: {
+                            maxConcurrency: 1,
+                            minHealthy: 0,
+                            windowSize: 1,
+                            timeoutMs: probeTimeoutMs,
+                          },
+                        }),
+                        probeTimeoutMs + 300,
+                      );
+
+                      if (probeResult.status === 'timeout') {
+                        auditAdminModelChange({
+                          action: 'proxy_endpoint_probe_timeout',
+                          resource: 'ProxyEndpoint',
+                          record_id: endpoint.id.toString(),
+                          req: request,
+                          detail: {
+                            timeoutMs: probeTimeoutMs,
+                          },
+                        });
+                        return {
+                          record: record.toJSON(currentAdmin),
+                          notice: { type: 'error', message: `探测超时（>${probeTimeoutMs}ms），请稍后重试。` },
+                          redirectUrl: h.recordActionUrl({ resourceId: resource.id(), recordId: record.id(), actionName: 'show' }),
+                        };
+                      }
+
+                      if (probeResult.status === 'error') {
+                        throw new Error(`探测失败: ${probeResult.error}`);
+                      }
+
+                      const report = probeResult.value;
                       const entry = report.entries.find((e) => e.id === endpoint.id.toString()) ?? null;
 
                       const ok = Boolean(entry?.lastOk);
