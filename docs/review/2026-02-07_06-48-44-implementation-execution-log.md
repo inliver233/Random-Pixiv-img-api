@@ -40,3 +40,15 @@
   - `Invoke-WebRequest POST https://i.mukyu.ru/admin/api/resources/ProxyEndpoint/records/1/probe` -> 401 (missing admin credential)
 - Risk/blocked:
   - `blocked:runtime_admin_verify_requires_auth`
+### FRD-0004 DONE
+- Status flow: TODO -> DOING -> DONE
+- Code:
+  - `src/admin/resources/images.ts`: delete/enable/disable/statusCounts/hydrateMetadata 标记 `component:false`。
+  - `src/admin/resources/pixivTokens.ts`: testRefresh 标记 `component:false`。
+  - `src/admin/adminJs.ts`: TokenProxyBinding/ProxyEndpoint/HydrationRun 关键自定义 action 标记 `component:false`，规避深链缺组件页。
+  - `test/admin_action_component_contract.test.ts`: 校验关键 action 均设置 `component:false`。
+- Test evidence:
+  - `npx vitest run test/admin_action_component_contract.test.ts` -> PASS (1 file, 2 tests)
+  - `pwsh -NoProfile -File test/admin-ui-smoke.ps1 -BaseUrl https://i.mukyu.ru` -> PASS (degraded: ADMIN_TOKEN missing)
+- Risk/blocked:
+  - `blocked:authenticated_admin_page_flow_requires_token`

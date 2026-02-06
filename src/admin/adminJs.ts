@@ -1566,6 +1566,7 @@ export async function getAdminJsRouter(): Promise<Router> {
 
                 rebindPrimary: {
                   actionType: 'resource',
+                  component: false,
                   icon: 'Shuffle',
                   label: '重绑主代理（页面入口）',
                   handler: async (request: any, _res: any, context: any) => {
@@ -1723,6 +1724,7 @@ export async function getAdminJsRouter(): Promise<Router> {
 
                 setOverride: {
                   actionType: 'resource',
+                  component: false,
                   icon: 'Clock',
                   label: '设置临时覆盖（页面入口）',
                   handler: async (request: any, _res: any, context: any) => {
@@ -1902,6 +1904,7 @@ export async function getAdminJsRouter(): Promise<Router> {
 
                 clearOverride: {
                   actionType: 'resource',
+                  component: false,
                   icon: 'Close',
                   label: '清空临时覆盖（页面入口）',
                   handler: async (request: any, _res: any, context: any) => {
@@ -2028,6 +2031,7 @@ export async function getAdminJsRouter(): Promise<Router> {
               actions: {
                 setProxyEnabled: {
                   actionType: 'resource',
+                  component: false,
                   icon: 'Switch',
                   label: '代理总开关（直连回退）',
                   guard: '关闭代理后将改为直连（真实 IP 暴露风险）。确认继续吗？',
@@ -2097,6 +2101,7 @@ export async function getAdminJsRouter(): Promise<Router> {
                 },
                 importProxyUris: {
                   actionType: 'resource',
+                  component: false,
                   icon: 'Upload',
                   label: 'URI 批量导入',
                   guard: '确认导入 URI 吗？URI 中密码会保存到数据库，但不会在后台明文展示。',
@@ -2205,6 +2210,7 @@ export async function getAdminJsRouter(): Promise<Router> {
                 },
                 easyProxiesConfigSave: {
                   actionType: 'resource',
+                  component: false,
                   icon: 'Settings',
                   label: 'easy_proxies 配置保存',
                   guard: '确认保存 easy_proxies 配置吗？密码仅保存不会回显。',
@@ -2335,6 +2341,7 @@ export async function getAdminJsRouter(): Promise<Router> {
                 },
                 easyProxiesImport: {
                   actionType: 'resource',
+                  component: false,
                   icon: 'Download',
                   label: 'easy_proxies 导入',
                   guard: '确认从 easy_proxies 的 /api/export 导入代理吗？',
@@ -2409,6 +2416,7 @@ export async function getAdminJsRouter(): Promise<Router> {
                 },
                 easyProxiesRollback: {
                   actionType: 'resource',
+                  component: false,
                   icon: 'Undo',
                   label: 'easy_proxies 回滚到手动代理列表',
                   guard: '确认回滚 easy_proxies 代理并关闭自动刷新吗？',
@@ -2476,6 +2484,7 @@ export async function getAdminJsRouter(): Promise<Router> {
                 },
                 probe: {
                   actionType: 'record',
+                  component: false,
                   icon: 'Activity',
                   label: '立即探测',
                   guard: '确认立即探测该代理吗？',
@@ -2793,6 +2802,7 @@ export async function getAdminJsRouter(): Promise<Router> {
 
               pause: {
                 actionType: 'record',
+                component: false,
                 icon: 'Pause',
                 label: '暂停',
                 guard: '确认暂停该 backfill 任务吗？',
@@ -2849,6 +2859,7 @@ export async function getAdminJsRouter(): Promise<Router> {
 
               resume: {
                 actionType: 'record',
+                component: false,
                 icon: 'Play',
                 label: '恢复',
                 guard: '确认恢复该 backfill 任务吗？',
@@ -2935,6 +2946,7 @@ export async function getAdminJsRouter(): Promise<Router> {
 
               cancel: {
                 actionType: 'record',
+                component: false,
                 icon: 'Close',
                 label: '取消',
                 guard: '确认取消该 backfill 任务吗？',

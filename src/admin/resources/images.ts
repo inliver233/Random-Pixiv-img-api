@@ -55,6 +55,7 @@ export const imageResourceOptions = {
 
     delete: {
       actionType: 'record',
+      component: false,
       icon: 'Trash2',
       guard: 'Soft delete this image? (status will become disabled)',
       isVisible: (context: any) => toNumberOrNull(context?.record?.params?.status) !== IMAGE_STATUS_DISABLED,
@@ -92,6 +93,7 @@ export const imageResourceOptions = {
 
     enable: {
       actionType: 'record',
+      component: false,
       icon: 'Play',
       guard: 'Enable this image?',
       isVisible: (context: any) => toNumberOrNull(context?.record?.params?.status) !== IMAGE_STATUS_ACTIVE,
@@ -129,6 +131,7 @@ export const imageResourceOptions = {
 
     disable: {
       actionType: 'record',
+      component: false,
       icon: 'Pause',
       guard: 'Disable this image?',
       isVisible: (context: any) => toNumberOrNull(context?.record?.params?.status) === IMAGE_STATUS_ACTIVE,
@@ -166,6 +169,7 @@ export const imageResourceOptions = {
 
     statusCounts: {
       actionType: 'resource',
+      component: false,
       icon: 'BarChart2',
       handler: async (_req: any, _res: any, context: any) => {
         const prisma = getPrismaClient();
@@ -198,6 +202,7 @@ export const imageResourceOptions = {
 
     hydrateMetadata: {
       actionType: 'record',
+      component: false,
       icon: 'RefreshCw',
       label: '补全元信息（入队 hydrate_metadata）',
       guard: 'Enqueue hydrate_metadata for this illust now?',
