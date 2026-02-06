@@ -51,12 +51,16 @@ installCommonJsMocks();
 function createLegacyApp() {
   const showVersion = require('../src/middlewares/headerMiddleware.js');
   const pixivRoutes = require('../src/routes/pixivRoutes.js');
+  const requestIdMiddleware = require('../src/middlewares/requestIdMiddleware.js');
+  const errorHandler = require('../src/middlewares/errorHandler.js');
 
   const app = express();
   app.set('view engine', 'ejs');
   app.set('views', path.join(process.cwd(), 'views'));
+  app.use(requestIdMiddleware);
   app.use(corsMiddleware);
   app.use('/', showVersion, pixivRoutes);
+  app.use(errorHandler);
   return app;
 }
 
@@ -195,5 +199,16 @@ describe('legacy pixivcat routes contract', () => {
     expect(res.headers['content-type']).toContain('image/webp');
     expect(Buffer.isBuffer(res.body)).toBe(true);
     expect(res.body.toString('utf8')).toBe('single');
+  });
+
+  it('returns JSON BAD_REQUEST for invalid legacy page number', async () => {
+    const app = createLegacyApp();
+
+    const res = await request(app).get('/123-0.jpg').expect(400);
+
+    expect(res.headers['content-type']).toContain('application/json');
+    expect(res.body.code).toBe('BAD_REQUEST');
+    expect(res.body.message).toContain('Invalid page number');
+    expect(typeof res.body.request_id).toBe('string');
   });
 });

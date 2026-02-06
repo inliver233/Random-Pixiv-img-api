@@ -53,12 +53,16 @@ function createLegacyApp() {
 
   const showVersion = require('../src/middlewares/headerMiddleware.js');
   const pixivRoutes = require('../src/routes/pixivRoutes.js');
+  const requestIdMiddleware = require('../src/middlewares/requestIdMiddleware.js');
+  const errorHandler = require('../src/middlewares/errorHandler.js');
 
   app.set('view engine', 'ejs');
   app.set('views', path.join(process.cwd(), 'views'));
 
+  app.use(requestIdMiddleware);
   app.use(corsMiddleware);
   app.use('/', showVersion, pixivRoutes);
+  app.use(errorHandler);
   return app;
 }
 
@@ -74,14 +78,20 @@ describe('legacy pixivcat routes', () => {
     const app = createLegacyApp();
 
     const res = await request(app).get('/abc.jpg').expect(400);
-    expect(res.text).toContain('Invalid ID format');
+    expect(res.headers['content-type']).toContain('application/json');
+    expect(res.body.code).toBe('BAD_REQUEST');
+    expect(res.body.message).toContain('Invalid ID format');
+    expect(typeof res.body.request_id).toBe('string');
   });
 
   it('validates extension', async () => {
     const app = createLegacyApp();
 
     const res = await request(app).get('/123.txt').expect(400);
-    expect(res.text).toContain('Invalid file extension');
+    expect(res.headers['content-type']).toContain('application/json');
+    expect(res.body.code).toBe('BAD_REQUEST');
+    expect(res.body.message).toContain('Invalid file extension');
+    expect(typeof res.body.request_id).toBe('string');
   });
 
   it('redirects single route when work has multiple pages', async () => {

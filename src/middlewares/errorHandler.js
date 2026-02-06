@@ -63,6 +63,8 @@ function getRequestId(req, res) {
 }
 
 function wantsJson(req) {
+  if (req.__force_json_error === true) return true;
+
   const path = req.path || '';
   const accept = req.get('accept') || '';
   const acceptJson = accept.includes('application/json');
@@ -74,6 +76,8 @@ function wantsJson(req) {
 
   return (
     path.startsWith('/images')
+    || path.startsWith('/tags')
+    || path.startsWith('/authors')
     || path.startsWith('/admin')
     || path.startsWith('/metrics')
     || path.startsWith('/healthz')

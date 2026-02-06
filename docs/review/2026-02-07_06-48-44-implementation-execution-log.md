@@ -73,3 +73,14 @@
   - `Invoke-WebRequest POST https://i.mukyu.ru/admin/api/pages/hydrationOps action=start_backfill` -> 401 (missing admin credential)
 - Risk/blocked:
   - `blocked:runtime_start_backfill_verify_requires_auth`
+### FRD-0007 DONE
+- Status flow: TODO -> DOING -> DONE
+- Code:
+  - `src/middlewares/validationMiddleware.ts` + `src/middlewares/validationMiddleware.js`: legacy 参数校验改为抛出 `BAD_REQUEST` 并设置 `__force_json_error`，不再直接渲染 HTML 错页。
+  - `src/middlewares/errorHandler.ts` + `src/middlewares/errorHandler.js`: 识别 `__force_json_error`，强制输出统一 JSON 错误包。
+  - `test/legacy_pixivcat_routes.test.ts`, `test/legacyRoutesContract.test.ts`: 更新 legacy 契约测试，新增 `page=0` JSON 校验。
+- Test evidence:
+  - `npx vitest run test/legacy_pixivcat_routes.test.ts test/legacyRoutesContract.test.ts` -> PASS (2 files, 14 tests)
+  - `Invoke-WebRequest https://i.mukyu.ru/136551599-0.jpg` -> 400 `text/html`（线上仍是旧版本）
+- Risk/blocked:
+  - `blocked:remote_env_not_deployed_yet`

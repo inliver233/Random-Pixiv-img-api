@@ -72,6 +72,8 @@ function getRequestId(req: Request, res: Response): string | undefined {
 }
 
 function wantsJson(req: Request): boolean {
+  if ((req as any).__force_json_error === true) return true;
+
   const path = req.path || '';
   const accept = req.header('accept') || '';
   const acceptJson = accept.includes('application/json');

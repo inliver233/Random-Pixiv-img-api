@@ -1,32 +1,32 @@
-function validateIllustId(req, res, next) {
+function failLegacyValidation(req, next, message) {
+  req.__force_json_error = true;
+  const err = new Error(message);
+  err.status = 400;
+  err.code = 'BAD_REQUEST';
+  next(err);
+}
+
+function validateIllustId(req, _res, next) {
   const { illustId } = req.params;
   // Check if the illustId contains only digits
   if (/^([1-9][0-9]*)$/.test(illustId)) {
     next();
   } else {
-    res.status(400).render('error', {
-      error_title: '400 Bad Request',
-      message_en: 'Invalid ID format.',
-      message_zh: '無效的ID格式。',
-    });
+    failLegacyValidation(req, next, 'Invalid ID format.');
   }
 }
 
-function validatePageNumber(req, res, next) {
+function validatePageNumber(req, _res, next) {
   const { pageNumber } = req.params;
   // Check if the pageNumber contains only digits and is greater than 0
   if (/^\d+$/.test(pageNumber) && pageNumber > 0) {
     next();
   } else {
-    res.status(400).render('error', {
-      error_title: '400 Bad Request',
-      message_en: 'Invalid page number.',
-      message_zh: '無效的頁數。',
-    });
+    failLegacyValidation(req, next, 'Invalid page number.');
   }
 }
 
-function validateExtension(req, res, next) {
+function validateExtension(req, _res, next) {
   const { ALLOWED_IMAGE_EXTENSIONS } = require('../utils/contentType');
   const fileExtension = req.params.fileExtension.toLowerCase();
 
@@ -34,11 +34,7 @@ function validateExtension(req, res, next) {
   if (ALLOWED_IMAGE_EXTENSIONS.includes(fileExtension)) {
     next();
   } else {
-    res.status(400).render('error', {
-      error_title: '400 Bad Request',
-      message_en: 'Invalid file extension.',
-      message_zh: '無效的檔案副檔名。',
-    });
+    failLegacyValidation(req, next, 'Invalid file extension.');
   }
 }
 
