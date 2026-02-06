@@ -11,6 +11,30 @@ const { ensureClassificationMetricsInitialized } = require('../metrics/classific
 
 const router = express.Router();
 
+function getRequestId(req, res) {
+  const fromReq = typeof req.request_id === 'string' && req.request_id.trim() ? req.request_id.trim() : undefined;
+  if (fromReq) return fromReq;
+  const headerValue = req.headers?.['x-request-id'];
+  if (typeof headerValue === 'string' && headerValue.trim()) return headerValue.trim();
+  if (Array.isArray(headerValue)) {
+    const first = headerValue.find((item) => typeof item === 'string' && item.trim());
+    if (typeof first === 'string' && first.trim()) return first.trim();
+  }
+  const fromRes = typeof res.locals?.request_id === 'string' && String(res.locals.request_id).trim()
+    ? String(res.locals.request_id).trim()
+    : undefined;
+  return fromRes;
+}
+
+function sendJsonError(res, params) {
+  const body = {
+    code: params.code,
+    message: params.message,
+  };
+  if (params.requestId) body.request_id = params.requestId;
+  return res.status(params.status).json(body);
+}
+
 function needsBasicAuth() {
   return Boolean(process.env.METRICS_BASIC_AUTH_USER && process.env.METRICS_BASIC_AUTH_PASS);
 }
@@ -33,15 +57,28 @@ function checkBasicAuth(req) {
 }
 
 router.get('/', async (req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
+  const requestId = getRequestId(req, res);
+
   const env = getEnv();
   if (!env.METRICS_ENABLED) {
-    res.status(404).json({ error: 'metrics_disabled' });
+    sendJsonError(res, {
+      status: 404,
+      code: 'METRICS_DISABLED',
+      message: 'Metrics endpoint is disabled.',
+      requestId,
+    });
     return;
   }
 
   if (needsBasicAuth() && !checkBasicAuth(req)) {
     res.setHeader('WWW-Authenticate', 'Basic realm="metrics"');
-    res.status(401).json({ error: 'unauthorized' });
+    sendJsonError(res, {
+      status: 401,
+      code: 'UNAUTHORIZED',
+      message: 'Unauthorized.',
+      requestId,
+    });
     return;
   }
 
@@ -53,9 +90,18 @@ router.get('/', async (req, res) => {
   ensureJobMetricsInitialized();
   ensureClassificationMetricsInitialized();
 
-  const registry = getMetricsRegistry();
-  res.setHeader('Content-Type', registry.contentType);
-  res.send(await registry.metrics());
+  try {
+    const registry = getMetricsRegistry();
+    res.setHeader('Content-Type', registry.contentType);
+    res.send(await registry.metrics());
+  } catch {
+    sendJsonError(res, {
+      status: 503,
+      code: 'METRICS_UNAVAILABLE',
+      message: 'Metrics registry is temporarily unavailable.',
+      requestId,
+    });
+  }
 });
 
 module.exports = router;

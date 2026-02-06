@@ -52,6 +52,7 @@ describe('GET /metrics', () => {
     const res = await request(app).get('/metrics').expect(200);
 
     expect(res.headers['content-type']).toMatch(/^text\/plain\b/i);
+    expect(res.headers['cache-control']).toBe('no-store');
     expect(res.text).toContain('pixivcat_up');
     expect(res.text).toContain('http_requests_total');
     expect(res.text).toContain('request_duration_seconds');
@@ -73,9 +74,13 @@ describe('GET /metrics', () => {
 
     const app = createApp();
 
-    const res = await request(app).get('/metrics').expect(404);
+    const res = await request(app).get('/metrics').set('x-request-id', 'req-metrics-disabled').expect(404);
 
-    expect(res.body).toEqual({ error: 'metrics_disabled' });
+    expect(res.body).toMatchObject({
+      code: 'METRICS_DISABLED',
+      message: 'Metrics endpoint is disabled.',
+      request_id: 'req-metrics-disabled',
+    });
   });
 
   it('returns 401 when basic auth is enabled but missing/invalid', async () => {
@@ -84,10 +89,14 @@ describe('GET /metrics', () => {
 
     const app = createApp();
 
-    const res = await request(app).get('/metrics').expect(401);
+    const res = await request(app).get('/metrics').set('x-request-id', 'req-metrics-401').expect(401);
 
     expect(res.headers['www-authenticate']).toContain('Basic');
-    expect(res.body).toEqual({ error: 'unauthorized' });
+    expect(res.body).toMatchObject({
+      code: 'UNAUTHORIZED',
+      message: 'Unauthorized.',
+      request_id: 'req-metrics-401',
+    });
   });
 
   it('returns 200 when basic auth is enabled and correct credentials provided', async () => {
