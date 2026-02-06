@@ -16,8 +16,13 @@ export type ProxyUriImportError = {
   error: string;
 };
 
+export type ProxyUriLineEntry = {
+  line: number;
+  uri: string;
+};
+
 export type ImportProxyUriLinesParams = {
-  lines: string[];
+  lines: Array<string | ProxyUriLineEntry>;
   source: string;
   sourceRef?: string;
   enabled?: boolean;
@@ -49,15 +54,16 @@ function shouldSkipByPolicy(params: {
   return false;
 }
 
-export function parseProxyUriTextLines(input: string): string[] {
+export function parseProxyUriTextLines(input: string): ProxyUriLineEntry[] {
   const lines = String(input ?? '').split(/\r?\n/);
-  const out: string[] = [];
+  const out: ProxyUriLineEntry[] = [];
 
-  for (const raw of lines) {
+  for (let i = 0; i < lines.length; i += 1) {
+    const raw = lines[i];
     const line = String(raw ?? '').trim();
     if (!line) continue;
     if (line.startsWith('#')) continue;
-    out.push(line);
+    out.push({ line: i + 1, uri: line });
   }
 
   return out;
@@ -77,8 +83,15 @@ export async function importProxyUriLines(params: ImportProxyUriLinesParams): Pr
   let conflicts = 0;
 
   for (let i = 0; i < lines.length; i += 1) {
-    const uri = String(lines[i] ?? '').trim();
-    const lineNo = i + 1;
+    const entry = lines[i];
+    const uri = typeof entry === 'string'
+      ? String(entry ?? '').trim()
+      : String(entry?.uri ?? '').trim();
+    const lineNo = typeof entry === 'string'
+      ? i + 1
+      : Number.isInteger(entry?.line) && Number(entry.line) > 0
+        ? Number(entry.line)
+        : i + 1;
     if (!uri) continue;
 
     try {

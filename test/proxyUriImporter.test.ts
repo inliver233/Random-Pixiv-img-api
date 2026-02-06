@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { importProxyUriLines, parseProxyUriTextLines } from '../src/proxy/proxyUriImporter';
 
 describe('parseProxyUriTextLines', () => {
-  it('drops blank and comment lines', () => {
+  it('drops blank/comment lines and preserves original line numbers', () => {
     const lines = parseProxyUriTextLines(`
 # comment
 http://127.0.0.1:8080
@@ -11,8 +11,8 @@ http://127.0.0.1:8080
   socks5://user:pass@127.0.0.1:1080
 `);
     expect(lines).toEqual([
-      'http://127.0.0.1:8080',
-      'socks5://user:pass@127.0.0.1:1080',
+      { line: 3, uri: 'http://127.0.0.1:8080' },
+      { line: 5, uri: 'socks5://user:pass@127.0.0.1:1080' },
     ]);
   });
 });
@@ -25,9 +25,9 @@ describe('importProxyUriLines', () => {
 
     const result = await importProxyUriLines({
       lines: [
-        'http://user:pa@ss@127.0.0.1:18080',
-        'socks5://127.0.0.1:19090',
-        'not-a-proxy',
+        { line: 2, uri: 'http://user:pa@ss@127.0.0.1:18080' },
+        { line: 3, uri: 'socks5://127.0.0.1:19090' },
+        { line: 7, uri: 'not-a-proxy' },
       ],
       source: 'manual',
       sourceRef: 'manual-input',
@@ -38,6 +38,7 @@ describe('importProxyUriLines', () => {
     expect(result.imported).toBe(2);
     expect(result.invalid).toBe(1);
     expect(result.conflicts).toBe(0);
+    expect(result.errors[0]?.line).toBe(7);
     expect(upsert).toHaveBeenCalledTimes(2);
 
     const firstCall = upsert.mock.calls[0]?.[0];
