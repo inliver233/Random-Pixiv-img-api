@@ -22,6 +22,7 @@ import { importResourceOptions } from './resources/imports';
 import { adminAuditResourceOptions } from './resources/adminAudits';
 import { requestLogResourceOptions } from './resources/requestLogs';
 import { pixivTokenResourceOptions } from './resources/pixivTokens';
+import { hasEffectiveFilterValue } from './utils/filterValue';
 
 let cachedRouter: Router | null = null;
 let cachedPromise: Promise<Router> | null = null;
@@ -105,6 +106,7 @@ export async function getAdminJsRouter(): Promise<Router> {
       return Object.entries(filters).reduce((where: Record<string, any>, [name, filter]: [string, any]) => {
         const property = filter?.property;
         if (!property) return where;
+        if (!hasEffectiveFilterValue(filter?.value)) return where;
 
         const type = property.type?.();
         if (['boolean', 'number', 'float', 'object', 'array'].includes(type)) {
@@ -122,7 +124,10 @@ export async function getAdminJsRouter(): Promise<Router> {
         } else if (type === 'string' && uuidRegex.test(filter.value?.toString?.() ?? '')) {
           where[name] = { equals: filter.value };
         } else if (type === 'reference' && property.foreignColumnName?.()) {
-          where[property.foreignColumnName()] = convertParam(property, modelFields, filter.value);
+          const converted = convertParam(property, modelFields, filter.value);
+          if (hasEffectiveFilterValue(converted)) {
+            where[property.foreignColumnName()] = converted;
+          }
         } else {
           where[name] = { contains: filter.value?.toString?.() ?? '' };
         }
