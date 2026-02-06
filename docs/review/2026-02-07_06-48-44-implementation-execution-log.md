@@ -84,3 +84,14 @@
   - `Invoke-WebRequest https://i.mukyu.ru/136551599-0.jpg` -> 400 `text/html`（线上仍是旧版本）
 - Risk/blocked:
   - `blocked:remote_env_not_deployed_yet`
+### FRD-0008 DONE
+- Status flow: TODO -> DOING -> DONE
+- Code:
+  - `src/routes/random.ts`: `format=json` 的 NO_MATCH 改为直接返回结构化降级信息，新增 `hints.applied_filters` 与 `hints.suggestions`，保持 `404 + NO_MATCH + request_id` 主契约不变。
+  - `test/random_empty.test.ts`: 更新为兼容 hints。
+  - `test/random_no_match_degrade.test.ts`: 新增强筛选 NO_MATCH 降级信息测试。
+- Test evidence:
+  - `npx vitest run test/random_no_match_degrade.test.ts test/randomContract.test.ts test/random_empty.test.ts` -> PASS (3 files, 33 tests)
+  - `Invoke-WebRequest https://i.mukyu.ru/random?format=json&orientation=portrait&r18=1` -> 404 (线上仍是旧 payload，无 hints)
+- Risk/blocked:
+  - `blocked:remote_env_not_deployed_yet`

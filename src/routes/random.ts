@@ -336,6 +336,41 @@ function parseIllustId(value: unknown): bigint | undefined {
   return id;
 }
 
+function normalizeFilterValueForJson(value: unknown): unknown {
+  if (typeof value === 'bigint') return value.toString();
+  if (Array.isArray(value)) return value.map((item) => normalizeFilterValueForJson(item));
+  return value;
+}
+
+function buildNoMatchHints(filters: Record<string, unknown>): {
+  applied_filters: Record<string, unknown>;
+  suggestions: string[];
+} {
+  const appliedFilters: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(filters)) {
+    appliedFilters[key] = normalizeFilterValueForJson(value);
+  }
+
+  const suggestions: string[] = [];
+  if (filters.orientation !== undefined) suggestions.push('remove orientation filter');
+  if (filters.minWidth !== undefined || filters.minHeight !== undefined || filters.minPixels !== undefined) {
+    suggestions.push('lower min_width/min_height/min_pixels');
+  }
+  if (filters.includedTags !== undefined) suggestions.push('relax included_tags');
+  if (filters.excludedTags !== undefined) suggestions.push('remove excluded_tags');
+  if (filters.userId !== undefined || filters.illustId !== undefined) suggestions.push('remove user_id/illust_id');
+  if (filters.xRestrict !== undefined && filters.xRestrict !== 0) suggestions.push('fallback to r18=0');
+
+  if (suggestions.length === 0) {
+    suggestions.push('import more metadata and retry with fewer filters');
+  }
+
+  return {
+    applied_filters: appliedFilters,
+    suggestions,
+  };
+}
+
 router.get('/', (req, res, next) => {
   (async () => {
     res.setHeader('Cache-Control', 'no-store');
@@ -394,10 +429,13 @@ router.get('/', (req, res, next) => {
       const debug: any = {};
       const image = await pickRandomImageRecord(filters, random, { withTags: true, debug });
       if (!image) {
-        const err = new Error('No matching image.');
-        (err as any).status = 404;
-        (err as any).code = 'NO_MATCH';
-        throw err;
+        res.status(404).json({
+          code: 'NO_MATCH',
+          message: 'No matching image.',
+          request_id: requestId,
+          hints: buildNoMatchHints(filters),
+        });
+        return;
       }
 
       const tags = Array.isArray((image as any).imageTags)

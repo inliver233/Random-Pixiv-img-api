@@ -45,11 +45,12 @@ describe('GET /random (empty)', () => {
     const res = await request(app).get('/random?format=json').set('x-request-id', 'req-random-empty').expect(404);
 
     expect(res.headers['cache-control']).toBe('no-store');
-    expect(res.body).toEqual({
+    expect(res.body).toMatchObject({
       code: 'NO_MATCH',
       message: 'No matching image.',
       request_id: 'req-random-empty',
     });
+    expect(res.body.hints).toBeDefined();
+    expect(Array.isArray(res.body.hints.suggestions)).toBe(true);
   });
 });
-
