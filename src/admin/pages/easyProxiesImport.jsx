@@ -30,11 +30,37 @@ function formatOptionalNumber(value, digits = 0) {
   return String(Math.round(n));
 }
 
-function parseUriLines(text) {
+function parseUriEntries(text) {
   return String(text || '')
     .split(/\r?\n/)
-    .map((line) => String(line || '').trim())
-    .filter((line) => line && !line.startsWith('#'));
+    .map((line, idx) => ({
+      line: idx + 1,
+      uri: String(line || '').trim(),
+    }))
+    .filter((entry) => entry.uri && !entry.uri.startsWith('#'));
+}
+
+function normalizeImportSummary(raw) {
+  if (!raw || typeof raw !== 'object') return null;
+
+  const totalLines = Number(raw.total_lines);
+  const imported = Number(raw.imported);
+  const invalid = Number(raw.invalid);
+  const conflicts = Number(raw.conflicts);
+  const errorsRaw = Array.isArray(raw.errors) ? raw.errors : [];
+
+  return {
+    total_lines: Number.isFinite(totalLines) ? totalLines : 0,
+    imported: Number.isFinite(imported) ? imported : 0,
+    invalid: Number.isFinite(invalid) ? invalid : 0,
+    conflicts: Number.isFinite(conflicts) ? conflicts : 0,
+    errors: errorsRaw
+      .map((item) => ({
+        line: Number(item?.line),
+        error: safeString(item?.error || '解析失败'),
+      }))
+      .filter((item) => Number.isFinite(item.line) && item.line > 0),
+  };
 }
 
 export default function EasyProxiesImportPage() {
@@ -42,6 +68,7 @@ export default function EasyProxiesImportPage() {
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
   const [notice, setNotice] = useState(null);
+  const [importSummary, setImportSummary] = useState(null);
 
   const [formInitialized, setFormInitialized] = useState(false);
   const [baseUrl, setBaseUrl] = useState('');
@@ -85,6 +112,13 @@ export default function EasyProxiesImportPage() {
         method: 'post',
         data: form,
       });
+
+      if (actionName === 'importProxyUris') {
+        const summary = normalizeImportSummary(
+          res?.data?.import_summary || res?.data?.meta?.import_summary || null,
+        );
+        setImportSummary(summary);
+      }
 
       const n = res?.data?.notice;
       if (n?.message) {
@@ -132,7 +166,33 @@ export default function EasyProxiesImportPage() {
     return r;
   }, [autoRefresh]);
 
+  const uriEntries = useMemo(() => parseUriEntries(proxyUriText), [proxyUriText]);
+  const uniqueUriCount = useMemo(() => new Set(uriEntries.map((entry) => entry.uri)).size, [uriEntries]);
+  const duplicateUriCount = Math.max(0, uriEntries.length - uniqueUriCount);
+
   const buttonStyle = createButtonStyle({ disabled: loading });
+
+  function submitProxyUriImport() {
+    if (uriEntries.length === 0) {
+      setNotice({ type: 'error', message: '请输入至少 1 条代理 URI（支持多行）。' });
+      return;
+    }
+
+    if (importConflictPolicy === 'overwrite') {
+      const confirmed = globalThis.confirm
+        ? globalThis.confirm('overwrite 会覆盖同 host+port+username 的现有条目，是否继续？')
+        : true;
+      if (!confirmed) return;
+    }
+
+    setImportSummary(null);
+    void runAction('importProxyUris', {
+      proxy_uris: uriEntries.map((entry) => entry.uri).join('\n'),
+      source: 'manual',
+      enabled: importEnabled ? '1' : '0',
+      conflict_policy: importConflictPolicy,
+    });
+  }
 
   return (
     <div style={pageRootStyle}>
@@ -305,7 +365,7 @@ export default function EasyProxiesImportPage() {
       <div style={{ marginTop: 12, ...createCardStyle() }}>
         <h3 style={{ marginTop: 0 }}>URI 一键导入（单行/多行）</h3>
         <p style={{ marginTop: 0, color: '#666' }}>
-          支持直接粘贴代理 URI（每行一条），保存后立即可用于代理池，不需要重启服务。
+          支持直接粘贴代理 URI（每行一条），点击一次即导入并立即生效，无需重启服务。
           支持格式：
           {' '}
           <code>http://user:pass@host:port</code>
@@ -317,9 +377,21 @@ export default function EasyProxiesImportPage() {
           如果密码包含 <code>@</code>，可直接写入（最后一个 <code>@</code> 作为分隔）或用 <code>%40</code> 编码。
         </p>
 
+        <div style={createCalloutStyle('info')}>
+          操作建议：先粘贴 URI，再选择冲突策略，然后点「导入 URI（立即生效）」。
+          可使用 <b>Ctrl/Command + Enter</b> 快速提交。
+        </div>
+
         <textarea
           value={proxyUriText}
           onChange={(e) => setProxyUriText(e.target.value)}
+          onKeyDown={(e) => {
+            const enterPressed = e.key === 'Enter';
+            const quickSubmit = e.ctrlKey || e.metaKey;
+            if (!enterPressed || !quickSubmit || loading) return;
+            e.preventDefault();
+            submitProxyUriImport();
+          }}
           placeholder={'http://user:pass@127.0.0.1:18080\nsocks5://127.0.0.1:19090'}
           spellCheck="false"
           disabled={loading}
@@ -358,28 +430,8 @@ export default function EasyProxiesImportPage() {
           <button
             type="button"
             disabled={loading}
-            onClick={() => {
-              const lines = parseUriLines(proxyUriText);
-              if (lines.length === 0) {
-                setNotice({ type: 'error', message: '请输入至少 1 条代理 URI（支持多行）。' });
-                return;
-              }
-
-              if (importConflictPolicy === 'overwrite') {
-                const confirmed = globalThis.confirm
-                  ? globalThis.confirm('overwrite 会覆盖同 host+port+username 的现有条目，是否继续？')
-                  : true;
-                if (!confirmed) return;
-              }
-
-              void runAction('importProxyUris', {
-                proxy_uris: lines.join('\n'),
-                source: 'manual',
-                enabled: importEnabled ? '1' : '0',
-                conflict_policy: importConflictPolicy,
-              });
-            }}
-            style={buttonStyle}
+            onClick={submitProxyUriImport}
+            style={createButtonStyle({ primary: true, disabled: loading })}
           >
             导入 URI（立即生效）
           </button>
@@ -393,8 +445,39 @@ export default function EasyProxiesImportPage() {
           </button>
         </div>
         <p style={{ marginTop: 8, marginBottom: 0, color: '#666', fontSize: 12 }}>
-          当前有效行数：{parseUriLines(proxyUriText).length}。建议优先使用 <code>skip_non_source</code>，避免误覆盖手工维护的代理条目。
+          当前有效行数：{uriEntries.length}，去重后：{uniqueUriCount}，重复行：{duplicateUriCount}。
+          建议优先使用 <code>skip_non_source</code>，避免误覆盖手工维护的代理条目。
         </p>
+
+        {importSummary ? (
+          <div style={{ marginTop: 12, ...createCardStyle({ alt: true }) }}>
+            <h4 style={{ marginTop: 0, marginBottom: 8 }}>最近一次导入结果</h4>
+            <p style={{ marginTop: 0, marginBottom: 8, color: '#374151' }}>
+              共解析 {importSummary.total_lines} 行，导入成功 {importSummary.imported} 行，冲突跳过 {importSummary.conflicts} 行，无效 {importSummary.invalid} 行。
+            </p>
+            {importSummary.invalid > 0 ? (
+              <div style={createCalloutStyle('warning')}>
+                无效 URI 会按行号提示，请先修复后再重新导入。
+              </div>
+            ) : (
+              <div style={createCalloutStyle('success')}>
+                所有 URI 都已通过校验并落库。
+              </div>
+            )}
+            {importSummary.errors.length > 0 ? (
+              <div style={{ marginTop: 10 }}>
+                <div style={{ fontWeight: 600, marginBottom: 6 }}>错误定位（最多展示前 {importSummary.errors.length} 条）</div>
+                <ol style={{ margin: 0, paddingLeft: 20 }}>
+                  {importSummary.errors.map((item) => (
+                    <li key={`${item.line}-${item.error}`} style={{ marginBottom: 4 }}>
+                      第 {item.line} 行：{item.error}
+                    </li>
+                  ))}
+                </ol>
+              </div>
+            ) : null}
+          </div>
+        ) : null}
       </div>
 
       <div style={{ marginTop: 12, ...createCardStyle({ alt: true }) }}>

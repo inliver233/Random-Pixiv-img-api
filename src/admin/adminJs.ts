@@ -1979,7 +1979,7 @@ export async function getAdminJsRouter(): Promise<Router> {
                   actionType: 'resource',
                   icon: 'Upload',
                   label: 'URI 批量导入',
-                  guard: 'Import proxy URIs now? Passwords in URI will be stored but never shown in the UI.',
+                  guard: '确认导入 URI 吗？URI 中密码会保存到数据库，但不会在后台明文展示。',
                   handler: async (request: any, _res: any, context: any) => {
                     if (String(request?.method || '').toLowerCase() === 'get') {
                       return {};
@@ -1994,13 +1994,13 @@ export async function getAdminJsRouter(): Promise<Router> {
                     const lines = parseProxyUriTextLines(String(uriTextRaw || ''));
                     if (lines.length === 0) {
                       return {
-                        notice: { type: 'error', message: 'No proxy URI provided.' },
+                        notice: { type: 'error', message: '未检测到可导入的 URI，请至少粘贴 1 行。' },
                         redirectUrl: context.h.resourceUrl({ resourceId: context.resource.id() }),
                       };
                     }
                     if (lines.length > 10_000) {
                       return {
-                        notice: { type: 'error', message: `Too many lines: ${lines.length}. Please import <= 10000 lines each time.` },
+                        notice: { type: 'error', message: `导入行数过多：${lines.length}。单次最多 10000 行。` },
                         redirectUrl: context.h.resourceUrl({ resourceId: context.resource.id() }),
                       };
                     }
@@ -2060,8 +2060,18 @@ export async function getAdminJsRouter(): Promise<Router> {
                         notice: {
                           type: summary.invalid > 0 ? 'warning' : 'success',
                           message: summary.invalid > 0
-                            ? `URI import done: imported=${summary.imported} invalid=${summary.invalid} conflicts=${summary.conflicts} (first invalid line: ${summary.errors[0]?.line ?? '-'})`
-                            : `URI import done: imported=${summary.imported} invalid=${summary.invalid} conflicts=${summary.conflicts}`,
+                            ? `导入完成：成功 ${summary.imported}，无效 ${summary.invalid}，冲突跳过 ${summary.conflicts}（首个错误行：${summary.errors[0]?.line ?? '-'}）。`
+                            : `导入完成：成功 ${summary.imported}，无效 ${summary.invalid}，冲突跳过 ${summary.conflicts}。`,
+                        },
+                        import_summary: {
+                          total_lines: summary.total_lines,
+                          imported: summary.imported,
+                          invalid: summary.invalid,
+                          conflicts: summary.conflicts,
+                          errors: summary.errors.slice(0, 50).map((item) => ({
+                            line: item.line,
+                            error: item.error,
+                          })),
                         },
                         redirectUrl: context.h.resourceUrl({ resourceId: context.resource.id() }),
                       };
