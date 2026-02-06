@@ -183,6 +183,7 @@ npm run test:runtime-regression
 
 # Admin UI smoke（可附加 BaseUrl/AdminToken）
 npm run smoke:admin-ui -- -BaseUrl http://127.0.0.1:3015 -AdminToken <ADMIN_TOKEN>
+npm run smoke:admin-ui:strict -- -BaseUrl http://127.0.0.1:3015 -AdminToken <ADMIN_TOKEN>
 
 # Compose 结构校验（无需 Docker daemon）
 docker compose -f docker-compose.yml config --services
@@ -195,6 +196,10 @@ docker compose -f docker-compose.yml config --services
 - `backend`
 
 如运行环境缺少可用 Docker daemon，请将结果记录为 `validation_limited`，并在可用 daemon 环境复验 `docker compose up -d`。
+
+补充说明（最终深化优化）：
+- `app.ts` 现在会按运行目录自动解析模块后缀：source runtime 加载 `.ts`，`dist` runtime 加载 `.js`，避免开发态误用 stale dist/wrapper。
+- `admin-ui-smoke` 在 `-RequireAuthChecks`（或 `npm run smoke:admin-ui:strict`）模式下，若缺少 `ADMIN_TOKEN` 会直接失败，防止“误通过”。 
 
 ## 环境变量（后续按 Issues 增量补齐）
 
