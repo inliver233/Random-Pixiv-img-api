@@ -6,7 +6,7 @@ import tsParser from "@typescript-eslint/parser";
 import globals from "globals";
 
 export default [
-  { ignores: ["dist/**", ".adminjs/**"] },
+  { ignores: ["dist/**", ".adminjs/**", "docs/review/**"] },
   js.configs.recommended,
 
   {
