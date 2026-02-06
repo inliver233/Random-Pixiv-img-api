@@ -65,6 +65,10 @@ app.use(corsMiddleware);
 app.use(['/random', '/images', '/healthz', '/metrics', '/admin'], securityHeaders);
 
 // Routes
+app.get('/favicon.ico', (_req, res) => {
+  res.status(204).end();
+});
+
 app.use(['/random', '/i', '/images'], rateLimitMiddleware);
 app.use('/', apiRoutes);
 app.use('/', showVersion, pixivRoutes);

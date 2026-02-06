@@ -95,3 +95,13 @@
   - `Invoke-WebRequest https://i.mukyu.ru/random?format=json&orientation=portrait&r18=1` -> 404 (线上仍是旧 payload，无 hints)
 - Risk/blocked:
   - `blocked:remote_env_not_deployed_yet`
+### FRD-0009 DONE
+- Status flow: TODO -> DOING -> DONE
+- Code:
+  - `app.ts`: 新增 `/favicon.ico` 路由返回 `204`，用于清除 Admin 导航噪声。
+  - `test/favicon_route.test.ts`: 校验路由已注册并返回 204 语义。
+- Test evidence:
+  - `npx vitest run test/favicon_route.test.ts` -> PASS (1 file, 1 test)
+  - `Invoke-WebRequest https://i.mukyu.ru/favicon.ico` -> 400（线上仍是旧版本）
+- Risk/blocked:
+  - `blocked:remote_env_not_deployed_yet`
