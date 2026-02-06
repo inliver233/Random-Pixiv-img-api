@@ -23,6 +23,7 @@ import { adminAuditResourceOptions } from './resources/adminAudits';
 import { requestLogResourceOptions } from './resources/requestLogs';
 import { pixivTokenResourceOptions } from './resources/pixivTokens';
 import { hasEffectiveFilterValue } from './utils/filterValue';
+import { runWithTimeout } from './utils/runWithTimeout';
 
 let cachedRouter: Router | null = null;
 let cachedPromise: Promise<Router> | null = null;
@@ -1019,17 +1020,56 @@ export async function getAdminJsRouter(): Promise<Router> {
               const options = getProxyHealthOptions();
               let report = getProxyHealthReport();
               const nowMs = Date.now();
-              const stale = report ? (nowMs - report.checkedAt) > Math.min(30_000, options.intervalMs) : true;
+              const staleCutoffMs = Math.min(30_000, options.intervalMs);
+              const stale = report ? (nowMs - report.checkedAt) > staleCutoffMs : true;
               const canProbeNow = process.env.NODE_ENV !== 'test';
+              const refreshTimeoutMs = Math.max(
+                1_500,
+                Math.min(
+                  12_000,
+                  Number.parseInt(String(process.env.ADMIN_PROXY_OVERVIEW_REFRESH_TIMEOUT_MS ?? '3500'), 10) || 3_500,
+                ),
+              );
+              const refreshMeta = {
+                attempted: false,
+                timeout_ms: refreshTimeoutMs,
+                timed_out: false,
+                error: null as string | null,
+              };
 
               if ((report === null || stale) && canProbeNow) {
                 // Best-effort refresh for the admin page; the health checker caches samples in-memory.
-                report = await runProxyHealthCheckOnce({ prisma, options: { maxConcurrency: Math.min(options.maxConcurrency, 10) } });
+                refreshMeta.attempted = true;
+                const refreshResult = await runWithTimeout(
+                  runProxyHealthCheckOnce({ prisma, options: { maxConcurrency: Math.min(options.maxConcurrency, 10) } }),
+                  refreshTimeoutMs,
+                );
+                if (refreshResult.status === 'ok') {
+                  report = refreshResult.value;
+                } else if (refreshResult.status === 'timeout') {
+                  refreshMeta.timed_out = true;
+                } else {
+                  refreshMeta.error = refreshResult.error;
+                }
               }
+
+              const reportAgeMs = report ? Math.max(0, nowMs - report.checkedAt) : null;
+              const staleFallback = reportAgeMs !== null && reportAgeMs > staleCutoffMs;
 
               const health = (() => {
                 if (!report) {
-                  return { ok: false, reason: 'no_report' };
+                  if (refreshMeta.timed_out) {
+                    return {
+                      ok: false,
+                      reason: 'refresh_timeout',
+                      refresh: refreshMeta,
+                    };
+                  }
+                  return {
+                    ok: false,
+                    reason: refreshMeta.error ? 'refresh_error' : 'no_report',
+                    refresh: refreshMeta,
+                  };
                 }
 
                 const counts = { healthy: 0, warning: 0, error: 0, unknown: 0 };
@@ -1093,6 +1133,8 @@ export async function getAdminJsRouter(): Promise<Router> {
                 return {
                   ok: true,
                   checked_at: new Date(report.checkedAt).toISOString(),
+                  checked_age_ms: reportAgeMs,
+                  stale_fallback: staleFallback,
                   probe_url: report.probeUrl,
                   timeout_ms: report.timeoutMs,
                   min_healthy: report.minHealthy,
@@ -1110,6 +1152,7 @@ export async function getAdminJsRouter(): Promise<Router> {
                   },
                   recent_failures: recentFailures,
                   entries,
+                  refresh: refreshMeta,
                 };
               })();
 

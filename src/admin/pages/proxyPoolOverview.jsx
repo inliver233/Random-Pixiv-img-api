@@ -122,6 +122,12 @@ export default function ProxyPoolOverviewPage() {
                   <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee' }}>{formatOptionalIso(health.checked_at)}</td>
                 </tr>
                 <tr>
+                  <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee', fontWeight: 600 }}>数据新鲜度</td>
+                  <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee' }}>
+                    age={formatOptionalNumber(health.checked_age_ms)}ms {health.stale_fallback ? '(stale fallback)' : '(fresh)'}
+                  </td>
+                </tr>
+                <tr>
                   <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee', fontWeight: 600 }}>探测地址</td>
                   <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee' }}>{safeString(health.probe_url)}</td>
                 </tr>
@@ -149,9 +155,18 @@ export default function ProxyPoolOverviewPage() {
                 </tr>
               </tbody>
             </table>
+            {health.refresh?.timed_out ? (
+              <div style={{ marginTop: 10, ...createCalloutStyle('warning') }}>
+                本次刷新超时（{formatOptionalNumber(health.refresh.timeout_ms)}ms），展示最近一次可用快照。
+              </div>
+            ) : null}
           </>
         ) : (
-          <p style={{ marginTop: 0, color: '#666' }}>健康检查暂不可用：{safeString(health.reason || 'unknown')}</p>
+          <div style={createCalloutStyle('warning')}>
+            健康检查暂不可用：{safeString(health.reason || 'unknown')}
+            {health.refresh?.timed_out ? `（refresh timeout=${formatOptionalNumber(health.refresh.timeout_ms)}ms）` : ''}
+            {health.refresh?.error ? `（error=${safeString(health.refresh.error)}）` : ''}
+          </div>
         )}
       </div>
 

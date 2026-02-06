@@ -18,3 +18,15 @@
   - `Invoke-WebRequest https://i.mukyu.ru/admin/api/resources/TokenProxyBinding/actions/list` -> 401 (blocked by missing admin credential in current shell)
 - Risk/blocked:
   - `blocked:runtime_admin_verify_requires_auth`
+### FRD-0002 DONE
+- Status flow: TODO -> DOING -> DONE
+- Code:
+  - `src/admin/adminJs.ts`: proxyPoolOverview health refresh now uses bounded timeout (`ADMIN_PROXY_OVERVIEW_REFRESH_TIMEOUT_MS`, default 3500ms) and stale snapshot fallback metadata.
+  - `src/admin/pages/proxyPoolOverview.jsx`: 页面显示数据新鲜度、stale fallback、refresh timeout/error 说明，避免“刷新中”黑盒感。
+  - `src/admin/utils/runWithTimeout.ts`: 通用超时包装器。
+  - `test/admin_proxy_pool_overview_handler.test.ts`: 覆盖 success/timeout/error 三种路径。
+- Test evidence:
+  - `npx vitest run test/admin_proxy_pool_overview_handler.test.ts` -> PASS (1 file, 3 tests)
+  - `Invoke-WebRequest https://i.mukyu.ru/admin/api/pages/proxyPoolOverview` -> 401 (blocked by missing admin credential)
+- Risk/blocked:
+  - `blocked:runtime_admin_verify_requires_auth`
