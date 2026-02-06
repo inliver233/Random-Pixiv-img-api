@@ -70,6 +70,24 @@ http://user:pa@ss@host:port
 - 保存后立即生效：导入动作会自动触发 runtime proxy cache 失效，不需要重启 backend。
 - 冲突策略建议：`skip_non_source`（避免覆盖不属于当前来源的节点）。
 
+### 4.1.1 推荐操作步骤（运营侧）
+1. 打开 `Admin -> easy_proxies 导入`（`/admin/pages/easyProxiesImport`）。
+2. 直接粘贴文本（单行或多行）。支持以下两种密码写法：
+   - 原始 `@`：`http://user:pa@ss@host:port`
+   - 百分号编码：`http://user:pa%40ss@host:port`
+3. 选择冲突策略（推荐 `skip_non_source`），点击导入。
+4. 查看结果摘要：`imported / invalid / conflicts`。
+5. 若存在错误，直接根据行号修正后再次导入（无需重启服务）。
+
+### 4.1.2 错误反馈示例（“说人话”）
+- `line=7` + `Proxy URI must include scheme...`：该行缺少 `http://` / `socks5://` 前缀。
+- `line=12` + `Invalid proxy port...`：端口非法（非数字或超出范围）。
+- `line=21` + `IPv6 addresses must be wrapped in [ ]`：IPv6 未用方括号包裹。
+
+证据截图：
+- `docs/review/screenshots/2026-02-06_19-14-04/arux-0004-easy-import-summary.png`
+- `docs/review/screenshots/2026-02-06_19-14-04/arux-0005-proxy-overview-unified.png`
+
 ## 5. Docker Compose 部署建议
 
 ### 5.1 建议 1：easy_proxies 外置（推荐）
@@ -111,3 +129,20 @@ pixivcat-backend 可选择把这些信息映射成 ProxyEndpoint 的健康评分
 - 导入成功但请求仍不走代理：
   - 检查全局代理开关（Dashboard “代理出站”）
   - 检查 fail-open/fail-closed 与域名路由配置
+
+## 9. 回归验证清单（本轮）
+
+```bash
+# 重点单测（组件 bundle + URI 导入）
+npx vitest run test/admin_components_bundle_route.test.ts test/proxyUriImporter.test.ts
+
+# 全量回归（lint + 全量测试 + smoke）
+npm run test:all
+
+# Admin UI smoke（按需传入 token）
+pwsh -NoProfile -File test/admin-ui-smoke.ps1 -BaseUrl http://127.0.0.1:3015 -AdminToken <ADMIN_TOKEN>
+```
+
+说明：
+- 当 `AdminToken` 为空时，smoke 脚本会退化为“仅验证后台受保护”模式（返回 401/403/302/503 都视为受保护）。
+- 若在受限环境无法启动 compose，可先执行 `docker compose -f docker-compose.yml config --services` 完成结构校验。

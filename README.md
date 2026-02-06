@@ -164,6 +164,37 @@ http://user:pa@ss@127.0.0.1:18081
 - 密码包含 `@` 时，可直接写（最后一个 `@` 作为 host 分隔）或使用 `%40` 编码。
 - 导入策略建议使用 `skip_non_source`，避免覆盖已有手工维护节点。
 - 导入完成后代理池会自动刷新运行时缓存，不需要重启服务。
+- 导入反馈会给出 `imported / invalid / conflicts` 计数与逐行错误定位（`line` + 原始 URI）。
+
+运行态证据（本轮）：
+- 导入反馈截图：`docs/review/screenshots/2026-02-06_19-14-04/arux-0004-easy-import-summary.png`
+- Admin 全站统一截图：`docs/review/screenshots/2026-02-06_19-14-04/arux-0005-dashboard-unified.png`
+- 全量巡检结论：`docs/review/2026-02-06_18-44-05-admin-ui-runtime-findings.md`
+
+## 回归与部署验证快捷命令
+
+```bash
+# 全量测试（lint + 全量 vitest + smoke）
+npm run test:all
+
+# 本轮修复重点回归（防止“未指定组件”与 URI 导入回归）
+npm run test:admin-runtime
+npm run test:runtime-regression
+
+# Admin UI smoke（可附加 BaseUrl/AdminToken）
+npm run smoke:admin-ui -- -BaseUrl http://127.0.0.1:3015 -AdminToken <ADMIN_TOKEN>
+
+# Compose 结构校验（无需 Docker daemon）
+docker compose -f docker-compose.yml config --services
+```
+
+`docker compose ... config --services` 预期输出：
+- `memcached`
+- `postgres`
+- `migrate`
+- `backend`
+
+如运行环境缺少可用 Docker daemon，请将结果记录为 `validation_limited`，并在可用 daemon 环境复验 `docker compose up -d`。
 
 ## 环境变量（后续按 Issues 增量补齐）
 

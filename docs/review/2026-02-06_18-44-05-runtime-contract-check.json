@@ -1,0 +1,82 @@
+[
+  {
+    "name": "healthz",
+    "url": "http://127.0.0.1:3015/healthz",
+    "status": 503,
+    "content_type": [
+      "application/json; charset=utf-8"
+    ],
+    "location": null,
+    "body_preview": "{\"ok\":false,\"db\":{\"ok\":false,\"message\":\"DATABASE_URL is not configured.\"},\"memcached\":{\"ok\":false,\"message\":\"memcached timeout\"},\"queue\":{\"ok\":true,\"message\":\"disabled\"}}"
+  },
+  {
+    "name": "metrics",
+    "url": "http://127.0.0.1:3015/metrics",
+    "status": 200,
+    "content_type": [
+      "text/plain; charset=utf-8; version=0.0.4"
+    ],
+    "location": null,
+    "body_preview": "# HELP nodejs_process_cpu_user_seconds_total Total user CPU time spent in seconds.\n# TYPE nodejs_process_cpu_user_seconds_total counter\nnodejs_process_cpu_user_seconds_total 0.063\n\n# HELP nodejs_process_cpu_system_seconds_total Total system CPU time spent in s"
+  },
+  {
+    "name": "random_json",
+    "url": "http://127.0.0.1:3015/random?format=json",
+    "status": 500,
+    "content_type": [
+      "application/json; charset=utf-8"
+    ],
+    "location": null,
+    "body_preview": "{\"code\":\"INTERNAL_SERVER_ERROR\",\"message\":\"Internal Server Error\",\"request_id\":\"d4c61105-3713-49d7-a4d8-933078e9e412\"}"
+  },
+  {
+    "name": "image_by_id",
+    "url": "http://127.0.0.1:3015/i/1.jpg",
+    "status": 500,
+    "content_type": [
+      "text/html; charset=utf-8"
+    ],
+    "location": null,
+    "body_preview": "<!DOCTYPE html>\r\n<html lang=\"en\">\r\n<head>\r\n  <meta charset=\"UTF-8\">\r\n  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\r\n  <title>500 Internal Server Error</title>\r\n</head>\r\n<body>\r\n  <h1>500 Internal Server Error</h1>\n  <p>Internal Serve"
+  },
+  {
+    "name": "images_by_id",
+    "url": "http://127.0.0.1:3015/images/1",
+    "status": 500,
+    "content_type": [
+      "application/json; charset=utf-8"
+    ],
+    "location": null,
+    "body_preview": "{\"code\":\"INTERNAL_SERVER_ERROR\",\"message\":\"Internal Server Error\",\"request_id\":\"110c4912-4c45-4f29-8a3b-1fc5abe04c62\"}"
+  },
+  {
+    "name": "admin_root",
+    "url": "http://127.0.0.1:3015/admin",
+    "status": 401,
+    "content_type": [
+      "application/json; charset=utf-8"
+    ],
+    "location": null,
+    "body_preview": "{\"code\":\"UNAUTHORIZED\",\"message\":\"Unauthorized\",\"request_id\":\"af7f74cc-7d20-4311-93ed-18cf8c0b44df\"}"
+  },
+  {
+    "name": "legacy_single",
+    "url": "http://127.0.0.1:3015/12345.jpg",
+    "status": 500,
+    "content_type": [
+      "text/html; charset=utf-8"
+    ],
+    "location": null,
+    "body_preview": "<!DOCTYPE html>\r\n<html lang=\"en\">\r\n<head>\r\n  <meta charset=\"UTF-8\">\r\n  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\r\n  <title>500 Internal Server Error</title>\r\n</head>\r\n<body>\r\n  <h1>500 Internal Server Error</h1>\n  <p>Internal Serve"
+  },
+  {
+    "name": "legacy_multi",
+    "url": "http://127.0.0.1:3015/12345-2.jpg",
+    "status": 500,
+    "content_type": [
+      "text/html; charset=utf-8"
+    ],
+    "location": null,
+    "body_preview": "<!DOCTYPE html>\r\n<html lang=\"en\">\r\n<head>\r\n  <meta charset=\"UTF-8\">\r\n  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\r\n  <title>500 Internal Server Error</title>\r\n</head>\r\n<body>\r\n  <h1>500 Internal Server Error</h1>\n  <p>Internal Serve"
+  }
+]
