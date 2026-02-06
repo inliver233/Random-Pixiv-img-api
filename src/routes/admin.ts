@@ -59,6 +59,21 @@ router.get('/frontend/assets/components.bundle.js', (req, res, next) => {
   });
 });
 
+router.get('/resources/:resourceId/new', (req, res) => {
+  const resourceIdRaw = String((req.params as any).resourceId ?? '').trim();
+  if (!resourceIdRaw) {
+    res.setHeader('Cache-Control', 'no-store');
+    res.status(404).json({ code: 'NOT_FOUND', message: 'Resource not found.' });
+    return;
+  }
+
+  const queryIdx = req.originalUrl.indexOf('?');
+  const suffix = queryIdx >= 0 ? req.originalUrl.slice(queryIdx) : '';
+  const resourceId = encodeURIComponent(resourceIdRaw);
+  res.setHeader('Cache-Control', 'no-store');
+  res.redirect(302, `/admin/resources/${resourceId}/actions/new${suffix}`);
+});
+
 router.get('/login', (req, res) => {
   if (!parseBooleanEnv(process.env.ADMIN_SESSION_AUTH_ENABLED, false)) {
     res.setHeader('Cache-Control', 'no-store');

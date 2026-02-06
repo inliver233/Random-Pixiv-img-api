@@ -49,9 +49,9 @@ export const imageResourceOptions = {
   ],
   actions: {
     // RAPI-0087 will introduce safe delete behavior (soft delete).
-    new: { isVisible: false },
-    edit: { isVisible: false },
-    bulkDelete: { isVisible: false },
+    new: { isVisible: false, isAccessible: false },
+    edit: { isVisible: false, isAccessible: false },
+    bulkDelete: { isVisible: false, isAccessible: false },
 
     delete: {
       actionType: 'record',

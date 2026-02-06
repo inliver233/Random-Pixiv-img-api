@@ -27,10 +27,10 @@ export const importResourceOptions = {
   ],
   actions: {
     // Import records are append-only audit logs.
-    new: { isVisible: false },
-    edit: { isVisible: false },
-    delete: { isVisible: false },
-    bulkDelete: { isVisible: false },
+    new: { isVisible: false, isAccessible: false },
+    edit: { isVisible: false, isAccessible: false },
+    delete: { isVisible: false, isAccessible: false },
+    bulkDelete: { isVisible: false, isAccessible: false },
   },
   properties: {
     detail: {

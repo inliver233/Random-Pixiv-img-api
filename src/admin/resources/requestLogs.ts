@@ -33,10 +33,10 @@ export const requestLogResourceOptions = {
   ],
   actions: {
     // Request logs are append-only and may be cleaned up by retention.
-    new: { isVisible: false },
-    edit: { isVisible: false },
-    delete: { isVisible: false },
-    bulkDelete: { isVisible: false },
+    new: { isVisible: false, isAccessible: false },
+    edit: { isVisible: false, isAccessible: false },
+    delete: { isVisible: false, isAccessible: false },
+    bulkDelete: { isVisible: false, isAccessible: false },
   },
   properties: {
     createdAt: { label: '创建时间' },

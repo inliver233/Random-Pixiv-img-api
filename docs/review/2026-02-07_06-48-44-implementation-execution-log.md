@@ -52,3 +52,13 @@
   - `pwsh -NoProfile -File test/admin-ui-smoke.ps1 -BaseUrl https://i.mukyu.ru` -> PASS (degraded: ADMIN_TOKEN missing)
 - Risk/blocked:
   - `blocked:authenticated_admin_page_flow_requires_token`
+### FRD-0005 DONE
+- Status flow: TODO -> DOING -> DONE
+- Code:
+  - `src/routes/admin.ts`: 新增 `/admin/resources/:resourceId/new` 兼容重定向到 `/actions/new`（保留 query）。
+  - `src/admin/resources/imports.ts`, `src/admin/resources/requestLogs.ts`, `src/admin/resources/adminAudits.ts`, `src/admin/resources/images.ts`: 只读写动作统一为 `isVisible:false + isAccessible:false`。
+  - `test/admin_resource_route_compat.test.ts`: 覆盖路由重定向与只读动作语义。
+- Test evidence:
+  - `npx vitest run test/admin_resource_route_compat.test.ts test/admin_auth.test.ts` -> PASS (2 files, 9 tests)
+- Risk/blocked:
+  - `blocked:remote_admin_route_verify_requires_token`
