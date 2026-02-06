@@ -138,7 +138,7 @@ export default function HydrationOpsPage() {
     const q = safeString(job?.queue || selectedDlq);
     const id = safeString(job?.id);
     if (!q || !id) return;
-    const confirmed = globalThis.confirm ? globalThis.confirm(`删除 DLQ job?\nqueue=${q}\nid=${id}`) : true;
+    const confirmed = globalThis.confirm ? globalThis.confirm(`确认删除 DLQ 任务？\nqueue=${q}\nid=${id}`) : true;
     if (!confirmed) return;
     const res = await postAction('dlq_delete', { queue: q, job_id: id });
     if (!res) return;

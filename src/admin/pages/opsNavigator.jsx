@@ -43,7 +43,7 @@ const GROUPS = [
     title: '统计与审计',
     hint: '回归排障时先看统计，再核对审计。',
     links: [
-      { href: '/admin', label: 'Dashboard（全局概览）' },
+      { href: '/admin', label: '仪表盘（全局概览）' },
       { href: '/admin/resources/RequestLog', label: '请求日志' },
       { href: '/admin/resources/AdminAudit', label: '操作审计' },
     ],
@@ -80,7 +80,7 @@ export default function OpsNavigatorPage() {
       ) : null}
 
       <div style={{ ...createCalloutStyle('warning'), marginBottom: 12 }}>
-        高风险操作提示：关闭代理、删除/禁用图片、重试 DLQ 任务前，请先查看 Dashboard 与操作审计。
+        高风险操作提示：关闭代理、删除/禁用图片、重试 DLQ 任务前，请先查看仪表盘与操作审计。
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 12 }}>

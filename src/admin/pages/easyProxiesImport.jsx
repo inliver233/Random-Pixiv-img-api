@@ -221,30 +221,30 @@ export default function EasyProxiesImportPage() {
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <tbody>
             <tr>
-              <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee', fontWeight: 600 }}>source</td>
+              <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee', fontWeight: 600 }}>来源</td>
               <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee' }}>{safeString(config?.source || '')}</td>
             </tr>
             <tr>
-              <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee', fontWeight: 600 }}>base_url</td>
+              <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee', fontWeight: 600 }}>基础地址</td>
               <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee' }}>{safeString(config?.base_url || '')}</td>
             </tr>
             <tr>
-              <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee', fontWeight: 600 }}>password_configured</td>
+              <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee', fontWeight: 600 }}>密码已配置</td>
               <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee' }}>{config?.password_configured ? 'true' : 'false'}</td>
             </tr>
             <tr>
-              <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee', fontWeight: 600 }}>auto_refresh_enabled</td>
+              <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee', fontWeight: 600 }}>自动刷新</td>
               <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee' }}>{config?.auto_refresh_enabled ? 'true' : 'false'}</td>
             </tr>
             <tr>
-              <td style={{ padding: '4px 8px', fontWeight: 600 }}>refresh_interval_ms</td>
+              <td style={{ padding: '4px 8px', fontWeight: 600 }}>刷新间隔(ms)</td>
               <td style={{ padding: '4px 8px' }}>{formatOptionalNumber(config?.refresh_interval_ms)}</td>
             </tr>
           </tbody>
         </table>
 
         <p style={{ marginTop: 8, marginBottom: 0, color: '#666' }}>
-          Env fallback: base_url={safeString(env?.base_url || '')} password_configured={env?.password_configured ? 'true' : 'false'}
+          环境变量兜底：base_url={safeString(env?.base_url || '')} password_configured={env?.password_configured ? 'true' : 'false'}
         </p>
       </div>
 
@@ -485,23 +485,23 @@ export default function EasyProxiesImportPage() {
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <tbody>
             <tr>
-              <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee', fontWeight: 600 }}>running</td>
-              <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee' }}>{autoRefresh?.running ? 'true' : 'false'}</td>
+              <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee', fontWeight: 600 }}>运行中</td>
+              <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee' }}>{autoRefresh?.running ? '是' : '否'}</td>
             </tr>
             <tr>
-              <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee', fontWeight: 600 }}>poll_interval_ms</td>
+              <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee', fontWeight: 600 }}>轮询间隔(ms)</td>
               <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee' }}>{formatOptionalNumber(autoRefresh?.poll_interval_ms)}</td>
             </tr>
             <tr>
-              <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee', fontWeight: 600 }}>last_run_at</td>
+              <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee', fontWeight: 600 }}>最近执行时间</td>
               <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee' }}>{formatOptionalIso(autoRefresh?.last_run_at)}</td>
             </tr>
             <tr>
-              <td style={{ padding: '4px 8px', fontWeight: 600 }}>last_result</td>
+              <td style={{ padding: '4px 8px', fontWeight: 600 }}>最近结果</td>
               <td style={{ padding: '4px 8px' }}>
                 {lastResult ? (
                   <span>
-                    ok={lastResult.ok ? 'true' : 'false'} status={safeString(lastResult.status || '')} imported={safeString(lastResult.imported || '')} invalid={safeString(lastResult.invalid || '')} conflicts={safeString(lastResult.conflicts || '')} error={safeString(lastResult.error || '')}
+                    成功={lastResult.ok ? '是' : '否'} 状态={safeString(lastResult.status || '')} 导入={safeString(lastResult.imported || '')} 无效={safeString(lastResult.invalid || '')} 冲突={safeString(lastResult.conflicts || '')} 错误={safeString(lastResult.error || '')}
                   </span>
                 ) : (
                   <span style={{ color: '#666' }}>-</span>

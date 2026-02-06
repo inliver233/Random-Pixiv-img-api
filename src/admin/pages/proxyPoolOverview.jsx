@@ -90,12 +90,12 @@ export default function ProxyPoolOverviewPage() {
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <tbody>
             <tr>
-              <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee', fontWeight: 600 }}>enabled_proxies</td>
+              <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee', fontWeight: 600 }}>已启用代理数</td>
               <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee' }}>{safeString(data?.proxies?.enabled_total)}</td>
             </tr>
             <tr>
-              <td style={{ padding: '4px 8px', fontWeight: 600 }}>health_ok</td>
-              <td style={{ padding: '4px 8px' }}>{health?.ok ? 'true' : 'false'}</td>
+              <td style={{ padding: '4px 8px', fontWeight: 600 }}>健康检查可用</td>
+              <td style={{ padding: '4px 8px' }}>{health?.ok ? '是' : '否'}</td>
             </tr>
           </tbody>
         </table>
@@ -118,31 +118,31 @@ export default function ProxyPoolOverviewPage() {
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <tbody>
                 <tr>
-                  <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee', fontWeight: 600 }}>checked_at</td>
+                  <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee', fontWeight: 600 }}>检查时间</td>
                   <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee' }}>{formatOptionalIso(health.checked_at)}</td>
                 </tr>
                 <tr>
-                  <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee', fontWeight: 600 }}>probe_url</td>
+                  <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee', fontWeight: 600 }}>探测地址</td>
                   <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee' }}>{safeString(health.probe_url)}</td>
                 </tr>
                 <tr>
-                  <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee', fontWeight: 600 }}>pool_total</td>
+                  <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee', fontWeight: 600 }}>代理池总数</td>
                   <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee' }}>
-                    {safeString(health.pool_total)} (healthy={safeString(health.pool_healthy)} / ok={safeString(health.pool_ok)})
+                    {safeString(health.pool_total)} (健康={safeString(health.pool_healthy)} / 可用={safeString(health.pool_ok)})
                   </td>
                 </tr>
                 <tr>
-                  <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee', fontWeight: 600 }}>counts</td>
+                  <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee', fontWeight: 600 }}>状态计数</td>
                   <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee' }}>
-                    healthy={safeString(health.counts?.healthy)} warning={safeString(health.counts?.warning)} error={safeString(health.counts?.error)} unknown={safeString(health.counts?.unknown)}
+                    健康={safeString(health.counts?.healthy)} 警告={safeString(health.counts?.warning)} 错误={safeString(health.counts?.error)} 未知={safeString(health.counts?.unknown)}
                   </td>
                 </tr>
                 <tr>
-                  <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee', fontWeight: 600 }}>success_rate</td>
+                  <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee', fontWeight: 600 }}>成功率</td>
                   <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee' }}>{formatRatio(health.totals?.success_rate)}</td>
                 </tr>
                 <tr>
-                  <td style={{ padding: '4px 8px', fontWeight: 600 }}>latency_ms</td>
+                  <td style={{ padding: '4px 8px', fontWeight: 600 }}>延迟(ms)</td>
                   <td style={{ padding: '4px 8px' }}>
                     min={formatOptionalNumber(health.latency_ms?.min)} p50={formatOptionalNumber(health.latency_ms?.p50)} p90={formatOptionalNumber(health.latency_ms?.p90)} p95={formatOptionalNumber(health.latency_ms?.p95)} max={formatOptionalNumber(health.latency_ms?.max)}
                   </td>
@@ -151,7 +151,7 @@ export default function ProxyPoolOverviewPage() {
             </table>
           </>
         ) : (
-          <p style={{ marginTop: 0, color: '#666' }}>health_unavailable: {safeString(health.reason || 'unknown')}</p>
+          <p style={{ marginTop: 0, color: '#666' }}>健康检查暂不可用：{safeString(health.reason || 'unknown')}</p>
         )}
       </div>
 
@@ -183,12 +183,12 @@ export default function ProxyPoolOverviewPage() {
           <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 920 }}>
             <thead>
               <tr>
-                <th style={{ textAlign: 'left', padding: '6px 8px', borderBottom: '1px solid #eee' }}>proxy</th>
-                <th style={{ textAlign: 'left', padding: '6px 8px', borderBottom: '1px solid #eee' }}>status</th>
-                <th style={{ textAlign: 'right', padding: '6px 8px', borderBottom: '1px solid #eee' }}>latency_ms</th>
-                <th style={{ textAlign: 'right', padding: '6px 8px', borderBottom: '1px solid #eee' }}>success_rate</th>
-                <th style={{ textAlign: 'left', padding: '6px 8px', borderBottom: '1px solid #eee' }}>checked_at</th>
-                <th style={{ textAlign: 'left', padding: '6px 8px', borderBottom: '1px solid #eee' }}>error</th>
+                <th style={{ textAlign: 'left', padding: '6px 8px', borderBottom: '1px solid #eee' }}>代理</th>
+                <th style={{ textAlign: 'left', padding: '6px 8px', borderBottom: '1px solid #eee' }}>状态</th>
+                <th style={{ textAlign: 'right', padding: '6px 8px', borderBottom: '1px solid #eee' }}>延迟(ms)</th>
+                <th style={{ textAlign: 'right', padding: '6px 8px', borderBottom: '1px solid #eee' }}>成功率</th>
+                <th style={{ textAlign: 'left', padding: '6px 8px', borderBottom: '1px solid #eee' }}>检查时间</th>
+                <th style={{ textAlign: 'left', padding: '6px 8px', borderBottom: '1px solid #eee' }}>错误</th>
               </tr>
             </thead>
             <tbody>
@@ -213,13 +213,13 @@ export default function ProxyPoolOverviewPage() {
           <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 980 }}>
             <thead>
               <tr>
-                <th style={{ textAlign: 'left', padding: '6px 8px', borderBottom: '1px solid #eee' }}>proxy</th>
-                <th style={{ textAlign: 'left', padding: '6px 8px', borderBottom: '1px solid #eee' }}>status</th>
-                <th style={{ textAlign: 'left', padding: '6px 8px', borderBottom: '1px solid #eee' }}>last_ok</th>
-                <th style={{ textAlign: 'right', padding: '6px 8px', borderBottom: '1px solid #eee' }}>latency_ms</th>
-                <th style={{ textAlign: 'right', padding: '6px 8px', borderBottom: '1px solid #eee' }}>success_rate</th>
-                <th style={{ textAlign: 'right', padding: '6px 8px', borderBottom: '1px solid #eee' }}>score</th>
-                <th style={{ textAlign: 'left', padding: '6px 8px', borderBottom: '1px solid #eee' }}>error</th>
+                <th style={{ textAlign: 'left', padding: '6px 8px', borderBottom: '1px solid #eee' }}>代理</th>
+                <th style={{ textAlign: 'left', padding: '6px 8px', borderBottom: '1px solid #eee' }}>状态</th>
+                <th style={{ textAlign: 'left', padding: '6px 8px', borderBottom: '1px solid #eee' }}>最近是否成功</th>
+                <th style={{ textAlign: 'right', padding: '6px 8px', borderBottom: '1px solid #eee' }}>延迟(ms)</th>
+                <th style={{ textAlign: 'right', padding: '6px 8px', borderBottom: '1px solid #eee' }}>成功率</th>
+                <th style={{ textAlign: 'right', padding: '6px 8px', borderBottom: '1px solid #eee' }}>评分</th>
+                <th style={{ textAlign: 'left', padding: '6px 8px', borderBottom: '1px solid #eee' }}>错误</th>
               </tr>
             </thead>
             <tbody>

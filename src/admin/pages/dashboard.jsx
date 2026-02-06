@@ -183,7 +183,7 @@ export default function Dashboard() {
       >
         <h3 style={{ marginTop: 0, marginBottom: 8 }}>代理出站（回退开关）</h3>
         {!runtimeConfig?.ok ? (
-          <p style={{ marginTop: 0, color: '#b91c1c' }}>runtime_config_error: {String(runtimeConfig?.error || 'unknown')}</p>
+          <p style={{ marginTop: 0, color: '#b91c1c' }}>运行时配置异常：{String(runtimeConfig?.error || 'unknown')}</p>
         ) : (
           <>
             <p style={{ marginTop: 0, color: proxyEnabled === false ? '#b91c1c' : '#111827' }}>
@@ -249,7 +249,7 @@ export default function Dashboard() {
               <tr>
                 <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee', fontWeight: 600 }}>队列</td>
                 <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee' }}>
-                  {data.queue?.ok ? 'ok' : 'error'}{data.queue?.message ? ` (${String(data.queue.message)})` : ''}
+                  {data.queue?.ok ? '正常' : '异常'}{data.queue?.message ? ` (${String(data.queue.message)})` : ''}
                 </td>
               </tr>
               <tr>
@@ -392,7 +392,7 @@ export default function Dashboard() {
           {!data.easy_proxies?.configured ? (
             <p style={{ marginTop: 0, color: '#666' }}>未配置 EASY_PROXIES_BASE_URL</p>
           ) : data.easy_proxies?.error ? (
-            <p style={{ marginTop: 0, color: '#b91c1c' }}>easy_proxies_error: {String(data.easy_proxies.error)}</p>
+            <p style={{ marginTop: 0, color: '#b91c1c' }}>easy_proxies 异常：{String(data.easy_proxies.error)}</p>
           ) : (
             <>
               <p style={{ marginTop: 0, color: '#666' }}>
@@ -406,16 +406,16 @@ export default function Dashboard() {
                   <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: 8 }}>
                     <thead>
                       <tr>
-                        <th style={{ textAlign: 'left', padding: '4px 8px', borderBottom: '1px solid #eee' }}>Tag</th>
-                        <th style={{ textAlign: 'left', padding: '4px 8px', borderBottom: '1px solid #eee' }}>Region</th>
-                        <th style={{ textAlign: 'right', padding: '4px 8px', borderBottom: '1px solid #eee' }}>Latency</th>
+                        <th style={{ textAlign: 'left', padding: '4px 8px', borderBottom: '1px solid #eee' }}>节点标签</th>
+                        <th style={{ textAlign: 'left', padding: '4px 8px', borderBottom: '1px solid #eee' }}>区域</th>
+                        <th style={{ textAlign: 'right', padding: '4px 8px', borderBottom: '1px solid #eee' }}>延迟</th>
                       </tr>
                     </thead>
                     <tbody>
                       {data.easy_proxies.nodes.slice(0, 15).map((node) => (
                         <tr key={node.tag}>
                           <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee' }}>{String(node.tag)}</td>
-                          <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee' }}>{String(node.region || 'other')}</td>
+                          <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee' }}>{String(node.region || '其他')}</td>
                           <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee', textAlign: 'right' }}>
                             {Number.isFinite(node.last_latency_ms) ? `${Math.round(node.last_latency_ms)} ms` : '无'}
                           </td>
@@ -434,9 +434,9 @@ export default function Dashboard() {
         </div>
 
         <div style={createCardStyle()}>
-          <h3 style={{ marginTop: 0 }}>Pixiv Tokens（运行时）</h3>
+          <h3 style={{ marginTop: 0 }}>Pixiv 令牌（运行时）</h3>
           {!data.pixiv_tokens?.ok ? (
-            <p style={{ marginTop: 0, color: '#b91c1c' }}>pixiv_tokens_error: {String(data.pixiv_tokens?.error || 'unknown')}</p>
+            <p style={{ marginTop: 0, color: '#b91c1c' }}>令牌状态异常：{String(data.pixiv_tokens?.error || 'unknown')}</p>
           ) : (data.pixiv_tokens.tokens || []).length === 0 ? (
             <p style={{ marginTop: 0, color: '#666' }}>无</p>
           ) : (
@@ -447,10 +447,10 @@ export default function Dashboard() {
               <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                 <thead>
                   <tr>
-                    <th style={{ textAlign: 'left', padding: '4px 8px', borderBottom: '1px solid #eee' }}>Token</th>
-                    <th style={{ textAlign: 'right', padding: '4px 8px', borderBottom: '1px solid #eee' }}>Fail</th>
-                    <th style={{ textAlign: 'right', padding: '4px 8px', borderBottom: '1px solid #eee' }}>Backoff</th>
-                    <th style={{ textAlign: 'left', padding: '4px 8px', borderBottom: '1px solid #eee' }}>Last Error</th>
+                    <th style={{ textAlign: 'left', padding: '4px 8px', borderBottom: '1px solid #eee' }}>令牌 ID</th>
+                    <th style={{ textAlign: 'right', padding: '4px 8px', borderBottom: '1px solid #eee' }}>失败次数</th>
+                    <th style={{ textAlign: 'right', padding: '4px 8px', borderBottom: '1px solid #eee' }}>退避剩余</th>
+                    <th style={{ textAlign: 'left', padding: '4px 8px', borderBottom: '1px solid #eee' }}>最近错误</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -467,7 +467,7 @@ export default function Dashboard() {
                         ) : (
                           <span>
                             {t.last_error.status ? `HTTP ${t.last_error.status} ` : ''}
-                            {clampText(t.last_error.message || t.last_error.code || 'error', 72)}
+                            {clampText(t.last_error.message || t.last_error.code || '异常', 72)}
                           </span>
                         )}
                       </td>
@@ -507,14 +507,14 @@ export default function Dashboard() {
             </b>
           </p>
           {data.prometheus?.configured && data.prometheus?.requests_24h?.error ? (
-            <p style={{ marginTop: 0, color: '#b91c1c' }}>prometheus_error: {String(data.prometheus.requests_24h.error)}</p>
+            <p style={{ marginTop: 0, color: '#b91c1c' }}>Prometheus 查询异常：{String(data.prometheus.requests_24h.error)}</p>
           ) : null}
 
           <h4 style={{ marginBottom: 8 }}>近 24 小时错误排行（HTTP 状态码）</h4>
           {!data.prometheus?.configured ? (
             <p style={{ marginTop: 0, color: '#666' }}>无</p>
           ) : data.prometheus?.top_errors_24h?.error ? (
-            <p style={{ marginTop: 0, color: '#b91c1c' }}>prometheus_error: {String(data.prometheus.top_errors_24h.error)}</p>
+            <p style={{ marginTop: 0, color: '#b91c1c' }}>Prometheus 查询异常：{String(data.prometheus.top_errors_24h.error)}</p>
           ) : (data.prometheus?.top_errors_24h?.rows || []).length === 0 ? (
             <p style={{ marginTop: 0, color: '#666' }}>暂无数据。</p>
           ) : (
@@ -540,7 +540,7 @@ export default function Dashboard() {
           {!data.prometheus?.configured ? (
             <p style={{ marginTop: 0, color: '#666' }}>无</p>
           ) : data.prometheus?.latency_p50_p90_p95?.error ? (
-            <p style={{ marginTop: 0, color: '#b91c1c' }}>prometheus_error: {String(data.prometheus.latency_p50_p90_p95.error)}</p>
+            <p style={{ marginTop: 0, color: '#b91c1c' }}>Prometheus 查询异常：{String(data.prometheus.latency_p50_p90_p95.error)}</p>
           ) : (
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <tbody>

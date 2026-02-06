@@ -38,4 +38,16 @@ export const requestLogResourceOptions = {
     delete: { isVisible: false },
     bulkDelete: { isVisible: false },
   },
+  properties: {
+    createdAt: { label: '创建时间' },
+    requestId: { label: '请求 ID' },
+    method: { label: '方法' },
+    route: { label: '路由' },
+    url: { label: 'URL' },
+    status: { label: '状态码' },
+    durationMs: { label: '耗时(ms)' },
+    ip: { label: '来源 IP' },
+    userAgent: { label: '用户代理' },
+    sampleRate: { label: '采样率' },
+  },
 } as const;

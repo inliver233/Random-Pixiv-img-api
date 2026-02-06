@@ -41,7 +41,18 @@ export const adminAuditResourceOptions = {
     bulkDelete: { isVisible: false },
   },
   properties: {
+    createdAt: { label: '创建时间' },
+    actor: { label: '操作者' },
+    action: { label: '动作' },
+    resource: { label: '资源' },
+    recordId: { label: '记录 ID' },
+    fromStatus: { label: '变更前状态' },
+    toStatus: { label: '变更后状态' },
+    requestId: { label: '请求 ID' },
+    ip: { label: '来源 IP' },
+    userAgent: { label: '用户代理' },
     detail: {
+      label: '详情',
       type: 'mixed',
       isVisible: { list: false, show: true, edit: false, filter: false },
     },

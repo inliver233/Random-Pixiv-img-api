@@ -29,6 +29,13 @@ function buildTokenLabel(token) {
   return `#${safeString(token?.id)}`;
 }
 
+function formatMode(mode) {
+  const normalized = safeString(mode).toLowerCase();
+  if (normalized === 'override') return '临时覆盖';
+  if (normalized === 'primary') return '主代理';
+  return normalized || '-';
+}
+
 export default function TokenProxyBindingsPage() {
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState(null);
@@ -80,7 +87,7 @@ export default function TokenProxyBindingsPage() {
       if (n?.message) {
         setNotice({ type: n.type || 'success', message: String(n.message) });
       } else {
-        setNotice({ type: 'success', message: 'OK' });
+        setNotice({ type: 'success', message: '操作完成。' });
       }
 
       await refresh();
@@ -161,24 +168,24 @@ export default function TokenProxyBindingsPage() {
       <div style={{ marginTop: 12, ...createCardStyle() }}>
         <h3 style={{ marginTop: 0 }}>概览</h3>
         <p style={{ marginTop: 0, color: '#666' }}>
-          pool: {pool ? `${safeString(pool.name)} (#${safeString(pool.id)})` : '未初始化（首次操作会自动创建 default pool）'}
+          代理池：{pool ? `${safeString(pool.name)} (#${safeString(pool.id)})` : '未初始化（首次操作会自动创建 default 代理池）'}
         </p>
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <tbody>
             <tr>
-              <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee', fontWeight: 600 }}>tokens_total</td>
+              <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee', fontWeight: 600 }}>令牌总数</td>
               <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee' }}>{safeString(summary.tokens_total)}</td>
             </tr>
             <tr>
-              <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee', fontWeight: 600 }}>proxies_total</td>
+              <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee', fontWeight: 600 }}>代理总数</td>
               <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee' }}>{safeString(summary.proxies_total)}</td>
             </tr>
             <tr>
-              <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee', fontWeight: 600 }}>bindings_total</td>
+              <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee', fontWeight: 600 }}>绑定总数</td>
               <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee' }}>{safeString(summary.bindings_total)}</td>
             </tr>
             <tr>
-              <td style={{ padding: '4px 8px', fontWeight: 600 }}>missing_bindings</td>
+              <td style={{ padding: '4px 8px', fontWeight: 600 }}>缺失绑定数</td>
               <td style={{ padding: '4px 8px' }}>{safeString(summary.missing_bindings)}</td>
             </tr>
           </tbody>
@@ -200,7 +207,7 @@ export default function TokenProxyBindingsPage() {
                 <th style={{ textAlign: 'left', padding: '6px 8px', borderBottom: '1px solid #eee' }}>令牌</th>
                 <th style={{ textAlign: 'left', padding: '6px 8px', borderBottom: '1px solid #eee' }}>主代理</th>
                 <th style={{ textAlign: 'left', padding: '6px 8px', borderBottom: '1px solid #eee' }}>当前生效</th>
-                <th style={{ textAlign: 'left', padding: '6px 8px', borderBottom: '1px solid #eee' }}>Override 到期</th>
+                <th style={{ textAlign: 'left', padding: '6px 8px', borderBottom: '1px solid #eee' }}>临时覆盖到期</th>
                 <th style={{ textAlign: 'left', padding: '6px 8px', borderBottom: '1px solid #eee' }}>建议代理</th>
               </tr>
             </thead>
@@ -217,7 +224,7 @@ export default function TokenProxyBindingsPage() {
                     <td style={{ padding: '6px 8px', borderBottom: '1px solid #f3f4f6' }}>
                       <div style={{ fontWeight: 600 }}>{buildTokenLabel(token)}</div>
                       {token?.refreshTokenMasked ? (
-                        <div style={{ color: '#666', fontSize: 12 }}>refresh: {safeString(token.refreshTokenMasked)}</div>
+                        <div style={{ color: '#666', fontSize: 12 }}>刷新凭据：{safeString(token.refreshTokenMasked)}</div>
                       ) : null}
                     </td>
                     <td style={{ padding: '6px 8px', borderBottom: '1px solid #f3f4f6' }}>{safeString(primaryDisplay)}</td>
@@ -225,7 +232,7 @@ export default function TokenProxyBindingsPage() {
                       <span style={{ fontWeight: mode === 'override' ? 700 : 400, color: mode === 'override' ? '#b45309' : '#111827' }}>
                         {safeString(effectiveDisplay)}
                       </span>
-                      {mode ? <span style={{ color: '#666' }}> ({mode})</span> : null}
+                      {mode ? <span style={{ color: '#666' }}> ({formatMode(mode)})</span> : null}
                     </td>
                     <td style={{ padding: '6px 8px', borderBottom: '1px solid #f3f4f6' }}>{formatOptionalIso(b.overrideExpiresAt)}</td>
                     <td style={{ padding: '6px 8px', borderBottom: '1px solid #f3f4f6' }}>{safeString(suggestedDisplay)}</td>
@@ -242,7 +249,7 @@ export default function TokenProxyBindingsPage() {
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 12 }}>
           <div style={createCardStyle({ alt: true })}>
-            <h4 style={{ marginTop: 0 }}>选择 Token</h4>
+            <h4 style={{ marginTop: 0 }}>选择令牌</h4>
             <select
               value={selectedTokenId}
               onChange={(e) => setSelectedTokenId(e.target.value)}
@@ -276,7 +283,7 @@ export default function TokenProxyBindingsPage() {
 
             <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8, color: '#374151' }}>
               <input type="checkbox" checked={clearOverride} onChange={(e) => setClearOverride(e.target.checked)} />
-              同时清空 override
+              同时清空临时覆盖
             </label>
 
             <button
@@ -301,7 +308,7 @@ export default function TokenProxyBindingsPage() {
           </div>
 
           <div style={createCardStyle({ alt: true })}>
-            <h4 style={{ marginTop: 0 }}>设置临时 override</h4>
+            <h4 style={{ marginTop: 0 }}>设置临时覆盖</h4>
             <select
               value={overrideProxyId}
               onChange={(e) => setOverrideProxyId(e.target.value)}
@@ -340,7 +347,7 @@ export default function TokenProxyBindingsPage() {
               }}
               style={{ marginTop: 8, ...createButtonStyle({ disabled: !selectedTokenId || !overrideProxyId || loading }) }}
             >
-              设置 override
+              设置临时覆盖
             </button>
 
             <button
@@ -355,7 +362,7 @@ export default function TokenProxyBindingsPage() {
               }}
               style={{ marginTop: 8, marginLeft: 8, ...createButtonStyle({ tone: 'ghost', disabled: !selectedTokenId || loading }) }}
             >
-              清空 override
+              清空临时覆盖
             </button>
           </div>
 
@@ -365,7 +372,7 @@ export default function TokenProxyBindingsPage() {
               rows={4}
               value={reason}
               onChange={(e) => setReason(e.target.value)}
-              placeholder="例如：proxy 不稳定 / 手工排障 / 临时切换"
+              placeholder="例如：代理不稳定 / 手工排障 / 临时切换"
               style={createTextareaStyle({ minHeight: 96 })}
             />
             <button

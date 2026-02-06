@@ -347,16 +347,88 @@ export async function getAdminJsRouter(): Promise<Router> {
       locale: {
         language: 'zh-CN',
         availableLanguages: ['zh-CN', 'en'],
+        translations: {
+          labels: {
+            navigation: '导航',
+            pages: '页面',
+            Dashboard: '仪表盘',
+            OpsNavigator: '操作导航',
+            'Ops Navigator': '操作导航',
+            ImportUrls: '批量导入 URL',
+            'Import Urls': '批量导入 URL',
+            HydrationOps: '补全运行 / DLQ',
+            'Hydration Ops': '补全运行 / DLQ',
+            EasyProxiesImport: 'easy_proxies 导入',
+            'Easy Proxies Import': 'easy_proxies 导入',
+            TokenProxyBindings: '令牌代理绑定',
+            'Token Proxy Bindings': '令牌代理绑定',
+            ProxyPoolOverview: '代理池概览',
+            'Proxy Pool Overview': '代理池概览',
+          },
+          pages: {
+            opsNavigator: '操作导航',
+            importUrls: '批量导入 URL',
+            hydrationOps: '补全运行 / DLQ',
+            easyProxiesImport: 'easy_proxies 导入',
+            tokenProxyBindings: '令牌代理绑定',
+            proxyPoolOverview: '代理池概览',
+            Dashboard: '仪表盘',
+            OpsNavigator: '操作导航',
+            ImportUrls: '批量导入 URL',
+            HydrationOps: '补全运行 / DLQ',
+            EasyProxiesImport: 'easy_proxies 导入',
+            TokenProxyBindings: '令牌代理绑定',
+            ProxyPoolOverview: '代理池概览',
+          },
+          resources: {
+            Image: '图片',
+            Import: '导入记录',
+            PixivToken: 'Pixiv 令牌',
+            'Pixiv Token': 'Pixiv 令牌',
+            ProxyEndpoint: '代理端点',
+            'Proxy Endpoint': '代理端点',
+            ProxyPool: '代理池',
+            'Proxy Pool': '代理池',
+            TokenProxyBinding: '令牌代理绑定',
+            'Token Proxy Binding': '令牌代理绑定',
+            HydrationRun: '补全运行',
+            'Hydration Run': '补全运行',
+            AdminAudit: '后台操作审计',
+            'Admin Audit': '后台操作审计',
+            RequestLog: '请求日志',
+            'Request Log': '请求日志',
+          },
+          actions: {
+            new: '新建',
+            edit: '编辑',
+            list: '列表',
+            show: '详情',
+            delete: '删除',
+            search: '搜索',
+            pause: '暂停',
+            resume: '恢复',
+            cancel: '取消',
+            probe: '探测',
+            setProxyEnabled: '切换代理开关',
+            importProxyUris: 'URI 批量导入',
+            easyProxiesConfigSave: '保存 easy_proxies 配置',
+            easyProxiesImport: '导入 easy_proxies 代理',
+            easyProxiesRollback: '回滚 easy_proxies 代理',
+            rebindPrimary: '重绑主代理',
+            setOverride: '设置临时覆盖',
+            clearOverride: '清空临时覆盖',
+          },
+        },
       },
       componentLoader,
       pages: {
         opsNavigator: {
-          label: '操作导航（导入/补全/代理/令牌/统计）',
+          label: '操作导航',
           component: OpsNavigator,
           handler: async () => ({ ok: true, generated_at: new Date().toISOString() }),
         },
         importUrls: {
-          label: '[导入] 批量导入 URL',
+          label: '批量导入 URL',
           component: ImportUrls,
           handler: async () => {
             // eslint-disable-next-line @typescript-eslint/no-var-requires
@@ -373,7 +445,7 @@ export async function getAdminJsRouter(): Promise<Router> {
           },
         },
         hydrationOps: {
-          label: '[补全] 补全运行 / DLQ',
+          label: '补全运行 / DLQ',
           component: HydrationOps,
           handler: async (request: any) => {
             const method = String(request?.method || 'get').toLowerCase();
@@ -652,7 +724,7 @@ export async function getAdminJsRouter(): Promise<Router> {
                 }
 
                 if (!newJobId) {
-                  return { ok: false, error: 'enqueue_returned_null', message: 'enqueue returned null (maybe throttled)' };
+                  return { ok: false, error: 'enqueue_returned_null', message: '入队返回空值（可能被限流）。' };
                 }
 
                 const deleted = await prisma.$executeRaw(
@@ -729,7 +801,7 @@ export async function getAdminJsRouter(): Promise<Router> {
           },
         },
         easyProxiesImport: {
-          label: '[代理] easy_proxies 导入/刷新',
+          label: 'easy_proxies 导入/刷新',
           component: EasyProxiesImport,
           handler: async () => {
             try {
@@ -775,7 +847,7 @@ export async function getAdminJsRouter(): Promise<Router> {
           },
         },
         tokenProxyBindings: {
-          label: '[令牌] Token↔Proxy 绑定',
+          label: 'Token↔Proxy 绑定',
           component: TokenProxyBindings,
           handler: async () => {
             try {
@@ -1419,7 +1491,7 @@ export async function getAdminJsRouter(): Promise<Router> {
             resource: { model: getModelByName('TokenProxyBinding', prismaClientModule), client: prisma, clientModule: prismaClientModule },
             options: {
               navigation: { name: '令牌', icon: 'Key' },
-              label: 'Token↔Proxy 绑定（操作）',
+              label: '令牌↔代理 绑定（操作）',
               listProperties: [
                 'id',
                 'tokenId',
@@ -1447,7 +1519,7 @@ export async function getAdminJsRouter(): Promise<Router> {
                 rebindPrimary: {
                   actionType: 'resource',
                   icon: 'Shuffle',
-                  label: 'Rebind primary (via page)',
+                  label: '重绑主代理（页面入口）',
                   handler: async (request: any, _res: any, context: any) => {
                     if (String(request?.method || '').toLowerCase() === 'get') return {};
 
@@ -1457,7 +1529,7 @@ export async function getAdminJsRouter(): Promise<Router> {
                         if (raw <= 0n) throw new Error('non_positive');
                         return raw;
                       } catch {
-                        throw new Error(`${label} must be a bigint id.`);
+                        throw new Error(`${label} 必须是 bigint 类型的 ID。`);
                       }
                     };
 
@@ -1495,14 +1567,14 @@ export async function getAdminJsRouter(): Promise<Router> {
 
                     if (!token || !token.enabled) {
                       return {
-                        notice: { type: 'error', message: 'Token not found or disabled.' },
+                        notice: { type: 'error', message: '令牌不存在或已禁用。' },
                         redirectUrl: context.h.resourceUrl({ resourceId: context.resource.id() }),
                       };
                     }
 
                     if (!proxy || !proxy.enabled) {
                       return {
-                        notice: { type: 'error', message: 'Proxy not found or disabled.' },
+                        notice: { type: 'error', message: '代理不存在或已禁用。' },
                         redirectUrl: context.h.resourceUrl({ resourceId: context.resource.id() }),
                       };
                     }
@@ -1512,7 +1584,7 @@ export async function getAdminJsRouter(): Promise<Router> {
                       if (existing) return existing;
                       try {
                         const created = await prisma.proxyPool.create({
-                          data: { name: 'default', enabled: true, description: 'Auto-created default pool for token↔proxy bindings.' },
+                          data: { name: 'default', enabled: true, description: '系统自动创建的默认池（用于令牌↔代理绑定）。' },
                           select: { id: true, name: true },
                         });
 
@@ -1527,7 +1599,7 @@ export async function getAdminJsRouter(): Promise<Router> {
                         return created;
                       } catch {
                         const fallback = await prisma.proxyPool.findUnique({ where: { name: 'default' }, select: { id: true, name: true } });
-                        if (!fallback) throw new Error('Failed to create default pool.');
+                        if (!fallback) throw new Error('创建默认代理池失败。');
                         return fallback;
                       }
                     };
@@ -1594,7 +1666,7 @@ export async function getAdminJsRouter(): Promise<Router> {
                     return {
                       notice: {
                         type: 'success',
-                        message: `rebind_primary ok (token=${tokenId.toString()} prev=${prevEffective?.proxyId ?? '-'} next=${nextEffective.proxyId} affected=1)`,
+                        message: `主代理重绑成功（token=${tokenId.toString()} prev=${prevEffective?.proxyId ?? '-'} next=${nextEffective.proxyId} affected=1）`,
                       },
                       redirectUrl: context.h.resourceUrl({ resourceId: context.resource.id() }),
                     };
@@ -1604,7 +1676,7 @@ export async function getAdminJsRouter(): Promise<Router> {
                 setOverride: {
                   actionType: 'resource',
                   icon: 'Clock',
-                  label: 'Set override (via page)',
+                  label: '设置临时覆盖（页面入口）',
                   handler: async (request: any, _res: any, context: any) => {
                     if (String(request?.method || '').toLowerCase() === 'get') return {};
 
@@ -1614,7 +1686,7 @@ export async function getAdminJsRouter(): Promise<Router> {
                         if (raw <= 0n) throw new Error('non_positive');
                         return raw;
                       } catch {
-                        throw new Error(`${label} must be a bigint id.`);
+                        throw new Error(`${label} 必须是 bigint 类型的 ID。`);
                       }
                     };
 
@@ -1625,7 +1697,7 @@ export async function getAdminJsRouter(): Promise<Router> {
                     const ttlMinutes = Number(ttlMinutesRaw);
                     if (!Number.isFinite(ttlMinutes) || ttlMinutes <= 0 || ttlMinutes > 7 * 24 * 60) {
                       return {
-                        notice: { type: 'error', message: 'ttlMinutes must be within (0, 10080].' },
+                        notice: { type: 'error', message: 'ttlMinutes 必须在 (0, 10080] 区间内。' },
                         redirectUrl: context.h.resourceUrl({ resourceId: context.resource.id() }),
                       };
                     }
@@ -1649,14 +1721,14 @@ export async function getAdminJsRouter(): Promise<Router> {
 
                     if (!token || !token.enabled) {
                       return {
-                        notice: { type: 'error', message: 'Token not found or disabled.' },
+                        notice: { type: 'error', message: '令牌不存在或已禁用。' },
                         redirectUrl: context.h.resourceUrl({ resourceId: context.resource.id() }),
                       };
                     }
 
                     if (!proxy || !proxy.enabled) {
                       return {
-                        notice: { type: 'error', message: 'Proxy not found or disabled.' },
+                        notice: { type: 'error', message: '代理不存在或已禁用。' },
                         redirectUrl: context.h.resourceUrl({ resourceId: context.resource.id() }),
                       };
                     }
@@ -1666,7 +1738,7 @@ export async function getAdminJsRouter(): Promise<Router> {
                       if (existing) return existing;
                       try {
                         const created = await prisma.proxyPool.create({
-                          data: { name: 'default', enabled: true, description: 'Auto-created default pool for token↔proxy bindings.' },
+                          data: { name: 'default', enabled: true, description: '系统自动创建的默认池（用于令牌↔代理绑定）。' },
                           select: { id: true, name: true },
                         });
 
@@ -1681,7 +1753,7 @@ export async function getAdminJsRouter(): Promise<Router> {
                         return created;
                       } catch {
                         const fallback = await prisma.proxyPool.findUnique({ where: { name: 'default' }, select: { id: true, name: true } });
-                        if (!fallback) throw new Error('Failed to create default pool.');
+                        if (!fallback) throw new Error('创建默认代理池失败。');
                         return fallback;
                       }
                     };
@@ -1704,7 +1776,7 @@ export async function getAdminJsRouter(): Promise<Router> {
                       if (primaryProxyId) return primaryProxyId;
                       const enabledIds = await prisma.proxyEndpoint.findMany({ where: { enabled: true }, select: { id: true }, orderBy: [{ id: 'asc' }] });
                       const proxyIds = enabledIds.map((row) => row.id.toString());
-                      if (proxyIds.length === 0) throw new Error('No enabled proxies.');
+                      if (proxyIds.length === 0) throw new Error('当前没有可用代理。');
                       const picked = pickPrimaryProxyRendezvous(tokenId.toString(), proxyIds, `pool:${pool.id.toString()}`);
                       return BigInt(picked);
                     };
@@ -1774,7 +1846,7 @@ export async function getAdminJsRouter(): Promise<Router> {
                     });
 
                     return {
-                      notice: { type: 'success', message: `set_override ok (token=${tokenId.toString()} effective=${nextEffective.proxyId} ttl_min=${ttlMinutes})` },
+                      notice: { type: 'success', message: `临时覆盖已设置（token=${tokenId.toString()} effective=${nextEffective.proxyId} ttl_min=${ttlMinutes}）` },
                       redirectUrl: context.h.resourceUrl({ resourceId: context.resource.id() }),
                     };
                   },
@@ -1783,7 +1855,7 @@ export async function getAdminJsRouter(): Promise<Router> {
                 clearOverride: {
                   actionType: 'resource',
                   icon: 'Close',
-                  label: 'Clear override (via page)',
+                  label: '清空临时覆盖（页面入口）',
                   handler: async (request: any, _res: any, context: any) => {
                     if (String(request?.method || '').toLowerCase() === 'get') return {};
 
@@ -1793,7 +1865,7 @@ export async function getAdminJsRouter(): Promise<Router> {
                         if (raw <= 0n) throw new Error('non_positive');
                         return raw;
                       } catch {
-                        throw new Error(`${label} must be a bigint id.`);
+                        throw new Error(`${label} 必须是 bigint 类型的 ID。`);
                       }
                     };
 
@@ -1813,7 +1885,7 @@ export async function getAdminJsRouter(): Promise<Router> {
                     const token = await prisma.pixivToken.findUnique({ where: { id: tokenId }, select: { id: true, enabled: true, label: true } });
                     if (!token || !token.enabled) {
                       return {
-                        notice: { type: 'error', message: 'Token not found or disabled.' },
+                        notice: { type: 'error', message: '令牌不存在或已禁用。' },
                         redirectUrl: context.h.resourceUrl({ resourceId: context.resource.id() }),
                       };
                     }
@@ -1823,7 +1895,7 @@ export async function getAdminJsRouter(): Promise<Router> {
                       if (existing) return existing;
                       try {
                         const created = await prisma.proxyPool.create({
-                          data: { name: 'default', enabled: true, description: 'Auto-created default pool for token↔proxy bindings.' },
+                          data: { name: 'default', enabled: true, description: '系统自动创建的默认池（用于令牌↔代理绑定）。' },
                           select: { id: true, name: true },
                         });
 
@@ -1838,7 +1910,7 @@ export async function getAdminJsRouter(): Promise<Router> {
                         return created;
                       } catch {
                         const fallback = await prisma.proxyPool.findUnique({ where: { name: 'default' }, select: { id: true, name: true } });
-                        if (!fallback) throw new Error('Failed to create default pool.');
+                        if (!fallback) throw new Error('创建默认代理池失败。');
                         return fallback;
                       }
                     };
@@ -1852,7 +1924,7 @@ export async function getAdminJsRouter(): Promise<Router> {
 
                     if (!prev) {
                       return {
-                        notice: { type: 'warning', message: `no binding found for token=${tokenId.toString()}` },
+                        notice: { type: 'warning', message: `未找到绑定记录（token=${tokenId.toString()}）。` },
                         redirectUrl: context.h.resourceUrl({ resourceId: context.resource.id() }),
                       };
                     }
@@ -1888,7 +1960,7 @@ export async function getAdminJsRouter(): Promise<Router> {
                     });
 
                     return {
-                      notice: { type: 'success', message: `clear_override ok (token=${tokenId.toString()} affected=1)` },
+                      notice: { type: 'success', message: `临时覆盖已清除（token=${tokenId.toString()} affected=1）。` },
                       redirectUrl: context.h.resourceUrl({ resourceId: context.resource.id() }),
                     };
                   },
@@ -1910,7 +1982,7 @@ export async function getAdminJsRouter(): Promise<Router> {
                   actionType: 'resource',
                   icon: 'Switch',
                   label: '代理总开关（直连回退）',
-                  guard: 'Disable proxy will use direct connections (real IP exposure risk). Continue?',
+                  guard: '关闭代理后将改为直连（真实 IP 暴露风险）。确认继续吗？',
                   handler: async (request: any, _res: any, context: any) => {
                     if (String(request?.method || '').toLowerCase() === 'get') {
                       return {};
@@ -1928,7 +2000,7 @@ export async function getAdminJsRouter(): Promise<Router> {
 
                     if (enabled === null) {
                       return {
-                        notice: { type: 'error', message: 'Invalid payload: enabled must be boolean.' },
+                        notice: { type: 'error', message: '参数无效：enabled 必须为布尔值。' },
                         redirectUrl: context.h.resourceUrl({ resourceId: context.resource.id() }),
                       };
                     }
@@ -2087,7 +2159,7 @@ export async function getAdminJsRouter(): Promise<Router> {
                   actionType: 'resource',
                   icon: 'Settings',
                   label: 'easy_proxies 配置保存',
-                  guard: 'Save easy_proxies config? (Password will not be displayed)',
+                  guard: '确认保存 easy_proxies 配置吗？密码仅保存不会回显。',
                   handler: async (request: any, _res: any, context: any) => {
                     if (String(request?.method || '').toLowerCase() === 'get') {
                       return {};
@@ -2202,7 +2274,7 @@ export async function getAdminJsRouter(): Promise<Router> {
                       });
 
                       return {
-                        notice: { type: 'success', message: 'easy_proxies config saved' },
+                        notice: { type: 'success', message: 'easy_proxies 配置已保存。' },
                         redirectUrl: context.h.resourceUrl({ resourceId: context.resource.id() }),
                       };
                     } catch (err: unknown) {
@@ -2217,7 +2289,7 @@ export async function getAdminJsRouter(): Promise<Router> {
                   actionType: 'resource',
                   icon: 'Download',
                   label: 'easy_proxies 导入',
-                  guard: 'Import proxies from easy_proxies /api/export?',
+                  guard: '确认从 easy_proxies 的 /api/export 导入代理吗？',
                   handler: async (request: any, _res: any, context: any) => {
                     if (String(request?.method || '').toLowerCase() === 'get') {
                       return {};
@@ -2226,7 +2298,7 @@ export async function getAdminJsRouter(): Promise<Router> {
                     const config = await loadEasyProxiesRuntimeConfig({ prisma });
                     if (!config.baseUrl) {
                       return {
-                        notice: { type: 'error', message: 'Missing easy_proxies baseUrl. Configure it in the easy_proxies 导入/刷新 page.' },
+                        notice: { type: 'error', message: '缺少 easy_proxies baseUrl，请先在 easy_proxies 导入页配置。' },
                         redirectUrl: context.h.resourceUrl({ resourceId: context.resource.id() }),
                       };
                     }
@@ -2244,7 +2316,7 @@ export async function getAdminJsRouter(): Promise<Router> {
                       });
                       if (!result.ok) {
                         return {
-                          notice: { type: 'error', message: `easy_proxies import failed: ${result.status}` },
+                          notice: { type: 'error', message: `easy_proxies 导入失败：${result.status}` },
                           redirectUrl: context.h.resourceUrl({ resourceId: context.resource.id() }),
                         };
                       }
@@ -2275,7 +2347,7 @@ export async function getAdminJsRouter(): Promise<Router> {
                       return {
                         notice: {
                           type: 'success',
-                          message: `Imported: ${result.imported}/${result.total_lines} (invalid:${result.invalid} conflicts:${result.conflicts})`,
+                          message: `导入完成：成功 ${result.imported}/${result.total_lines}（无效 ${result.invalid}，冲突 ${result.conflicts}）。`,
                         },
                         redirectUrl: context.h.resourceUrl({ resourceId: context.resource.id() }),
                       };
@@ -2291,7 +2363,7 @@ export async function getAdminJsRouter(): Promise<Router> {
                   actionType: 'resource',
                   icon: 'Undo',
                   label: 'easy_proxies 回滚到手动代理列表',
-                  guard: 'Disable easy_proxies endpoints and disable auto-refresh? Continue?',
+                  guard: '确认回滚 easy_proxies 代理并关闭自动刷新吗？',
                   handler: async (request: any, _res: any, context: any) => {
                     if (String(request?.method || '').toLowerCase() === 'get') {
                       return {};
@@ -2343,7 +2415,7 @@ export async function getAdminJsRouter(): Promise<Router> {
                       });
 
                       return {
-                        notice: { type: 'success', message: `Rollback ok (disabled=${disabled.count} auto_refresh_enabled=false)` },
+                        notice: { type: 'success', message: `回滚完成（disabled=${disabled.count} auto_refresh_enabled=false）。` },
                         redirectUrl: context.h.resourceUrl({ resourceId: context.resource.id() }),
                       };
                     } catch (err: unknown) {
@@ -2357,8 +2429,8 @@ export async function getAdminJsRouter(): Promise<Router> {
                 probe: {
                   actionType: 'record',
                   icon: 'Activity',
-                  label: 'Probe',
-                  guard: 'Probe this proxy endpoint now?',
+                  label: '立即探测',
+                  guard: '确认立即探测该代理吗？',
                   handler: async (request: any, _res: any, context: any) => {
                     const { record, currentAdmin, h, resource } = context;
                     if (!record) throw new Error('Record is required');
@@ -2373,7 +2445,7 @@ export async function getAdminJsRouter(): Promise<Router> {
                       id = typeof idRaw === 'bigint' ? idRaw : BigInt(String(idRaw));
                     } catch {
                       return {
-                        notice: { type: 'error', message: 'Invalid record id.' },
+                        notice: { type: 'error', message: '记录 ID 非法。' },
                         redirectUrl: h.resourceUrl({ resourceId: resource.id() }),
                       };
                     }
@@ -2386,14 +2458,14 @@ export async function getAdminJsRouter(): Promise<Router> {
 
                       if (!endpoint) {
                         return {
-                          notice: { type: 'error', message: 'Not Found' },
+                          notice: { type: 'error', message: '记录不存在。' },
                           redirectUrl: h.resourceUrl({ resourceId: resource.id() }),
                         };
                       }
 
                       const formatHostForUri = (host: string): string => {
                         const trimmed = String(host ?? '').trim();
-                        if (!trimmed) throw new Error('Proxy host is required.');
+                        if (!trimmed) throw new Error('代理主机不能为空。');
                         if (trimmed.includes(':') && !trimmed.startsWith('[') && !trimmed.endsWith(']')) return `[${trimmed}]`;
                         return trimmed;
                       };
@@ -2401,8 +2473,8 @@ export async function getAdminJsRouter(): Promise<Router> {
                       const scheme = String(endpoint.scheme ?? '').trim().toLowerCase();
                       const host = formatHostForUri(String(endpoint.host ?? ''));
                       const port = Number(endpoint.port);
-                      if (!scheme) throw new Error('Proxy scheme is required.');
-                      if (!Number.isFinite(port) || port <= 0 || port > 65535) throw new Error('Proxy port is invalid.');
+                      if (!scheme) throw new Error('代理协议不能为空。');
+                      if (!Number.isFinite(port) || port <= 0 || port > 65535) throw new Error('代理端口不合法。');
 
                       const username = String(endpoint.username ?? '');
                       const password = String(endpoint.password ?? '');
@@ -2439,9 +2511,9 @@ export async function getAdminJsRouter(): Promise<Router> {
                       });
 
                       const messageParts: string[] = [];
-                      messageParts.push(`status:${status}`);
-                      if (typeof latencyMs === 'number' && Number.isFinite(latencyMs)) messageParts.push(`latency_ms:${Math.round(latencyMs)}`);
-                      if (error) messageParts.push(`error:${error}`);
+                      messageParts.push(`状态:${status}`);
+                      if (typeof latencyMs === 'number' && Number.isFinite(latencyMs)) messageParts.push(`延迟ms:${Math.round(latencyMs)}`);
+                      if (error) messageParts.push(`错误:${error}`);
 
                       return {
                         record: record.toJSON(currentAdmin),
@@ -2635,8 +2707,8 @@ export async function getAdminJsRouter(): Promise<Router> {
               pause: {
                 actionType: 'record',
                 icon: 'Pause',
-                label: 'Pause',
-                guard: 'Pause this backfill run?',
+                label: '暂停',
+                guard: '确认暂停该 backfill 任务吗？',
                 handler: async (request: any, _res: any, context: any) => {
                   const { record, currentAdmin, h, resource } = context;
                   if (!record) throw new Error('Record is required');
@@ -2650,22 +2722,22 @@ export async function getAdminJsRouter(): Promise<Router> {
                   try {
                     id = typeof idRaw === 'bigint' ? idRaw : BigInt(String(idRaw));
                   } catch {
-                    return { notice: { type: 'error', message: 'Invalid record id.' }, redirectUrl: h.resourceUrl({ resourceId: resource.id() }) };
+                    return { notice: { type: 'error', message: '记录 ID 非法。' }, redirectUrl: h.resourceUrl({ resourceId: resource.id() }) };
                   }
 
                   const run = await prisma.hydrationRun.findUnique({ where: { id }, select: { id: true, type: true, status: true } });
                   if (!run) {
-                    return { notice: { type: 'error', message: 'Not Found' }, redirectUrl: h.resourceUrl({ resourceId: resource.id() }) };
+                    return { notice: { type: 'error', message: '记录不存在。' }, redirectUrl: h.resourceUrl({ resourceId: resource.id() }) };
                   }
 
                   if (run.type !== 'backfill') {
-                    return { notice: { type: 'error', message: `Only backfill runs can be paused (type=${run.type}).` }, redirectUrl: h.recordActionUrl({ resourceId: resource.id(), recordId: record.id(), actionName: 'show' }) };
+                    return { notice: { type: 'error', message: `仅 backfill 类型支持暂停（type=${run.type}）。` }, redirectUrl: h.recordActionUrl({ resourceId: resource.id(), recordId: record.id(), actionName: 'show' }) };
                   }
 
                   const prevStatus = run.status;
                   const terminal = prevStatus === 'completed' || prevStatus === 'canceled' || prevStatus === 'failed';
                   if (terminal) {
-                    return { notice: { type: 'error', message: `Run is terminal (status=${prevStatus}).` }, redirectUrl: h.recordActionUrl({ resourceId: resource.id(), recordId: record.id(), actionName: 'show' }) };
+                    return { notice: { type: 'error', message: `任务已终态，无法暂停（status=${prevStatus}）。` }, redirectUrl: h.recordActionUrl({ resourceId: resource.id(), recordId: record.id(), actionName: 'show' }) };
                   }
 
                   if (prevStatus !== 'paused') {
@@ -2682,7 +2754,7 @@ export async function getAdminJsRouter(): Promise<Router> {
 
                   return {
                     record: record.toJSON(currentAdmin),
-                    notice: { type: 'success', message: prevStatus === 'paused' ? 'Already paused.' : 'Paused.' },
+                    notice: { type: 'success', message: prevStatus === 'paused' ? '任务已处于暂停状态。' : '任务已暂停。' },
                     redirectUrl: h.recordActionUrl({ resourceId: resource.id(), recordId: record.id(), actionName: 'show' }),
                   };
                 },
@@ -2691,8 +2763,8 @@ export async function getAdminJsRouter(): Promise<Router> {
               resume: {
                 actionType: 'record',
                 icon: 'Play',
-                label: 'Resume',
-                guard: 'Resume this backfill run?',
+                label: '恢复',
+                guard: '确认恢复该 backfill 任务吗？',
                 handler: async (request: any, _res: any, context: any) => {
                   const { record, currentAdmin, h, resource } = context;
                   if (!record) throw new Error('Record is required');
@@ -2706,22 +2778,22 @@ export async function getAdminJsRouter(): Promise<Router> {
                   try {
                     id = typeof idRaw === 'bigint' ? idRaw : BigInt(String(idRaw));
                   } catch {
-                    return { notice: { type: 'error', message: 'Invalid record id.' }, redirectUrl: h.resourceUrl({ resourceId: resource.id() }) };
+                    return { notice: { type: 'error', message: '记录 ID 非法。' }, redirectUrl: h.resourceUrl({ resourceId: resource.id() }) };
                   }
 
                   const run = await prisma.hydrationRun.findUnique({ where: { id }, select: { id: true, type: true, status: true, startedAt: true } });
                   if (!run) {
-                    return { notice: { type: 'error', message: 'Not Found' }, redirectUrl: h.resourceUrl({ resourceId: resource.id() }) };
+                    return { notice: { type: 'error', message: '记录不存在。' }, redirectUrl: h.resourceUrl({ resourceId: resource.id() }) };
                   }
 
                   if (run.type !== 'backfill') {
-                    return { notice: { type: 'error', message: `Only backfill runs can be resumed (type=${run.type}).` }, redirectUrl: h.recordActionUrl({ resourceId: resource.id(), recordId: record.id(), actionName: 'show' }) };
+                    return { notice: { type: 'error', message: `仅 backfill 类型支持恢复（type=${run.type}）。` }, redirectUrl: h.recordActionUrl({ resourceId: resource.id(), recordId: record.id(), actionName: 'show' }) };
                   }
 
                   const prevStatus = run.status;
                   const terminal = prevStatus === 'completed' || prevStatus === 'canceled' || prevStatus === 'failed';
                   if (terminal) {
-                    return { notice: { type: 'error', message: `Run is terminal (status=${prevStatus}).` }, redirectUrl: h.recordActionUrl({ resourceId: resource.id(), recordId: record.id(), actionName: 'show' }) };
+                    return { notice: { type: 'error', message: `任务已终态，无法恢复（status=${prevStatus}）。` }, redirectUrl: h.recordActionUrl({ resourceId: resource.id(), recordId: record.id(), actionName: 'show' }) };
                   }
 
                   await prisma.hydrationRun.update({
@@ -2768,7 +2840,7 @@ export async function getAdminJsRouter(): Promise<Router> {
 
                   return {
                     record: record.toJSON(currentAdmin),
-                    notice: { type: 'success', message: prevStatus === 'running' ? 'Already running.' : 'Resumed.' },
+                    notice: { type: 'success', message: prevStatus === 'running' ? '任务已在运行中。' : '任务已恢复。' },
                     redirectUrl: h.recordActionUrl({ resourceId: resource.id(), recordId: record.id(), actionName: 'show' }),
                   };
                 },
@@ -2777,8 +2849,8 @@ export async function getAdminJsRouter(): Promise<Router> {
               cancel: {
                 actionType: 'record',
                 icon: 'Close',
-                label: 'Cancel',
-                guard: 'Cancel this backfill run?',
+                label: '取消',
+                guard: '确认取消该 backfill 任务吗？',
                 handler: async (request: any, _res: any, context: any) => {
                   const { record, currentAdmin, h, resource } = context;
                   if (!record) throw new Error('Record is required');
@@ -2792,16 +2864,16 @@ export async function getAdminJsRouter(): Promise<Router> {
                   try {
                     id = typeof idRaw === 'bigint' ? idRaw : BigInt(String(idRaw));
                   } catch {
-                    return { notice: { type: 'error', message: 'Invalid record id.' }, redirectUrl: h.resourceUrl({ resourceId: resource.id() }) };
+                    return { notice: { type: 'error', message: '记录 ID 非法。' }, redirectUrl: h.resourceUrl({ resourceId: resource.id() }) };
                   }
 
                   const run = await prisma.hydrationRun.findUnique({ where: { id }, select: { id: true, type: true, status: true } });
                   if (!run) {
-                    return { notice: { type: 'error', message: 'Not Found' }, redirectUrl: h.resourceUrl({ resourceId: resource.id() }) };
+                    return { notice: { type: 'error', message: '记录不存在。' }, redirectUrl: h.resourceUrl({ resourceId: resource.id() }) };
                   }
 
                   if (run.type !== 'backfill') {
-                    return { notice: { type: 'error', message: `Only backfill runs can be canceled (type=${run.type}).` }, redirectUrl: h.recordActionUrl({ resourceId: resource.id(), recordId: record.id(), actionName: 'show' }) };
+                    return { notice: { type: 'error', message: `仅 backfill 类型支持取消（type=${run.type}）。` }, redirectUrl: h.recordActionUrl({ resourceId: resource.id(), recordId: record.id(), actionName: 'show' }) };
                   }
 
                   const prevStatus = run.status;
@@ -2819,7 +2891,7 @@ export async function getAdminJsRouter(): Promise<Router> {
 
                   return {
                     record: record.toJSON(currentAdmin),
-                    notice: { type: 'success', message: prevStatus === 'canceled' ? 'Already canceled.' : 'Canceled.' },
+                    notice: { type: 'success', message: prevStatus === 'canceled' ? '任务已取消。' : '任务取消成功。' },
                     redirectUrl: h.recordActionUrl({ resourceId: resource.id(), recordId: record.id(), actionName: 'show' }),
                   };
                 },
