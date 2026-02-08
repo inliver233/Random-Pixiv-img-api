@@ -496,11 +496,19 @@ export async function getAdminJsRouter(): Promise<Router> {
               };
             };
 
+            const withTimeout = async <T,>(promise: Promise<T>, timeoutMs: number, timeoutMessage: string): Promise<T> =>
+              Promise.race([
+                promise,
+                new Promise<T>((_, reject) => {
+                  setTimeout(() => reject(new Error(timeoutMessage)), timeoutMs);
+                }),
+              ]);
+
             let queue: { ok: boolean; message: string | null } = { ok: false, message: 'unknown' };
             try {
               // eslint-disable-next-line @typescript-eslint/no-var-requires
               const { getQueueHealth } = require('../queue/queue') as typeof import('../queue/queue');
-              queue = await getQueueHealth();
+              queue = await withTimeout(getQueueHealth(), 2000, 'queue timeout');
             } catch (err: unknown) {
               const normalized = normalizeRuntimeError(err);
               queue = { ok: false, message: normalized.message };
@@ -749,11 +757,19 @@ export async function getAdminJsRouter(): Promise<Router> {
               };
             };
 
+            const withTimeout = async <T,>(promise: Promise<T>, timeoutMs: number, timeoutMessage: string): Promise<T> =>
+              Promise.race([
+                promise,
+                new Promise<T>((_, reject) => {
+                  setTimeout(() => reject(new Error(timeoutMessage)), timeoutMs);
+                }),
+              ]);
+
             let queue: { ok: boolean; message: string | null } = { ok: false, message: 'unknown' };
             try {
               // eslint-disable-next-line @typescript-eslint/no-var-requires
               const { getQueueHealth } = require('../queue/queue') as typeof import('../queue/queue');
-              queue = await getQueueHealth();
+              queue = await withTimeout(getQueueHealth(), 2000, 'queue timeout');
             } catch (err: unknown) {
               const normalized = normalizeRuntimeError(err);
               queue = { ok: false, message: normalized.message };
@@ -816,7 +832,7 @@ export async function getAdminJsRouter(): Promise<Router> {
             const queryDlqQueues = async () => {
               if (dlqQueues.length === 0) return { ok: true, queues: [] as any[] };
               try {
-                const rows = await prisma.$queryRaw<{
+                const rows = await withTimeout(prisma.$queryRaw<{
                   name: string;
                   count: bigint | number | string;
                   oldest: Date | null;
@@ -833,7 +849,7 @@ export async function getAdminJsRouter(): Promise<Router> {
                     GROUP BY name
                     ORDER BY name ASC
                   `,
-                );
+                ), 5000, 'dlq_queues timeout');
 
                 const countsByName = new Map<string, any>();
                 for (const row of rows) {
@@ -867,7 +883,7 @@ export async function getAdminJsRouter(): Promise<Router> {
             const queryDlqJobs = async (queueName: string, limit: number) => {
               const maxLimit = Math.max(1, Math.min(200, limit));
               try {
-                const rows = await prisma.$queryRaw<{
+                const rows = await withTimeout(prisma.$queryRaw<{
                   id: string;
                   queue: string;
                   state: string;
@@ -888,7 +904,7 @@ export async function getAdminJsRouter(): Promise<Router> {
                     ORDER BY created_on DESC
                     LIMIT ${maxLimit}
                   `,
-                );
+                ), 5000, 'dlq_jobs timeout');
 
                 return rows.map((row) => {
                   const output = extractOutputMessage(row.output);
@@ -1065,7 +1081,7 @@ export async function getAdminJsRouter(): Promise<Router> {
 
             let runs: any[] = [];
             try {
-              const rows = await prisma.hydrationRun.findMany({
+              const rows = await withTimeout(prisma.hydrationRun.findMany({
                 orderBy: [{ createdAt: 'desc' }],
                 take: 30,
                 select: {
@@ -1080,7 +1096,7 @@ export async function getAdminJsRouter(): Promise<Router> {
                   lastErrorCode: true,
                   lastErrorMsg: true,
                 },
-              });
+              }), 5000, 'hydration_runs timeout');
               runs = rows.map((row) => ({
                 id: row.id.toString(),
                 type: row.type,
@@ -1096,14 +1112,6 @@ export async function getAdminJsRouter(): Promise<Router> {
             } catch {
               runs = [];
             }
-
-            const withTimeout = async <T,>(promise: Promise<T>, timeoutMs: number, timeoutMessage: string): Promise<T> =>
-              Promise.race([
-                promise,
-                new Promise<T>((_, reject) => {
-                  setTimeout(() => reject(new Error(timeoutMessage)), timeoutMs);
-                }),
-              ]);
 
             let coverage: any = { ok: false, error: null };
             try {
@@ -1359,11 +1367,20 @@ export async function getAdminJsRouter(): Promise<Router> {
             try {
               const generatedAt = new Date().toISOString();
 
-              const proxies = await prisma.proxyEndpoint.findMany({
+              let proxies: any[] = [];
+              let proxiesError: string | null = null;
+              const proxiesResult = await runWithTimeout(prisma.proxyEndpoint.findMany({
                 where: { enabled: true },
                 select: { id: true, scheme: true, host: true, port: true, username: true, enabled: true, source: true, sourceRef: true },
                 orderBy: [{ id: 'asc' }],
-              });
+              }), 5000);
+              if (proxiesResult.status === 'ok') {
+                proxies = proxiesResult.value as any[];
+              } else if (proxiesResult.status === 'timeout') {
+                proxiesError = 'proxy endpoint query timeout';
+              } else {
+                proxiesError = proxiesResult.error;
+              }
 
               const formatProxyDisplay = (p: any): string => {
                 if (!p) return '';
@@ -1535,6 +1552,7 @@ export async function getAdminJsRouter(): Promise<Router> {
                 generated_at: generatedAt,
                 proxies: {
                   enabled_total: proxies.length,
+                  error: proxiesError,
                 },
                 health,
                 outbound_errors_total: outbound,

@@ -87,6 +87,12 @@ export default function ProxyPoolOverviewPage() {
         </div>
       ) : null}
 
+      {data?.proxies?.error ? (
+        <div style={{ marginTop: 12, ...createCalloutStyle('warning') }}>
+          <b>代理列表获取失败：</b>{safeString(data.proxies.error)}
+        </div>
+      ) : null}
+
       <div style={{ marginTop: 12, ...createCardStyle() }}>
         <h3 style={{ marginTop: 0 }}>概览</h3>
         <p style={{ marginTop: 0, color: '#666' }}>{safeString(data?.note || '')}</p>
