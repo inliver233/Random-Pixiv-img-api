@@ -1,0 +1,5 @@
+﻿url=https://i.mukyu.ru/random?format=json&min_width=2147483648
+status=500
+first_line=HTTP/1.1 500 Internal Server Error
+body_snippet=
+{"code":"P2020","message":"Internal Server Error","request_id":"8c520577-27ce-44b8-a2af-cd2f8b66f338"}

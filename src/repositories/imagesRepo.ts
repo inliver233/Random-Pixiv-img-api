@@ -432,7 +432,7 @@ function buildPickRandomSqlConditions(filters: PickRandomFilters): Prisma.Sql[] 
   }
 
   if (filters.minPixels !== undefined && filters.minPixels !== null) {
-    conditions.push(Prisma.sql`(width * height) >= ${filters.minPixels}`);
+    conditions.push(Prisma.sql`((width::bigint) * (height::bigint)) >= ${filters.minPixels}`);
   }
 
   if (filters.includedTags !== undefined && filters.includedTags !== null && filters.includedTags.length > 0) {

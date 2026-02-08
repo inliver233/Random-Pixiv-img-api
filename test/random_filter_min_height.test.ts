@@ -63,6 +63,23 @@ describe('GET /random (filter min_height)', () => {
     expect(pickRandomImageStream).not.toHaveBeenCalled();
   });
 
+  it('returns 400 for min_height above int4 max', async () => {
+    const app = await createApp();
+
+    const res = await request(app)
+      .get('/random?min_height=2147483648')
+      .set('accept', 'application/json')
+      .set('x-request-id', 'req-random-min-height-int4-over')
+      .expect(400);
+
+    expect(res.body).toEqual({
+      code: 'BAD_REQUEST',
+      message: 'Invalid min_height.',
+      request_id: 'req-random-min-height-int4-over',
+    });
+    expect(pickRandomImageStream).not.toHaveBeenCalled();
+  });
+
   it('accepts min_height=0', async () => {
     const app = await createApp();
 
@@ -73,6 +90,18 @@ describe('GET /random (filter min_height)', () => {
 
     const filters = pickRandomImageStream.mock.calls[0]?.[0];
     expect(filters).toEqual({ xRestrict: 0, minHeight: 0 });
+  });
+
+  it('accepts min_height=int4 max', async () => {
+    const app = await createApp();
+
+    await request(app)
+      .get('/random?min_height=2147483647')
+      .set('accept', 'application/json')
+      .expect(404);
+
+    const filters = pickRandomImageStream.mock.calls[0]?.[0];
+    expect(filters).toEqual({ xRestrict: 0, minHeight: 2147483647 });
   });
 
   it('returns 400 for empty min_height', async () => {

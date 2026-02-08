@@ -40,6 +40,7 @@ function parseLimit(value: unknown): number {
 }
 
 const PG_BIGINT_MAX = 9223372036854775807n;
+const PG_INT4_MAX = 2_147_483_647;
 
 function parseCursor(value: unknown): bigint | undefined {
   if (value === undefined || value === null) return undefined;
@@ -165,7 +166,7 @@ function parseMinInt(value: unknown, errorMessage: string): number | undefined {
   }
 
   const n = Number(normalized);
-  if (!Number.isSafeInteger(n) || n < 0) {
+  if (!Number.isSafeInteger(n) || n < 0 || n > PG_INT4_MAX) {
     const err = new Error(errorMessage);
     (err as any).status = 400;
     throw err;

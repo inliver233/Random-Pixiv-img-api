@@ -156,6 +156,8 @@ function parseOrientation(value: unknown): number | undefined {
   throw err;
 }
 
+const PG_INT4_MAX = 2_147_483_647;
+
 function parseMinWidth(value: unknown): number | undefined {
   if (value === undefined || value === null) return undefined;
 
@@ -169,7 +171,7 @@ function parseMinWidth(value: unknown): number | undefined {
   }
 
   const n = Number(normalized);
-  if (!Number.isSafeInteger(n) || n < 0) {
+  if (!Number.isSafeInteger(n) || n < 0 || n > PG_INT4_MAX) {
     const err = new Error('Invalid min_width.');
     (err as any).status = 400;
     throw err;
@@ -191,7 +193,7 @@ function parseMinHeight(value: unknown): number | undefined {
   }
 
   const n = Number(normalized);
-  if (!Number.isSafeInteger(n) || n < 0) {
+  if (!Number.isSafeInteger(n) || n < 0 || n > PG_INT4_MAX) {
     const err = new Error('Invalid min_height.');
     (err as any).status = 400;
     throw err;
@@ -213,7 +215,7 @@ function parseMinPixels(value: unknown): number | undefined {
   }
 
   const n = Number(normalized);
-  if (!Number.isSafeInteger(n) || n < 0) {
+  if (!Number.isSafeInteger(n) || n < 0 || n > PG_INT4_MAX) {
     const err = new Error('Invalid min_pixels.');
     (err as any).status = 400;
     throw err;
