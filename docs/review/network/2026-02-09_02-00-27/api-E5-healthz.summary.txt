@@ -1,0 +1,5 @@
+﻿url=https://i.mukyu.ru/healthz
+status=200
+first_line=HTTP/1.1 200 OK
+body_snippet=
+{"ok":true,"db":{"ok":true,"message":null},"memcached":{"ok":true,"message":null},"queue":{"ok":true,"message":null},"request_id":"4492fb75-a62d-4253-a291-352eb6bcafff"}

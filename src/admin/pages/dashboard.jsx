@@ -117,6 +117,7 @@ export default function Dashboard() {
 
   const runtimeConfig = data?.runtime_config || null;
   const proxyEnabled = runtimeConfig?.ok ? Boolean(runtimeConfig?.proxy_enabled) : null;
+  const build = data?.build || null;
 
   async function handleProxyToggle(nextEnabled) {
     if (proxyToggleBusy) return;
@@ -161,6 +162,15 @@ export default function Dashboard() {
     <div style={pageRootStyle}>
       <h2 style={pageTitleStyle}>仪表盘</h2>
       <p style={{ marginTop: 0, ...mutedTextStyle }}>生成时间：{data.generated_at}</p>
+      {build ? (
+        <p style={{ marginTop: 0, ...mutedTextStyle }}>
+          版本：{String(build.version || 'unknown')}
+          {' '}
+          / commit：{clampText(build.commit || 'unknown', 12)}
+          {' '}
+          / build_time：{String(build.build_time || 'unknown')}
+        </p>
+      ) : null}
       <div style={{ ...pageCardStyle, marginBottom: 12 }}>
         <h3 style={{ marginTop: 0, marginBottom: 8 }}>快捷导航</h3>
         <p style={{ marginTop: 0, color: '#666' }}>

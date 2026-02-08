@@ -1,5 +1,7 @@
 import { Router } from 'express';
 
+import { getBuildInfo } from '../utils/buildInfo';
+
 const router = Router();
 
 function getRequestId(
@@ -76,7 +78,7 @@ router.get('/', (req, res) => {
     }
 
     const ok = Boolean(db.ok && memcached.ok && queue.ok);
-    const body: Record<string, unknown> = { ok, db, memcached, queue };
+    const body: Record<string, unknown> = { ok, db, memcached, queue, build: getBuildInfo() };
     if (!ok) {
       body.code = 'DEPENDENCY_UNAVAILABLE';
       body.message = 'One or more dependencies are unavailable.';

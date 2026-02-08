@@ -45,6 +45,7 @@
 - [ ] 容器尽可能以非 root 用户运行（本仓库 Dockerfile 使用 `USER node`）
 - [ ] 生产镜像仅包含 `dist/` 与生产依赖（多阶段构建）
 - [ ] Docker HEALTHCHECK 已启用并调用 `/healthz`（用于容器编排的健康探测）
+- [ ] `/healthz`（或 `/version`）响应包含 `build.version / build.commit / build.build_time`，用于核对线上部署一致性
 - [ ] （可选）启用 backend 只读文件系统（`BACKEND_READ_ONLY=true`）；并确认 `tmpfs` 已挂载 `/tmp` 与 `/app/.adminjs`
 - [ ] （可选）设置 backend 的 CPU/内存限制与 `nofile` ulimit（`docker-compose.yml`：`BACKEND_LIMIT_*` / `BACKEND_ULIMIT_*`）
 - [ ] （可选）配置容器日志轮转（stdout + 宿主轮转）：`docker-compose.yml` 的 `logging`（`BACKEND_LOG_MAX_*`）

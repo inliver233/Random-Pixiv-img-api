@@ -1,9 +1,11 @@
 import express from 'express';
 import { createRequire } from 'node:module';
 import request from 'supertest';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const require = createRequire(import.meta.url);
+
+const { resetBuildInfoForTest } = require('../src/utils/buildInfo.js');
 
 const mockCheckDb = vi.fn();
 const mockMemcachedGet = vi.fn();
@@ -37,9 +39,31 @@ function createApp() {
 }
 
 describe('GET /healthz', () => {
+  const prevAppVersion = process.env.APP_VERSION;
+  const prevAppCommit = process.env.APP_COMMIT;
+  const prevAppBuildTime = process.env.APP_BUILD_TIME;
+
   beforeEach(() => {
+    process.env.APP_VERSION = '0.0.0-test';
+    process.env.APP_COMMIT = 'deadbeef';
+    process.env.APP_BUILD_TIME = '2026-02-09T00:00:00.000Z';
+    resetBuildInfoForTest();
+
     mockCheckDb.mockReset();
     mockMemcachedGet.mockReset();
+  });
+
+  afterEach(() => {
+    if (prevAppVersion === undefined) delete process.env.APP_VERSION;
+    else process.env.APP_VERSION = prevAppVersion;
+
+    if (prevAppCommit === undefined) delete process.env.APP_COMMIT;
+    else process.env.APP_COMMIT = prevAppCommit;
+
+    if (prevAppBuildTime === undefined) delete process.env.APP_BUILD_TIME;
+    else process.env.APP_BUILD_TIME = prevAppBuildTime;
+
+    resetBuildInfoForTest();
   });
 
   it('returns 200 when db+memcached are ok', async () => {
@@ -54,6 +78,11 @@ describe('GET /healthz', () => {
     expect(res.body.db).toEqual({ ok: true, message: null });
     expect(res.body.memcached).toEqual({ ok: true, message: null });
     expect(res.body.queue).toEqual({ ok: true, message: 'not_initialized' });
+    expect(res.body.build).toEqual({
+      version: '0.0.0-test',
+      commit: 'deadbeef',
+      build_time: '2026-02-09T00:00:00.000Z',
+    });
     expect(res.body.request_id).toBe('req-healthz-ok');
   });
 

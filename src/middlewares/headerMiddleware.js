@@ -1,8 +1,10 @@
-const packageJson = require('../../package.json');
+const { getBuildInfo } = require('../utils/buildInfo');
 
 const showVersion = (req, res, next) => {
-  const appVersion = packageJson.version;
-  res.setHeader('X-App-Version', appVersion);
+  const build = getBuildInfo();
+  res.setHeader('X-App-Version', build.version || 'unknown');
+  if (build.commit) res.setHeader('X-App-Commit', build.commit);
+  if (build.build_time) res.setHeader('X-App-Build-Time', build.build_time);
   next();
 };
 

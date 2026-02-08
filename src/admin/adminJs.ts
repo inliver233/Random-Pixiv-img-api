@@ -23,6 +23,7 @@ import { pixivTokenResourceOptions } from './resources/pixivTokens';
 import { createProxyEndpointResourceOptions } from './resources/proxyEndpoints';
 import { hasEffectiveFilterValue } from './utils/filterValue';
 import { runWithTimeout } from './utils/runWithTimeout';
+import { getBuildInfo } from '../utils/buildInfo';
 
 let cachedRouter: Router | null = null;
 let cachedPromise: Promise<Router> | null = null;
@@ -1524,6 +1525,7 @@ export async function getAdminJsRouter(): Promise<Router> {
 
           return {
             generated_at: new Date().toISOString(),
+            build: getBuildInfo(),
             runtime_config: runtimeConfig,
             images: {
               total: imagesTotal,

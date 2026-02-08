@@ -1,6 +1,7 @@
 const express = require('express');
 const { checkDb } = require('../db/dbHealth');
 const memcachedService = require('../services/memcachedService');
+const { getBuildInfo } = require('../utils/buildInfo');
 
 const router = express.Router();
 
@@ -59,7 +60,7 @@ router.get('/', (req, res) => {
     const queue = { ok: true, message: 'not_initialized' };
 
     const ok = Boolean(db.ok && memcached.ok && queue.ok);
-    const body = { ok, db, memcached, queue };
+    const body = { ok, db, memcached, queue, build: getBuildInfo() };
     if (!ok) {
       body.code = 'DEPENDENCY_UNAVAILABLE';
       body.message = 'One or more dependencies are unavailable.';

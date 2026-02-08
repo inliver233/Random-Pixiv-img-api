@@ -111,6 +111,14 @@ docker compose run --rm migrate
 curl -i "http://127.0.0.1:${BACKEND_PORT:-3000}/healthz"
 ```
 
+说明：`/healthz` 响应体应包含 `build.version / build.commit / build.build_time`（用于线上版本追溯与排查“旧构建/不一致部署”）。
+
+可选：单独查看版本信息：
+
+```bash
+curl -i "http://127.0.0.1:${BACKEND_PORT:-3000}/version"
+```
+
 ### 1.7 导入图片（否则 /random 可能 NO_MATCH）
 
 `/random` 从数据库图片池中随机挑选；数据库为空时会返回 `NO_MATCH`（404）。
@@ -124,6 +132,7 @@ curl -i "http://127.0.0.1:${BACKEND_PORT:-3000}/healthz"
 ```bash
 # 1) 健康检查
 curl -i "http://127.0.0.1:${BACKEND_PORT:-3000}/healthz"
+curl -i "http://127.0.0.1:${BACKEND_PORT:-3000}/version"
 
 # 2) 指标（Prometheus）
 curl -s "http://127.0.0.1:${BACKEND_PORT:-3000}/metrics" | head

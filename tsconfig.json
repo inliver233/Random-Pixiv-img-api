@@ -22,6 +22,7 @@
     "src/services/pixivAuthService.js",
     "src/services/memcachedService.js",
     "src/utils/contentType.js",
+    "src/utils/buildInfo.js",
     "src/middlewares/validationMiddleware.js",
     "src/middlewares/headerMiddleware.js"
   ]

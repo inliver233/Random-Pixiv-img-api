@@ -6,6 +6,7 @@ import imageByIdRoute from './imageById';
 import tagsRoute from './tags';
 import authorsRoute from './authors';
 import healthzRoute from './healthz';
+import versionRoute from './version';
 import metricsRoute from './metrics';
 import adminRoute from './admin';
 
@@ -17,6 +18,7 @@ router.use('/authors', authorsRoute);
 router.use('/images', imagesRoute);
 router.use('/i', imageByIdRoute);
 router.use('/healthz', healthzRoute);
+router.use('/version', versionRoute);
 router.use('/metrics', metricsRoute);
 router.use('/admin', adminRoute);
 

@@ -19,6 +19,7 @@ if (!delegated) {
   router.use('/images', require('./images'));
   router.use('/i', require('./imageById'));
   router.use('/healthz', require('./healthz'));
+  router.use('/version', require('./version'));
   router.use('/metrics', require('./metrics'));
   router.use('/admin', require('./admin'));
 
