@@ -347,6 +347,7 @@ export async function getAdminJsRouter(): Promise<Router> {
     const TokenProxyBindings = componentLoader.add('TokenProxyBindings', path.join(__dirname, 'pages', 'tokenProxyBindings.jsx'));
     const ProxyPoolOverview = componentLoader.add('ProxyPoolOverview', path.join(__dirname, 'pages', 'proxyPoolOverview.jsx'));
     const EasyProxiesImport = componentLoader.add('EasyProxiesImport', path.join(__dirname, 'pages', 'easyProxiesImport.jsx'));
+    const RecordActionRunner = componentLoader.add('RecordActionRunner', path.join(__dirname, 'components', 'recordActionRunner.jsx'));
 
     const admin = new AdminJS({
       rootPath: '/admin',
@@ -2105,7 +2106,7 @@ export async function getAdminJsRouter(): Promise<Router> {
 
               pause: {
                 actionType: 'record',
-                component: false,
+                component: RecordActionRunner,
                 icon: 'Pause',
                 label: '暂停',
                 guard: '确认暂停该 backfill 任务吗？',
@@ -2165,7 +2166,7 @@ export async function getAdminJsRouter(): Promise<Router> {
 
               resume: {
                 actionType: 'record',
-                component: false,
+                component: RecordActionRunner,
                 icon: 'Play',
                 label: '恢复',
                 guard: '确认恢复该 backfill 任务吗？',
@@ -2255,7 +2256,7 @@ export async function getAdminJsRouter(): Promise<Router> {
 
               cancel: {
                 actionType: 'record',
-                component: false,
+                component: RecordActionRunner,
                 icon: 'Close',
                 label: '取消',
                 guard: '确认取消该 backfill 任务吗？',

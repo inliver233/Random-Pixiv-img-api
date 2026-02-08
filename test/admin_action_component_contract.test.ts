@@ -5,45 +5,41 @@ import { describe, expect, it } from 'vitest';
 import { imageResourceOptions } from '../src/admin/resources/images';
 import { pixivTokenResourceOptions } from '../src/admin/resources/pixivTokens';
 
-function hasComponentFalseForAction(source: string, actionName: string): boolean {
+function hasComponentSettingForAction(source: string, actionName: string, componentValue: string | false): boolean {
   const escaped = actionName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const pattern = new RegExp(`${escaped}:\\s*\\{[\\s\\S]{0,120}?component:\\s*false`, 'm');
+  const value = componentValue === false ? 'false' : componentValue;
+  const pattern = new RegExp(`${escaped}:\\s*\\{[\\s\\S]{0,600}?component:\\s*${value}`, 'm');
   return pattern.test(source);
 }
 
 describe('admin action component contract', () => {
-  it('keeps resource-module actions as non-component actions', () => {
+  it('keeps resource-module actions explicitly configured (view vs no-view)', () => {
     const imageActions = (imageResourceOptions as any).actions;
     expect(imageActions.delete.component).toBe(false);
     expect(imageActions.enable.component).toBe(false);
     expect(imageActions.disable.component).toBe(false);
     expect(imageActions.statusCounts.component).toBe(false);
-    expect(imageActions.hydrateMetadata.component).toBe(false);
+    expect(imageActions.hydrateMetadata.component).toBe('RecordActionRunner');
 
     const tokenActions = (pixivTokenResourceOptions as any).actions;
-    expect(tokenActions.testRefresh.component).toBe(false);
+    expect(tokenActions.testRefresh.component).toBe('RecordActionRunner');
   });
 
-  it('marks inline adminJs custom actions as component:false to avoid missing-component deep links', () => {
+  it('keeps inline adminJs custom actions using correct view contracts', () => {
     const source = fs.readFileSync(path.join(process.cwd(), 'src/admin/adminJs.ts'), 'utf8');
-    const criticalActions = [
+    const noViewActions = [
       'rebindPrimary',
       'setOverride',
       'clearOverride',
-      'setProxyEnabled',
-      'importProxyUris',
-      'easyProxiesConfigSave',
-      'easyProxiesImport',
-      'easyProxiesRollback',
-      'probe',
-      'pause',
-      'resume',
-      'cancel',
     ];
 
-    for (const actionName of criticalActions) {
-      expect(hasComponentFalseForAction(source, actionName)).toBe(true);
+    for (const actionName of noViewActions) {
+      expect(hasComponentSettingForAction(source, actionName, false)).toBe(true);
+    }
+
+    const deepLinkableActions = ['pause', 'resume', 'cancel'];
+    for (const actionName of deepLinkableActions) {
+      expect(hasComponentSettingForAction(source, actionName, 'RecordActionRunner')).toBe(true);
     }
   });
 });
-

@@ -210,7 +210,7 @@ export const pixivTokenResourceOptions = {
 
     testRefresh: {
       actionType: 'record',
-      component: false,
+      component: 'RecordActionRunner',
       icon: 'Play',
       label: '测试刷新',
       guard: 'Refresh access token now?',

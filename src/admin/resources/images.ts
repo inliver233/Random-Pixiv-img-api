@@ -202,7 +202,7 @@ export const imageResourceOptions = {
 
     hydrateMetadata: {
       actionType: 'record',
-      component: false,
+      component: 'RecordActionRunner',
       icon: 'RefreshCw',
       label: '补全元信息（入队 hydrate_metadata）',
       guard: 'Enqueue hydrate_metadata for this illust now?',
