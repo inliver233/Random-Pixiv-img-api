@@ -16,11 +16,13 @@ describe('outbound metrics exposed in /metrics', () => {
   const originalMetricsEnabled = process.env.METRICS_ENABLED;
   const originalMetricsUser = process.env.METRICS_BASIC_AUTH_USER;
   const originalMetricsPass = process.env.METRICS_BASIC_AUTH_PASS;
+  const originalMetricsAllow = process.env.METRICS_ALLOW_UNAUTHENTICATED;
 
   beforeEach(() => {
     process.env.METRICS_ENABLED = 'true';
     delete process.env.METRICS_BASIC_AUTH_USER;
     delete process.env.METRICS_BASIC_AUTH_PASS;
+    process.env.METRICS_ALLOW_UNAUTHENTICATED = 'true';
   });
 
   afterEach(() => {
@@ -32,6 +34,9 @@ describe('outbound metrics exposed in /metrics', () => {
 
     if (originalMetricsPass === undefined) delete process.env.METRICS_BASIC_AUTH_PASS;
     else process.env.METRICS_BASIC_AUTH_PASS = originalMetricsPass;
+
+    if (originalMetricsAllow === undefined) delete process.env.METRICS_ALLOW_UNAUTHENTICATED;
+    else process.env.METRICS_ALLOW_UNAUTHENTICATED = originalMetricsAllow;
   });
 
   it('includes outbound_errors_total and sample labels', async () => {
@@ -47,4 +52,3 @@ describe('outbound metrics exposed in /metrics', () => {
     expect(res.text).toContain('proxy_connect_error');
   });
 });
-

@@ -25,11 +25,13 @@ describe('GET /metrics', () => {
   const originalMetricsEnabled = process.env.METRICS_ENABLED;
   const originalMetricsUser = process.env.METRICS_BASIC_AUTH_USER;
   const originalMetricsPass = process.env.METRICS_BASIC_AUTH_PASS;
+  const originalMetricsAllow = process.env.METRICS_ALLOW_UNAUTHENTICATED;
 
   beforeEach(() => {
     process.env.METRICS_ENABLED = 'true';
     delete process.env.METRICS_BASIC_AUTH_USER;
     delete process.env.METRICS_BASIC_AUTH_PASS;
+    delete process.env.METRICS_ALLOW_UNAUTHENTICATED;
     resetCommonJsModules();
   });
 
@@ -43,10 +45,28 @@ describe('GET /metrics', () => {
     if (originalMetricsPass === undefined) delete process.env.METRICS_BASIC_AUTH_PASS;
     else process.env.METRICS_BASIC_AUTH_PASS = originalMetricsPass;
 
+    if (originalMetricsAllow === undefined) delete process.env.METRICS_ALLOW_UNAUTHENTICATED;
+    else process.env.METRICS_ALLOW_UNAUTHENTICATED = originalMetricsAllow;
+
     resetCommonJsModules();
   });
 
-  it('returns 200 and includes pixivcat_up metric', async () => {
+  it('returns 404 when metrics are enabled but protected (no auth configured)', async () => {
+    const app = createApp();
+
+    const res = await request(app).get('/metrics').set('x-request-id', 'req-metrics-protected').expect(404);
+
+    expect(res.body).toMatchObject({
+      code: 'METRICS_PROTECTED',
+      message: 'Metrics endpoint is protected. Configure Basic Auth or disable metrics.',
+      request_id: 'req-metrics-protected',
+    });
+  });
+
+  it('returns 200 and includes pixivcat_up metric when unauthenticated access is explicitly allowed', async () => {
+    process.env.METRICS_ALLOW_UNAUTHENTICATED = 'true';
+    resetCommonJsModules();
+
     const app = createApp();
 
     const res = await request(app).get('/metrics').expect(200);
@@ -86,6 +106,7 @@ describe('GET /metrics', () => {
   it('returns 401 when basic auth is enabled but missing/invalid', async () => {
     process.env.METRICS_BASIC_AUTH_USER = 'user';
     process.env.METRICS_BASIC_AUTH_PASS = 'pass';
+    resetCommonJsModules();
 
     const app = createApp();
 
@@ -102,6 +123,7 @@ describe('GET /metrics', () => {
   it('returns 200 when basic auth is enabled and correct credentials provided', async () => {
     process.env.METRICS_BASIC_AUTH_USER = 'user';
     process.env.METRICS_BASIC_AUTH_PASS = 'pass';
+    resetCommonJsModules();
 
     const app = createApp();
 

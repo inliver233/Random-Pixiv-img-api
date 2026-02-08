@@ -35,16 +35,9 @@ function sendJsonError(res, params) {
   return res.status(params.status).json(body);
 }
 
-function needsBasicAuth() {
-  return Boolean(process.env.METRICS_BASIC_AUTH_USER && process.env.METRICS_BASIC_AUTH_PASS);
-}
-
-function checkBasicAuth(req) {
-  const user = process.env.METRICS_BASIC_AUTH_USER;
-  const pass = process.env.METRICS_BASIC_AUTH_PASS;
-  if (!user || !pass) return true;
-
-  const header = String(req.headers.authorization || '');
+function checkBasicAuth(req, params) {
+  const auth = req.headers.authorization;
+  const header = Array.isArray(auth) ? String(auth[0] || '') : String(auth || '');
   if (!header.startsWith('Basic ')) return false;
 
   const decoded = Buffer.from(header.slice('Basic '.length), 'base64').toString('utf8');
@@ -53,7 +46,7 @@ function checkBasicAuth(req) {
 
   const providedUser = decoded.slice(0, sepIndex);
   const providedPass = decoded.slice(sepIndex + 1);
-  return providedUser === user && providedPass === pass;
+  return providedUser === params.user && providedPass === params.pass;
 }
 
 router.get('/', async (req, res) => {
@@ -71,12 +64,25 @@ router.get('/', async (req, res) => {
     return;
   }
 
-  if (needsBasicAuth() && !checkBasicAuth(req)) {
-    res.setHeader('WWW-Authenticate', 'Basic realm="metrics"');
+  const authUser = env.METRICS_BASIC_AUTH_USER;
+  const authPass = env.METRICS_BASIC_AUTH_PASS;
+
+  if (authUser && authPass) {
+    if (!checkBasicAuth(req, { user: authUser, pass: authPass })) {
+      res.setHeader('WWW-Authenticate', 'Basic realm="metrics"');
+      sendJsonError(res, {
+        status: 401,
+        code: 'UNAUTHORIZED',
+        message: 'Unauthorized.',
+        requestId,
+      });
+      return;
+    }
+  } else if (!env.METRICS_ALLOW_UNAUTHENTICATED) {
     sendJsonError(res, {
-      status: 401,
-      code: 'UNAUTHORIZED',
-      message: 'Unauthorized.',
+      status: 404,
+      code: 'METRICS_PROTECTED',
+      message: 'Metrics endpoint is protected. Configure Basic Auth or disable metrics.',
       requestId,
     });
     return;

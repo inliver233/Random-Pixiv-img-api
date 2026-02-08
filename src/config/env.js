@@ -103,6 +103,9 @@ const envSchema = z
 
     METRICS_ENABLED: booleanSchema.optional().default(true),
     METRICS_ROUTE: z.string().min(1).optional().default('/metrics'),
+    METRICS_BASIC_AUTH_USER: z.string().min(1).optional(),
+    METRICS_BASIC_AUTH_PASS: z.string().min(1).optional(),
+    METRICS_ALLOW_UNAUTHENTICATED: booleanSchema.optional().default(false),
 
     REQUEST_LOG_ENABLED: booleanSchema.optional().default(false),
     REQUEST_LOG_SAMPLE_RATE: z.coerce.number().min(0).max(1).optional().default(0.01),
@@ -149,6 +152,21 @@ const envSchema = z
       if (!data.IMGPROXY_SALT) {
         ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['IMGPROXY_SALT'], message: 'IMGPROXY_SALT is required.' });
       }
+    }
+
+    const metricsUserConfigured = Boolean(data.METRICS_BASIC_AUTH_USER);
+    const metricsPassConfigured = Boolean(data.METRICS_BASIC_AUTH_PASS);
+    if (metricsUserConfigured !== metricsPassConfigured) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['METRICS_BASIC_AUTH_USER'],
+        message: 'METRICS_BASIC_AUTH_USER and METRICS_BASIC_AUTH_PASS must be set together.',
+      });
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['METRICS_BASIC_AUTH_PASS'],
+        message: 'METRICS_BASIC_AUTH_USER and METRICS_BASIC_AUTH_PASS must be set together.',
+      });
     }
   });
 

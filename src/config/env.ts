@@ -133,6 +133,11 @@ const envSchema = z.object({
 
   METRICS_ENABLED: booleanSchema.optional().default(true),
   METRICS_ROUTE: optionalStringWithDefault('/metrics'),
+  METRICS_BASIC_AUTH_USER: optionalNonEmptyString,
+  METRICS_BASIC_AUTH_PASS: optionalNonEmptyString,
+  // If true and Basic Auth is not configured, expose /metrics without authentication.
+  // Prefer keeping this false and protecting /metrics via Basic Auth or network policy.
+  METRICS_ALLOW_UNAUTHENTICATED: booleanSchema.optional().default(false),
 
   // Optional sampled request logs (DB). Disabled by default to avoid overhead.
   REQUEST_LOG_ENABLED: booleanSchema.optional().default(false),
@@ -182,6 +187,21 @@ const envSchema = z.object({
     if (!data.IMGPROXY_SALT) {
       ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['IMGPROXY_SALT'], message: 'IMGPROXY_SALT is required.' });
     }
+  }
+
+  const metricsUserConfigured = Boolean(data.METRICS_BASIC_AUTH_USER);
+  const metricsPassConfigured = Boolean(data.METRICS_BASIC_AUTH_PASS);
+  if (metricsUserConfigured !== metricsPassConfigured) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['METRICS_BASIC_AUTH_USER'],
+      message: 'METRICS_BASIC_AUTH_USER and METRICS_BASIC_AUTH_PASS must be set together.',
+    });
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['METRICS_BASIC_AUTH_PASS'],
+      message: 'METRICS_BASIC_AUTH_USER and METRICS_BASIC_AUTH_PASS must be set together.',
+    });
   }
 });
 

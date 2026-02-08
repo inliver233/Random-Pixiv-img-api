@@ -32,15 +32,7 @@ function sendJsonError(
   return res.status(params.status).json(body);
 }
 
-function needsBasicAuth(): boolean {
-  return Boolean(process.env.METRICS_BASIC_AUTH_USER && process.env.METRICS_BASIC_AUTH_PASS);
-}
-
-function checkBasicAuth(req: { headers: { authorization?: string | string[] } }): boolean {
-  const user = process.env.METRICS_BASIC_AUTH_USER;
-  const pass = process.env.METRICS_BASIC_AUTH_PASS;
-  if (!user || !pass) return true;
-
+function checkBasicAuth(req: { headers: { authorization?: string | string[] } }, params: { user: string; pass: string }): boolean {
   const auth = req.headers.authorization;
   const header = Array.isArray(auth) ? auth[0] : String(auth || '');
   if (!header.startsWith('Basic ')) return false;
@@ -51,7 +43,7 @@ function checkBasicAuth(req: { headers: { authorization?: string | string[] } })
 
   const providedUser = decoded.slice(0, sepIndex);
   const providedPass = decoded.slice(sepIndex + 1);
-  return providedUser === user && providedPass === pass;
+  return providedUser === params.user && providedPass === params.pass;
 }
 
 router.get('/', async (req, res) => {
@@ -59,7 +51,14 @@ router.get('/', async (req, res) => {
   const requestId = getRequestId(req as any, res as any);
 
   // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const { getEnv } = require('../config/env') as { getEnv: () => { METRICS_ENABLED: boolean } };
+  const { getEnv } = require('../config/env') as {
+    getEnv: () => {
+      METRICS_ENABLED: boolean;
+      METRICS_ALLOW_UNAUTHENTICATED: boolean;
+      METRICS_BASIC_AUTH_USER?: string;
+      METRICS_BASIC_AUTH_PASS?: string;
+    };
+  };
   // eslint-disable-next-line @typescript-eslint/no-var-requires
   const { getMetricsRegistry } = require('../metrics/registry') as { getMetricsRegistry: () => { contentType: string; metrics: () => Promise<string> } };
   // eslint-disable-next-line @typescript-eslint/no-var-requires
@@ -88,12 +87,25 @@ router.get('/', async (req, res) => {
     return;
   }
 
-  if (needsBasicAuth() && !checkBasicAuth(req)) {
-    res.setHeader('WWW-Authenticate', 'Basic realm="metrics"');
+  const authUser = env.METRICS_BASIC_AUTH_USER;
+  const authPass = env.METRICS_BASIC_AUTH_PASS;
+
+  if (authUser && authPass) {
+    if (!checkBasicAuth(req, { user: authUser, pass: authPass })) {
+      res.setHeader('WWW-Authenticate', 'Basic realm="metrics"');
+      sendJsonError(res, {
+        status: 401,
+        code: 'UNAUTHORIZED',
+        message: 'Unauthorized.',
+        requestId,
+      });
+      return;
+    }
+  } else if (!env.METRICS_ALLOW_UNAUTHENTICATED) {
     sendJsonError(res, {
-      status: 401,
-      code: 'UNAUTHORIZED',
-      message: 'Unauthorized.',
+      status: 404,
+      code: 'METRICS_PROTECTED',
+      message: 'Metrics endpoint is protected. Configure Basic Auth or disable metrics.',
       requestId,
     });
     return;

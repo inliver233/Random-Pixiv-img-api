@@ -34,6 +34,17 @@
 - [ ] 确认导入与代理管理仅在 `/admin` 下可触达：不带 `ADMIN_TOKEN`（且未登录 session）访问应返回 `401/403`
 - [ ] 对危险操作（关闭代理、回滚 easy_proxies、删除 DLQ 作业）启用二次确认并记录审计动作
 
+## 1.6) Metrics（/metrics）与可观测端点
+
+> 说明：`/metrics` 面向 Prometheus 等监控系统，**不应对公网匿名开放**，否则可能泄露内部运行信息（依赖、错误率、容量等）。
+
+- [ ] 生产环境如不需要对外暴露指标：设置 `METRICS_ENABLED=false`
+- [ ] 生产环境如需要启用指标：配置 Basic Auth
+  - [ ] 设置 `METRICS_BASIC_AUTH_USER=***`
+  - [ ] 设置 `METRICS_BASIC_AUTH_PASS=***`
+  - [ ] 未携带或携带错误 Basic Auth 访问 `/metrics` 必须返回 `401` + `WWW-Authenticate`
+- [ ] （仅内网/反代隔离场景）如确需无鉴权暴露：显式设置 `METRICS_ALLOW_UNAUTHENTICATED=true`，并通过网络策略限制访问来源（如仅容器网络/VPN/内网段）
+
 ## 2) 端口暴露 / 网络隔离
 
 - [ ] 只暴露 backend 对外端口（默认 `3000`）
