@@ -1,0 +1,15 @@
+Issue: AdminJS 自定义 action 组件缺失（A root-cause evidence）
+Timestamp: 2026-02-09_05-56-38
+
+Observation (real site, authenticated browser session):
+- GET /admin/frontend/assets/components.bundle.js -> 200
+- Bundle size: ~96,566 chars
+- Content checks:
+  - contains(\"RecordActionRunner\") = false
+  - contains(\"recordActionRunner\") = false
+  - contains(\"TokenProxyBindings\"/\"ProxyPoolOverview\"/\"HydrationOps\"/\"EasyProxiesImport\"/\"ImportUrls\") = true
+
+Implication:
+- 自定义 pages 组件已被打包，但 RecordActionRunner 未进入 components bundle；
+- 导致依赖该组件的 record/resource actions（hydrateMetadata/testRefresh/rebindPrimary 等）在 UI deep link 中被判定为不可用/Not Found。
+

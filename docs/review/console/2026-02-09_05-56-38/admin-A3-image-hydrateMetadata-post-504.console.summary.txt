@@ -1,0 +1,7 @@
+Issue: Admin action POST 504（A）— Image.hydrateMetadata
+Timestamp: 2026-02-09_05-56-38
+
+Console summary (sanitized):
+- [error] Failed to load resource: the server responded with a status of 504
+- Additional [error] entries for 404/500 are from auxiliary probes (fetching related admin API paths) and are non-sensitive.
+

@@ -1,0 +1,28 @@
+HTTP/1.1 500 Internal Server Error
+Date: Sun, 08 Feb 2026 22:30:06 GMT
+Content-Type: application/json; charset=utf-8
+Content-Length: 102
+Connection: keep-alive
+Server: cloudflare
+x-request-id: 37b66513-39fd-46b5-a6c3-7b5e196418f5
+access-control-allow-origin: *
+cross-origin-resource-policy: cross-origin
+origin-agent-cluster: ?1
+referrer-policy: no-referrer
+strict-transport-security: max-age=31536000; includeSubDomains
+x-content-type-options: nosniff
+x-dns-prefetch-control: off
+x-download-options: noopen
+x-frame-options: SAMEORIGIN
+x-permitted-cross-domain-policies: none
+x-xss-protection: 0
+ratelimit-policy: 100;w=60
+ratelimit: limit=100, remaining=99, reset=60
+Cache-Control: no-store
+etag: W/"66-CvIkdxaiSjBRzBO5tZzoXxMSps0"
+cf-cache-status: DYNAMIC
+Nel: {"report_to":"cf-nel","success_fraction":0.0,"max_age":604800}
+Report-To: {"group":"cf-nel","max_age":604800,"endpoints":[{"url":"https://a.nel.cloudflare.com/report/v4?s=l0OKraFzUjnI3IU14ESac1NxgF8a%2Fv92MTDGnGobRTnr%2BJ2a7wVGueLjikdIQe3fc1Rr5w%2BTcwrFO%2FvLjcurZBthCbLx8VLCLz8%3D"}]}
+CF-RAY: 9cae91cd5cf5cbac-LAX
+alt-svc: h3=":443"; ma=86400
+

@@ -1,0 +1,18 @@
+Issue: AdminJS action deep link not found（A）— Image.hydrateMetadata
+Timestamp: 2026-02-09_05-56-38
+
+Repro (real site):
+1) Open https://i.mukyu.ru/admin/resources/Image/records/1/show
+2) Click action “Hydrate Metadata”
+3) Browser navigates to https://i.mukyu.ru/admin/resources/Image/records/1/hydrateMetadata
+4) UI shows: “找不到网页：具有 id: Image 的资源没有名为 hydrateMetadata 的操作, 或你未被授权使用此操作!”
+
+Network (sanitized):
+- GET /admin/resources/Image/records/1/hydrateMetadata -> 200 (HTML renders Not Found)
+
+Console (sanitized):
+- no blocking errors observed (only “Slow network is detected…” info)
+
+Screenshot:
+- docs/review/screenshots/2026-02-09_05-56-38/admin-A1-image-1-hydrateMetadata-deeplink-notfound.png
+

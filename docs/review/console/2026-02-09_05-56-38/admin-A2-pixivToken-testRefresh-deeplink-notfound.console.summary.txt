@@ -1,0 +1,6 @@
+Issue: AdminJS action deep link not found（A）— PixivToken.testRefresh
+Timestamp: 2026-02-09_05-56-38
+
+Console summary (sanitized):
+- no console messages observed on this page.
+

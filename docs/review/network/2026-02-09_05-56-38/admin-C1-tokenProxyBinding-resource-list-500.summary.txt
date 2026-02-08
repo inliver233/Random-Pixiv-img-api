@@ -1,0 +1,16 @@
+Issue: TokenProxyBinding 资源页 list 500（C）
+Timestamp: 2026-02-09_05-56-38
+
+Repro (real site):
+1) Open https://i.mukyu.ru/admin/resources/TokenProxyBinding
+2) Observe the list view fails to load records.
+
+Network (sanitized):
+- GET /admin/api/resources/TokenProxyBinding/actions/list -> 500
+
+Console (sanitized):
+- error: Failed to load resource: the server responded with a status of 500
+
+Screenshot:
+- docs/review/screenshots/2026-02-09_05-56-38/admin-C1-tokenProxyBinding-resource-list-500.png
+

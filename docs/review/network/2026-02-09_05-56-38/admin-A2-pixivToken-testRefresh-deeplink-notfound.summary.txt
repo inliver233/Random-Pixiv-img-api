@@ -1,0 +1,15 @@
+Issue: AdminJS action deep link not found（A）— PixivToken.testRefresh
+Timestamp: 2026-02-09_05-56-38
+
+Repro (real site):
+1) Open https://i.mukyu.ru/admin/resources/PixivToken/records/1/show
+2) Click action “Test Refresh”
+3) Browser navigates to https://i.mukyu.ru/admin/resources/PixivToken/records/1/testRefresh
+4) UI shows: “找不到网页：具有 id: PixivToken 的资源没有名为 testRefresh 的操作, 或你未被授权使用此操作!”
+
+Network (sanitized):
+- GET /admin/resources/PixivToken/records/1/testRefresh -> 200 (HTML renders Not Found)
+
+Screenshot:
+- docs/review/screenshots/2026-02-09_05-56-38/admin-A2-pixivToken-1-testRefresh-deeplink-notfound.png
+

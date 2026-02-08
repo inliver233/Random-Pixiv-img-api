@@ -1,0 +1,15 @@
+Issue: Admin action POST 504（A）— Image.hydrateMetadata
+Timestamp: 2026-02-09_05-56-38
+
+Trigger (real site, authenticated browser session):
+- POST /admin/api/resources/Image/records/1/hydrateMetadata -> 504 (gateway timeout)
+
+Expected:
+- <10s 返回 200/4xx（可解释），并立即返回 jobId（长任务异步化）。
+
+Actual:
+- 504（Cloudflare / 网关超时），导致 UI/脚本触发动作不可用、无可恢复入口。
+
+Related evidence:
+- Console: docs/review/console/2026-02-09_05-56-38/admin-A3-image-hydrateMetadata-post-504.console.summary.txt
+
