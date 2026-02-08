@@ -344,6 +344,7 @@ export async function getAdminJsRouter(): Promise<Router> {
     const OpsNavigator = componentLoader.add('OpsNavigator', path.join(__dirname, 'pages', 'opsNavigator.jsx'));
     const ImportUrls = componentLoader.add('ImportUrls', path.join(__dirname, 'pages', 'importUrls.jsx'));
     const HydrationOps = componentLoader.add('HydrationOps', path.join(__dirname, 'pages', 'hydrationOps.jsx'));
+    const AdminJobs = componentLoader.add('AdminJobs', path.join(__dirname, 'pages', 'adminJobs.jsx'));
     const TokenProxyBindings = componentLoader.add('TokenProxyBindings', path.join(__dirname, 'pages', 'tokenProxyBindings.jsx'));
     const ProxyPoolOverview = componentLoader.add('ProxyPoolOverview', path.join(__dirname, 'pages', 'proxyPoolOverview.jsx'));
     const EasyProxiesImport = componentLoader.add('EasyProxiesImport', path.join(__dirname, 'pages', 'easyProxiesImport.jsx'));
@@ -365,6 +366,8 @@ export async function getAdminJsRouter(): Promise<Router> {
             'Import Urls': '批量导入 URL',
             HydrationOps: '补全运行 / DLQ',
             'Hydration Ops': '补全运行 / DLQ',
+            AdminJobs: '后台任务',
+            'Admin Jobs': '后台任务',
             EasyProxiesImport: 'easy_proxies 导入',
             'Easy Proxies Import': 'easy_proxies 导入',
             TokenProxyBindings: '令牌代理绑定',
@@ -376,6 +379,7 @@ export async function getAdminJsRouter(): Promise<Router> {
             opsNavigator: '操作导航',
             importUrls: '批量导入 URL',
             hydrationOps: '补全运行 / DLQ',
+            adminJobs: '后台任务',
             easyProxiesImport: 'easy_proxies 导入',
             tokenProxyBindings: '令牌代理绑定',
             proxyPoolOverview: '代理池概览',
@@ -383,6 +387,7 @@ export async function getAdminJsRouter(): Promise<Router> {
             OpsNavigator: '操作导航',
             ImportUrls: '批量导入 URL',
             HydrationOps: '补全运行 / DLQ',
+            AdminJobs: '后台任务',
             EasyProxiesImport: 'easy_proxies 导入',
             TokenProxyBindings: '令牌代理绑定',
             ProxyPoolOverview: '代理池概览',
@@ -448,6 +453,259 @@ export async function getAdminJsRouter(): Promise<Router> {
               adminImportMaxFileBytes: env.ADMIN_IMPORT_MAX_FILE_BYTES,
               adminImportMaxLines: env.ADMIN_IMPORT_MAX_LINES,
               note: '实际导入接口：/admin/images/import。本页面用于预览、去重与分批提交（更适合 1Panel/Cloudflare 反代）。',
+            };
+          },
+        },
+        adminJobs: {
+          label: '后台任务',
+          component: AdminJobs,
+          handler: async (request: any) => {
+            const method = String(request?.method || 'get').toLowerCase();
+
+            const normalizeRuntimeError = (err: unknown): { code: string; message: string } => {
+              const raw = err instanceof Error ? err.message : String(err ?? '');
+              const normalized = raw.replace(/\s+/g, ' ').trim();
+              const dbPattern = /(P1001|ECONNREFUSED|Can't reach database server|Database not reachable)/i;
+              const queuePattern = /(start_failed|pgboss|queue)/i;
+
+              if (!normalized) {
+                return { code: 'runtime_error', message: '服务暂不可用，请稍后重试。' };
+              }
+
+              if (dbPattern.test(normalized)) {
+                return { code: 'db_unreachable', message: '数据库暂不可用，请检查 DATABASE_URL 与 PostgreSQL 连接。' };
+              }
+
+              if (queuePattern.test(normalized)) {
+                return { code: 'queue_unavailable', message: '队列服务暂不可用，请先恢复数据库连接后重试。' };
+              }
+
+              return {
+                code: 'runtime_error',
+                message: normalized.length > 180 ? `${normalized.slice(0, 180)}...` : normalized,
+              };
+            };
+
+            let queue: { ok: boolean; message: string | null } = { ok: false, message: 'unknown' };
+            try {
+              // eslint-disable-next-line @typescript-eslint/no-var-requires
+              const { getQueueHealth } = require('../queue/queue') as typeof import('../queue/queue');
+              queue = await getQueueHealth();
+            } catch (err: unknown) {
+              const normalized = normalizeRuntimeError(err);
+              queue = { ok: false, message: normalized.message };
+            }
+
+            const prisma = getPrismaClient();
+
+            const coerceInt = (value: unknown, fallback: number): number => {
+              if (typeof value === 'number' && Number.isFinite(value)) return Math.trunc(value);
+              if (typeof value === 'string' && value.trim()) {
+                const parsed = Number(value.trim());
+                if (Number.isFinite(parsed)) return Math.trunc(parsed);
+              }
+              return fallback;
+            };
+
+            const normalizeUuid = (value: unknown): string | null => {
+              if (typeof value !== 'string') return null;
+              const v = value.trim();
+              if (!v) return null;
+              if (!/^[0-9a-fA-F-]{36}$/.test(v)) return null;
+              return v;
+            };
+
+            const safeJobSummary = (data: any): Record<string, unknown> => {
+              const out: Record<string, unknown> = {};
+              if (!data || typeof data !== 'object') return out;
+              const keys = [
+                'request_id',
+                'illust_id',
+                'run_id',
+                'token_id',
+                'endpoint_id',
+              ];
+              for (const key of keys) {
+                const value = (data as any)[key];
+                if (value === undefined || value === null) continue;
+                const s = String(value).trim();
+                if (!s) continue;
+                out[key] = s;
+              }
+              return out;
+            };
+
+            const extractOutputMessage = (output: any): { message: string | null; stack: string | null } => {
+              if (!output || typeof output !== 'object') return { message: null, stack: null };
+              const value = (output as any).value ?? output;
+              if (!value || typeof value !== 'object') return { message: null, stack: null };
+              const message = typeof (value as any).message === 'string' ? (value as any).message : null;
+              const stack = typeof (value as any).stack === 'string' ? (value as any).stack : null;
+              return { message, stack };
+            };
+
+            const truncate = (value: string, max = 240): string => {
+              const s = String(value ?? '');
+              if (s.length <= max) return s;
+              return `${s.slice(0, max)}...`;
+            };
+
+            const getQueueNames = (): string[] => {
+              try {
+                // eslint-disable-next-line @typescript-eslint/no-var-requires
+                const { getAdminActionQueueNames } = require('../jobs/adminActions') as typeof import('../jobs/adminActions');
+                const names = getAdminActionQueueNames();
+                return Array.isArray(names) ? names : [];
+              } catch {
+                return [];
+              }
+            };
+
+            const queues = getQueueNames();
+            const defaultLimit = 80;
+
+            const queryJobs = async (limit: number) => {
+              const maxLimit = Math.max(1, Math.min(200, limit));
+              if (queues.length === 0) return [];
+
+              try {
+                const rows = await prisma.$queryRaw<{
+                  id: string;
+                  queue: string;
+                  state: string;
+                  created_on: Date;
+                  data: any;
+                  output: any;
+                }[]>(
+                  Prisma.sql`
+                    SELECT
+                      id::text as id,
+                      name::text as queue,
+                      state::text as state,
+                      created_on,
+                      data,
+                      output
+                    FROM pgboss.job
+                    WHERE name IN (${Prisma.join(queues)})
+                    ORDER BY created_on DESC
+                    LIMIT ${maxLimit}
+                  `,
+                );
+
+                return rows.map((row) => {
+                  const output = extractOutputMessage(row.output);
+                  const outputPreview = row.output ? truncate(JSON.stringify(row.output), 240) : null;
+                  return {
+                    id: row.id,
+                    queue: row.queue,
+                    state: row.state,
+                    created_on: row.created_on ? row.created_on.toISOString() : null,
+                    data_summary: safeJobSummary(row.data),
+                    output_message: output.message,
+                    output_stack: output.stack,
+                    output_preview: output.message ? null : outputPreview,
+                  };
+                });
+              } catch (err: unknown) {
+                const normalized = normalizeRuntimeError(err);
+                const outputPreview = truncate(JSON.stringify({ error: normalized.message }), 240);
+                return [{
+                  id: 'query_failed',
+                  queue: queues[0] ?? 'unknown',
+                  state: 'error',
+                  created_on: null,
+                  data_summary: {},
+                  output_message: normalized.message,
+                  output_stack: null,
+                  output_preview: outputPreview,
+                }];
+              }
+            };
+
+            if (method === 'post') {
+              const payload = request?.payload && typeof request.payload === 'object' ? (request.payload as Record<string, unknown>) : {};
+              const action = typeof payload.action === 'string' ? payload.action.trim() : '';
+
+              if (action === 'job_cancel') {
+                const queueName = typeof payload.queue === 'string' ? payload.queue.trim() : '';
+                const jobId = normalizeUuid(payload.job_id ?? payload.jobId);
+                if (!queueName || !queues.includes(queueName)) return { ok: false, error: 'invalid_queue' };
+                if (!jobId) return { ok: false, error: 'invalid_job_id' };
+
+                const deleted = await prisma.$executeRaw(
+                  Prisma.sql`DELETE FROM pgboss.job WHERE name = ${queueName} AND id = ${jobId}::uuid`,
+                );
+
+                auditAdminModelChange({
+                  action: 'admin_job_cancel',
+                  resource: 'PgBossJob',
+                  record_id: jobId,
+                  req: request,
+                  detail: { queue: queueName, deleted },
+                });
+
+                return { ok: true, deleted };
+              }
+
+              if (action === 'job_retry') {
+                const queueName = typeof payload.queue === 'string' ? payload.queue.trim() : '';
+                const jobId = normalizeUuid(payload.job_id ?? payload.jobId);
+                if (!queueName || !queues.includes(queueName)) return { ok: false, error: 'invalid_queue' };
+                if (!jobId) return { ok: false, error: 'invalid_job_id' };
+
+                const job = await prisma.$queryRaw<{ data: any }[]>(
+                  Prisma.sql`SELECT data FROM pgboss.job WHERE name = ${queueName} AND id = ${jobId}::uuid LIMIT 1`,
+                );
+                const data = job?.[0]?.data;
+                if (!data) return { ok: false, error: 'job_not_found' };
+
+                let newJobId: string | null = null;
+
+                try {
+                  if (queueName === 'admin_pixiv_token_test_refresh') {
+                    // eslint-disable-next-line @typescript-eslint/no-var-requires
+                    const { enqueueAdminPixivTokenTestRefresh } = require('../jobs/adminActions') as typeof import('../jobs/adminActions');
+                    const tokenIdRaw = data.token_id ?? data.tokenId;
+                    if (tokenIdRaw === undefined || tokenIdRaw === null || !String(tokenIdRaw).trim()) return { ok: false, error: 'missing_token_id' };
+                    newJobId = await enqueueAdminPixivTokenTestRefresh({ tokenId: BigInt(String(tokenIdRaw).trim()) });
+                  } else if (queueName === 'admin_proxy_endpoint_probe') {
+                    // eslint-disable-next-line @typescript-eslint/no-var-requires
+                    const { enqueueAdminProxyEndpointProbe } = require('../jobs/adminActions') as typeof import('../jobs/adminActions');
+                    const endpointIdRaw = data.endpoint_id ?? data.endpointId;
+                    if (endpointIdRaw === undefined || endpointIdRaw === null || !String(endpointIdRaw).trim()) return { ok: false, error: 'missing_endpoint_id' };
+                    newJobId = await enqueueAdminProxyEndpointProbe({ endpointId: BigInt(String(endpointIdRaw).trim()) });
+                  } else {
+                    return { ok: false, error: 'unsupported_queue' };
+                  }
+                } catch (err: unknown) {
+                  const normalized = normalizeRuntimeError(err);
+                  return { ok: false, error: normalized.message, error_code: normalized.code };
+                }
+
+                if (!newJobId) return { ok: false, error: 'enqueue_returned_null' };
+
+                auditAdminModelChange({
+                  action: 'admin_job_retry',
+                  resource: 'PgBossJob',
+                  record_id: jobId,
+                  req: request,
+                  detail: { queue: queueName, new_job_id: newJobId, data_summary: safeJobSummary(data) },
+                });
+
+                return { ok: true, new_job_id: newJobId, message: `已重试：${newJobId}` };
+              }
+
+              return { ok: false, error: 'unsupported_action' };
+            }
+
+            const jobs = await queryJobs(coerceInt((request as any)?.query?.limit, defaultLimit));
+            return {
+              ok: true,
+              generated_at: new Date().toISOString(),
+              queue,
+              queues,
+              limit: defaultLimit,
+              jobs,
             };
           },
         },

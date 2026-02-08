@@ -1,7 +1,8 @@
 import { auditAdminModelChange } from '../../audit/adminAudit';
 import { invalidateRuntimeCaches } from '../../config/runtimeConfig';
 import { getPrismaClient } from '../../db/prismaClient';
-import { testRefreshToken } from '../../services/pixivAuthService';
+import { enqueueAdminPixivTokenTestRefresh } from '../../jobs/adminActions';
+import { runWithTimeout } from '../utils/runWithTimeout';
 
 function maskSecret(value: string): string {
   const trimmed = String(value || '').trim();
@@ -231,7 +232,7 @@ export const pixivTokenResourceOptions = {
 
         const token = await prisma.pixivToken.findUnique({
           where: { id },
-          select: { id: true, enabled: true, label: true, refreshToken: true, refreshTokenMasked: true },
+          select: { id: true, enabled: true, label: true, refreshTokenMasked: true },
         });
 
         if (!token) {
@@ -248,20 +249,57 @@ export const pixivTokenResourceOptions = {
           };
         }
 
-        const result = await testRefreshToken(token.refreshToken);
+        const requestIdRaw = request?.request_id || request?.headers?.['x-request-id'];
+        const requestId = typeof requestIdRaw === 'string' && requestIdRaw.trim() ? requestIdRaw.trim() : undefined;
+        const actor = typeof request?.session?.admin_user === 'string' ? request.session.admin_user : undefined;
+
+        const enqueueResult = await runWithTimeout(
+          enqueueAdminPixivTokenTestRefresh({ tokenId: token.id, requestId, actor }),
+          5_000,
+        );
+
+        if (enqueueResult.status === 'timeout') {
+          auditAdminModelChange({
+            action: 'pixiv_token_test_refresh_enqueue_timeout',
+            resource: 'PixivToken',
+            record_id: token.id.toString(),
+            req: request,
+            detail: { request_id: requestId ?? null },
+          });
+
+          return {
+            notice: { type: 'error', message: '入队超时（>5000ms），请稍后重试。' },
+            redirectUrl: h.recordActionUrl({ resourceId: resource.id(), recordId: record.id(), actionName: 'show' }),
+          };
+        }
+
+        if (enqueueResult.status === 'error') {
+          auditAdminModelChange({
+            action: 'pixiv_token_test_refresh_enqueue_error',
+            resource: 'PixivToken',
+            record_id: token.id.toString(),
+            req: request,
+            detail: { request_id: requestId ?? null, error: enqueueResult.error },
+          });
+
+          return {
+            notice: { type: 'error', message: `入队失败: ${enqueueResult.error}` },
+            redirectUrl: h.recordActionUrl({ resourceId: resource.id(), recordId: record.id(), actionName: 'show' }),
+          };
+        }
+
+        const jobId = enqueueResult.value;
 
         auditAdminModelChange({
-          action: result.ok ? 'pixiv_token_test_refresh_ok' : 'pixiv_token_test_refresh_fail',
+          action: 'pixiv_token_test_refresh_enqueued',
           resource: 'PixivToken',
           record_id: token.id.toString(),
           req: request,
           detail: {
-            ok: result.ok,
+            job_id: jobId,
             label: token.label ?? null,
             refreshTokenMasked: token.refreshTokenMasked,
-            status: result.ok ? 200 : result.status ?? null,
-            code: result.ok ? null : result.code,
-            message: result.ok ? null : result.message,
+            request_id: requestId ?? null,
           },
         });
 
@@ -270,9 +308,7 @@ export const pixivTokenResourceOptions = {
 
         return {
           record: jsonRecord,
-          notice: result.ok
-            ? { type: 'success', message: `OK (expires_in=${result.expires_in}s)` }
-            : { type: 'error', message: `${result.code}${result.status ? ` (${result.status})` : ''}: ${result.message}` },
+          notice: { type: 'success', message: `已入队 test_refresh: ${jobId}` },
           redirectUrl: h.recordActionUrl({ resourceId: resource.id(), recordId: record.id(), actionName: 'show' }),
         };
       },

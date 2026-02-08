@@ -10,17 +10,13 @@ vi.mock('../src/config/runtimeConfig', () => ({
   invalidateRuntimeCaches: vi.fn(),
 }));
 
-vi.mock('../src/services/pixivAuthService', async () => {
-  const actual = await vi.importActual<any>('../src/services/pixivAuthService');
-  return {
-    ...actual,
-    testRefreshToken: vi.fn(),
-  };
-});
+vi.mock('../src/jobs/adminActions', () => ({
+  enqueueAdminPixivTokenTestRefresh: vi.fn(),
+}));
 
 import { auditAdminModelChange } from '../src/audit/adminAudit';
 import { invalidateRuntimeCaches } from '../src/config/runtimeConfig';
-import { testRefreshToken } from '../src/services/pixivAuthService';
+import { enqueueAdminPixivTokenTestRefresh } from '../src/jobs/adminActions';
 import { pixivTokenResourceOptions } from '../src/admin/resources/pixivTokens';
 
 afterEach(() => {
@@ -72,7 +68,7 @@ describe('AdminJS PixivToken resource options', () => {
   });
 
   it('testRefresh handler reads DB token and returns notice without leaking refreshToken', async () => {
-    (testRefreshToken as any).mockResolvedValueOnce({ ok: true, expires_in: 3600 });
+    (enqueueAdminPixivTokenTestRefresh as any).mockResolvedValueOnce('job-1');
 
     const prisma = {
       pixivToken: {
@@ -80,7 +76,6 @@ describe('AdminJS PixivToken resource options', () => {
           id: BigInt(1),
           enabled: true,
           label: 't1',
-          refreshToken: 'secret_refresh_token',
           refreshTokenMasked: 'secr...oken',
         })),
       },
@@ -105,10 +100,51 @@ describe('AdminJS PixivToken resource options', () => {
     );
 
     expect(prisma.pixivToken.findUnique).toHaveBeenCalledTimes(1);
+    expect(enqueueAdminPixivTokenTestRefresh).toHaveBeenCalledTimes(1);
     expect(result.notice.type).toBe('success');
-    expect(String(result.notice.message)).toContain('expires_in=3600');
-    expect(JSON.stringify(result)).not.toContain('secret_refresh_token');
+    expect(String(result.notice.message)).toContain('job-1');
     expect(auditAdminModelChange).toHaveBeenCalled();
   });
-});
 
+  it('testRefresh handler returns error notice when enqueue times out', async () => {
+    vi.useFakeTimers();
+    (enqueueAdminPixivTokenTestRefresh as any).mockImplementationOnce(() => new Promise(() => undefined));
+
+    const prisma = {
+      pixivToken: {
+        findUnique: vi.fn(async () => ({
+          id: BigInt(1),
+          enabled: true,
+          label: 't1',
+          refreshTokenMasked: 'secr...oken',
+        })),
+      },
+    } as any;
+    setPrismaClientForTest(prisma);
+
+    const record = {
+      params: { id: '1' },
+      id: () => '1',
+      toJSON: () => ({ params: { id: '1' } }),
+    };
+
+    const promise = (pixivTokenResourceOptions.actions as any).testRefresh.handler(
+      { method: 'post', headers: { 'user-agent': 'ua', 'x-request-id': 'req-1' } },
+      {},
+      {
+        record,
+        currentAdmin: {},
+        resource: { id: () => 'PixivToken' },
+        h: { recordActionUrl: () => '/admin/resources/PixivToken/records/1/show' },
+      },
+    );
+
+    await vi.advanceTimersByTimeAsync(5_100);
+
+    const result = await promise;
+    expect(result.notice.type).toBe('error');
+    expect(String(result.notice.message)).toContain('入队超时');
+
+    vi.useRealTimers();
+  });
+});

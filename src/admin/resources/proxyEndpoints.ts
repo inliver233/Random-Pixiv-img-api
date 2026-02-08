@@ -4,8 +4,8 @@ import {
   importProxyEndpointsFromEasyProxies,
   loadEasyProxiesRuntimeConfig,
 } from '../../proxy/easyProxiesImporter';
-import { runProxyHealthCheckOnce } from '../../proxy/healthCheck';
 import { importProxyUriLines, parseProxyUriTextLines, type ProxyUriImportConflictPolicy } from '../../proxy/proxyUriImporter';
+import { enqueueAdminProxyEndpointProbe } from '../../jobs/adminActions';
 import { runWithTimeout } from '../utils/runWithTimeout';
 
 function safeParseNumber(value: any): any {
@@ -512,7 +512,7 @@ export function createProxyEndpointResourceOptions(prisma: any) {
       },
       probe: {
         actionType: 'record',
-        component: false,
+        component: 'RecordActionRunner',
         icon: 'Activity',
         label: '立即探测',
         guard: '确认立即探测该代理吗？',
@@ -542,7 +542,7 @@ export function createProxyEndpointResourceOptions(prisma: any) {
           try {
             const endpoint = await prisma.proxyEndpoint.findUnique({
               where: { id },
-              select: { id: true, enabled: true, scheme: true, host: true, port: true, username: true, password: true },
+              select: { id: true, enabled: true },
             });
 
             if (!endpoint) {
@@ -552,106 +552,67 @@ export function createProxyEndpointResourceOptions(prisma: any) {
               };
             }
 
-            const formatHostForUri = (host: string): string => {
-              const trimmed = String(host ?? '').trim();
-              if (!trimmed) throw new Error('代理主机不能为空。');
-              if (trimmed.includes(':') && !trimmed.startsWith('[') && !trimmed.endsWith(']')) return `[${trimmed}]`;
-              return trimmed;
-            };
+            const requestIdRaw = request?.request_id || request?.headers?.['x-request-id'];
+            const requestId = typeof requestIdRaw === 'string' && requestIdRaw.trim() ? requestIdRaw.trim() : undefined;
+            const actor = typeof request?.session?.admin_user === 'string' ? request.session.admin_user : undefined;
 
-            const scheme = String(endpoint.scheme ?? '').trim().toLowerCase();
-            const host = formatHostForUri(String(endpoint.host ?? ''));
-            const port = Number(endpoint.port);
-            if (!scheme) throw new Error('代理协议不能为空。');
-            if (!Number.isFinite(port) || port <= 0 || port > 65535) throw new Error('代理端口不合法。');
-
-            const username = String(endpoint.username ?? '');
-            const password = String(endpoint.password ?? '');
-            const authNeeded = username !== '' || password !== '';
-            const auth = authNeeded
-              ? `${encodeURIComponent(username)}:${encodeURIComponent(password)}@`
-              : '';
-            const proxyUri = `${scheme}://${auth}${host}:${port}`;
-
-            const probeTimeoutMs = Math.max(
-              1_500,
-              Math.min(
-                12_000,
-                Number.parseInt(String(process.env.ADMIN_PROXY_PROBE_TIMEOUT_MS ?? '4500'), 10) || 4_500,
-              ),
+            const enqueueResult = await runWithTimeout(
+              enqueueAdminProxyEndpointProbe({ endpointId: endpoint.id, requestId, actor }),
+              5_000,
             );
 
-            const probeResult = await runWithTimeout(
-              runProxyHealthCheckOnce({
-                candidates: [{ id: endpoint.id.toString(), proxyUri }],
-                options: {
-                  maxConcurrency: 1,
-                  minHealthy: 0,
-                  windowSize: 1,
-                  timeoutMs: probeTimeoutMs,
-                },
-              }),
-              probeTimeoutMs + 300,
-            );
-
-            if (probeResult.status === 'timeout') {
+            if (enqueueResult.status === 'timeout') {
               auditAdminModelChange({
-                action: 'proxy_endpoint_probe_timeout',
+                action: 'proxy_endpoint_probe_enqueue_timeout',
                 resource: 'ProxyEndpoint',
                 record_id: endpoint.id.toString(),
                 req: request,
-                detail: {
-                  timeoutMs: probeTimeoutMs,
-                },
+                detail: { job_queue: 'admin_proxy_endpoint_probe', request_id: requestId ?? null },
               });
 
               const jsonRecord = record.toJSON(currentAdmin);
               sanitizeRecordJson(jsonRecord);
               return {
                 record: jsonRecord,
-                notice: { type: 'error', message: `探测超时（>${probeTimeoutMs}ms），请稍后重试。` },
+                notice: { type: 'error', message: '入队超时（>5000ms），请稍后重试。' },
                 redirectUrl: h.recordActionUrl({ resourceId: resource.id(), recordId: record.id(), actionName: 'show' }),
               };
             }
 
-            if (probeResult.status === 'error') {
-              throw new Error(`探测失败: ${probeResult.error}`);
+            if (enqueueResult.status === 'error') {
+              auditAdminModelChange({
+                action: 'proxy_endpoint_probe_enqueue_error',
+                resource: 'ProxyEndpoint',
+                record_id: endpoint.id.toString(),
+                req: request,
+                detail: { job_queue: 'admin_proxy_endpoint_probe', request_id: requestId ?? null, error: enqueueResult.error },
+              });
+
+              const jsonRecord = record.toJSON(currentAdmin);
+              sanitizeRecordJson(jsonRecord);
+              return {
+                record: jsonRecord,
+                notice: { type: 'error', message: `入队失败: ${enqueueResult.error}` },
+                redirectUrl: h.recordActionUrl({ resourceId: resource.id(), recordId: record.id(), actionName: 'show' }),
+              };
             }
 
-            const report = probeResult.value;
-            const entry = report.entries.find((e) => e.id === endpoint.id.toString()) ?? null;
-
-            const ok = Boolean(entry?.lastOk);
-            const status = entry?.status ?? 'unknown';
-            const latencyMs = entry?.lastLatencyMs;
-            const error = entry?.lastError;
+            const jobId = enqueueResult.value;
 
             auditAdminModelChange({
-              action: ok ? 'proxy_endpoint_probe_ok' : 'proxy_endpoint_probe_fail',
+              action: 'proxy_endpoint_probe_enqueued',
               resource: 'ProxyEndpoint',
               record_id: endpoint.id.toString(),
               req: request,
-              detail: {
-                enabled: endpoint.enabled,
-                status,
-                latencyMs: typeof latencyMs === 'number' && Number.isFinite(latencyMs) ? Math.round(latencyMs) : null,
-                error,
-                probeUrl: report.probeUrl,
-                timeoutMs: report.timeoutMs,
-              },
+              detail: { job_id: jobId, request_id: requestId ?? null, enabled: endpoint.enabled },
             });
-
-            const messageParts: string[] = [];
-            messageParts.push(`状态:${status}`);
-            if (typeof latencyMs === 'number' && Number.isFinite(latencyMs)) messageParts.push(`延迟ms:${Math.round(latencyMs)}`);
-            if (error) messageParts.push(`错误:${error}`);
 
             const jsonRecord = record.toJSON(currentAdmin);
             sanitizeRecordJson(jsonRecord);
 
             return {
               record: jsonRecord,
-              notice: { type: ok ? 'success' : 'error', message: messageParts.join(' ') },
+              notice: { type: 'success', message: `已入队 probe: ${jobId}` },
               redirectUrl: h.recordActionUrl({ resourceId: resource.id(), recordId: record.id(), actionName: 'show' }),
             };
           } catch (err: unknown) {

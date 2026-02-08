@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 
 import { imageResourceOptions } from '../src/admin/resources/images';
 import { pixivTokenResourceOptions } from '../src/admin/resources/pixivTokens';
+import { createProxyEndpointResourceOptions } from '../src/admin/resources/proxyEndpoints';
 
 function hasComponentSettingForAction(source: string, actionName: string, componentValue: string | false): boolean {
   const escaped = actionName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -23,6 +24,9 @@ describe('admin action component contract', () => {
 
     const tokenActions = (pixivTokenResourceOptions as any).actions;
     expect(tokenActions.testRefresh.component).toBe('RecordActionRunner');
+
+    const proxyActions = (createProxyEndpointResourceOptions({}) as any).actions;
+    expect(proxyActions.probe.component).toBe('RecordActionRunner');
   });
 
   it('keeps inline adminJs custom actions using correct view contracts', () => {

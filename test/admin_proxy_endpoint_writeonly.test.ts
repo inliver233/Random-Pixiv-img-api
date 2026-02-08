@@ -8,7 +8,12 @@ vi.mock('../src/config/runtimeConfig', () => ({
   invalidateRuntimeCaches: vi.fn(),
 }));
 
+vi.mock('../src/jobs/adminActions', () => ({
+  enqueueAdminProxyEndpointProbe: vi.fn(),
+}));
+
 import { createProxyEndpointResourceOptions } from '../src/admin/resources/proxyEndpoints';
+import { enqueueAdminProxyEndpointProbe } from '../src/jobs/adminActions';
 
 describe('AdminJS ProxyEndpoint write-only password', () => {
   afterEach(() => {
@@ -84,5 +89,43 @@ describe('AdminJS ProxyEndpoint write-only password', () => {
     );
 
     expect(out.record.params.password).toBeUndefined();
+  });
+
+  it('probe POST enqueues job and does not leak password', async () => {
+    (enqueueAdminProxyEndpointProbe as any).mockResolvedValueOnce('job-1');
+
+    const prisma: any = {
+      proxyEndpoint: {
+        findUnique: vi.fn(async () => ({ id: 1n, enabled: true })),
+      },
+    };
+    const options: any = createProxyEndpointResourceOptions(prisma);
+    const handler = options.actions.probe.handler;
+
+    const record: any = {
+      params: { id: '1', password: 'secret' },
+      id: () => '1',
+      toJSON: () => ({ params: { id: '1', password: 'secret' } }),
+    };
+
+    const out = await handler(
+      { method: 'post', headers: { 'x-request-id': 'req-1' }, session: { admin_user: 'admin' } },
+      {},
+      {
+        record,
+        currentAdmin: {},
+        resource: { id: () => 'ProxyEndpoint' },
+        h: {
+          recordActionUrl: () => '/admin/resources/ProxyEndpoint/records/1/show',
+          resourceUrl: () => '/admin/resources/ProxyEndpoint',
+        },
+      },
+    );
+
+    expect(prisma.proxyEndpoint.findUnique).toHaveBeenCalledTimes(1);
+    expect(enqueueAdminProxyEndpointProbe).toHaveBeenCalledTimes(1);
+    expect(out.notice.type).toBe('success');
+    expect(String(out.notice.message)).toContain('job-1');
+    expect(JSON.stringify(out)).not.toContain('secret');
   });
 });

@@ -2,6 +2,7 @@ import { getPrismaClient } from '../../db/prismaClient';
 import { auditAdminImageStatusChange, auditAdminModelChange } from '../../audit/adminAudit';
 import { IMAGE_STATUS_ACTIVE, IMAGE_STATUS_BROKEN, IMAGE_STATUS_DISABLED } from '../../repositories/imagesRepo';
 import { enqueueHydrateMetadata } from '../../jobs/hydrateMetadata';
+import { runWithTimeout } from '../utils/runWithTimeout';
 
 function toBigIntId(value: any): bigint {
   if (typeof value === 'bigint') return value;
@@ -219,7 +220,26 @@ export const imageResourceOptions = {
         const requestId = typeof requestIdRaw === 'string' && requestIdRaw.trim() ? requestIdRaw.trim() : undefined;
 
         try {
-          const jobId = await enqueueHydrateMetadata(illustId, requestId);
+          const enqueueResult = await runWithTimeout(enqueueHydrateMetadata(illustId, requestId), 5_000);
+          if (enqueueResult.status === 'timeout') {
+            auditAdminModelChange({
+              action: 'image_hydrate_metadata_enqueue_timeout',
+              resource: 'Image',
+              record_id: record.id?.() ? String(record.id()) : String(record.params?.id),
+              req: request,
+              detail: { illust_id: illustId.toString(), request_id: requestId ?? null },
+            });
+            return {
+              record: record.toJSON(currentAdmin),
+              notice: { type: 'error', message: '入队超时（>5000ms），请稍后重试。' },
+              redirectUrl: h.recordActionUrl({ resourceId: resource.id(), recordId: record.id(), actionName: 'show' }),
+            };
+          }
+          if (enqueueResult.status === 'error') {
+            throw new Error(enqueueResult.error);
+          }
+
+          const jobId = enqueueResult.value;
 
           auditAdminModelChange({
             action: 'image_hydrate_metadata_enqueue',

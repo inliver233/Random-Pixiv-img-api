@@ -91,6 +91,7 @@ export async function runApp(params: { argv?: string[] } = {}): Promise<void> {
   const registerHydrateMetadataWorker = require('./src/jobs/hydrateMetadata').registerHydrateMetadataWorker as () => Promise<void>;
   const registerHealUrlWorker = require('./src/jobs/healUrl').registerHealUrlWorker as () => Promise<void>;
   const registerHydrationBackfillWorker = require('./src/jobs/hydrationBackfill').registerHydrationBackfillWorker as () => Promise<void>;
+  const registerAdminActionsWorker = require('./src/jobs/adminActions').registerAdminActionsWorker as () => Promise<void>;
 
   void registerHydrateMetadataWorker().catch((err: unknown) => {
     logger.error({ err }, 'register hydrate_metadata worker failed');
@@ -102,6 +103,10 @@ export async function runApp(params: { argv?: string[] } = {}): Promise<void> {
 
   void registerHydrationBackfillWorker().catch((err: unknown) => {
     logger.error({ err }, 'register hydration_backfill worker failed');
+  });
+
+  void registerAdminActionsWorker().catch((err: unknown) => {
+    logger.error({ err }, 'register admin actions worker failed');
   });
 }
 

@@ -20,6 +20,7 @@ const GROUPS = [
     links: [
       { href: '/admin/resources/HydrationRun', label: '补全运行记录' },
       { href: '/admin/pages/hydrationOps', label: '补全运行 / DLQ 面板' },
+      { href: '/admin/pages/adminJobs', label: '后台任务（Admin Jobs）' },
     ],
   },
   {
