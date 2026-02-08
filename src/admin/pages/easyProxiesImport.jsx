@@ -159,6 +159,7 @@ export default function EasyProxiesImportPage() {
   const env = data?.env || null;
   const autoRefresh = data?.auto_refresh || null;
   const proxies = data?.proxies || null;
+  const easyProxiesBlocked = data?.ok === true && !config?.base_url;
 
   const lastResult = useMemo(() => {
     const r = autoRefresh?.last_result || null;
@@ -334,7 +335,7 @@ export default function EasyProxiesImportPage() {
 
           <button
             type="button"
-            disabled={loading}
+            disabled={loading || easyProxiesBlocked}
             onClick={() => runAction('easyProxiesImport', {})}
             style={buttonStyle}
           >
@@ -360,6 +361,13 @@ export default function EasyProxiesImportPage() {
             {loading ? '刷新中…' : '刷新页面'}
           </button>
         </div>
+
+        {easyProxiesBlocked ? (
+          <div style={{ marginTop: 10, ...createCalloutStyle('warning') }}>
+            当前未配置 easy_proxies 的 <b>baseUrl</b>。请先填写 baseUrl 并点击「保存配置」。
+            未配置时「立即导入/刷新」已禁用，避免误操作。
+          </div>
+        ) : null}
       </div>
 
       <div style={{ marginTop: 12, ...createCardStyle() }}>
