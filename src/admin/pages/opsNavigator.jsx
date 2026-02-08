@@ -29,6 +29,7 @@ const GROUPS = [
     links: [
       { href: '/admin/pages/easyProxiesImport', label: 'easy_proxies 导入/刷新' },
       { href: '/admin/resources/ProxyEndpoint', label: '代理端点（ProxyEndpoint）' },
+      { href: '/admin/resources/ProxyPool', label: '代理池（ProxyPool）' },
       { href: '/admin/pages/proxyPoolOverview', label: '代理池概览（统计）' },
     ],
   },

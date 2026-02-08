@@ -77,6 +77,9 @@ export default function ProxyPoolOverviewPage() {
     <div style={pageRootStyle}>
       <h2 style={pageTitleStyle}>代理池概览与可观测性</h2>
       <p style={{ marginTop: 0, color: '#666' }}>生成时间：{safeString(data?.generated_at || '')}</p>
+      <p style={{ marginTop: 0, color: '#666' }}>
+        管理入口：<a href="/admin/resources/ProxyPool" style={{ color: '#2563eb' }}>ProxyPool 资源页</a>
+      </p>
 
       {error ? (
         <div style={createCalloutStyle('danger')}>

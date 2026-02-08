@@ -21,6 +21,7 @@ import { adminAuditResourceOptions } from './resources/adminAudits';
 import { requestLogResourceOptions } from './resources/requestLogs';
 import { pixivTokenResourceOptions } from './resources/pixivTokens';
 import { createProxyEndpointResourceOptions } from './resources/proxyEndpoints';
+import { proxyPoolResourceOptions } from './resources/proxyPools';
 import { hasEffectiveFilterValue } from './utils/filterValue';
 import { runWithTimeout } from './utils/runWithTimeout';
 import { getBuildInfo } from '../utils/buildInfo';
@@ -1898,6 +1899,10 @@ export async function getAdminJsRouter(): Promise<Router> {
           {
             resource: { model: getModelByName('PixivToken', prismaClientModule), client: prisma, clientModule: prismaClientModule },
             options: pixivTokenResourceOptions,
+          },
+          {
+            resource: { model: getModelByName('ProxyPool', prismaClientModule), client: prisma, clientModule: prismaClientModule },
+            options: proxyPoolResourceOptions,
           },
           {
             resource: { model: getModelByName('TokenProxyBinding', prismaClientModule), client: prisma, clientModule: prismaClientModule },

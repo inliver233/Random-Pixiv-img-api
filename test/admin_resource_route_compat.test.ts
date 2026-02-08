@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import adminRoute from '../src/routes/admin.ts';
 import { adminAuditResourceOptions } from '../src/admin/resources/adminAudits';
 import { importResourceOptions } from '../src/admin/resources/imports';
+import { proxyPoolResourceOptions } from '../src/admin/resources/proxyPools';
 import { requestLogResourceOptions } from '../src/admin/resources/requestLogs';
 
 const require = createRequire(import.meta.url);
@@ -47,6 +48,7 @@ describe('admin resource route compatibility', () => {
       importResourceOptions,
       requestLogResourceOptions,
       adminAuditResourceOptions,
+      proxyPoolResourceOptions,
     ] as any[];
 
     for (const options of readonlyResources) {
@@ -57,4 +59,3 @@ describe('admin resource route compatibility', () => {
     }
   });
 });
-
