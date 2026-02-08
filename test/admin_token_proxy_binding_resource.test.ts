@@ -9,6 +9,11 @@ describe('hasEffectiveFilterValue', () => {
     expect(hasEffectiveFilterValue('')).toBe(false);
     expect(hasEffectiveFilterValue('   ')).toBe(false);
     expect(hasEffectiveFilterValue([])).toBe(false);
+    expect(hasEffectiveFilterValue([''])).toBe(false);
+    expect(hasEffectiveFilterValue({})).toBe(false);
+    expect(hasEffectiveFilterValue({ value: '' })).toBe(false);
+    expect(hasEffectiveFilterValue({ id: '   ' })).toBe(false);
+    expect(hasEffectiveFilterValue({ from: '', to: '' })).toBe(false);
   });
 
   it('returns true for valid scalar and list filter inputs', () => {
@@ -17,6 +22,9 @@ describe('hasEffectiveFilterValue', () => {
     expect(hasEffectiveFilterValue(0)).toBe(true);
     expect(hasEffectiveFilterValue(false)).toBe(true);
     expect(hasEffectiveFilterValue(['token-1'])).toBe(true);
+    expect(hasEffectiveFilterValue(['', 'token-1'])).toBe(true);
+    expect(hasEffectiveFilterValue({ value: '1' })).toBe(true);
+    expect(hasEffectiveFilterValue({ id: '1' })).toBe(true);
+    expect(hasEffectiveFilterValue({ from: '2026-02-01', to: '' })).toBe(true);
   });
 });
-

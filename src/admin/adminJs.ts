@@ -82,17 +82,26 @@ export async function getAdminJsRouter(): Promise<Router> {
         if (!foreignColumn) return value;
         if (value === undefined || value === null) return value;
 
+        const unwrapAdminJsValue = (input: any): any => {
+          if (!input || typeof input !== 'object') return input;
+          if ('id' in input) return (input as any).id;
+          if ('value' in input) return (input as any).value;
+          return input;
+        };
+
+        const rawValue = unwrapAdminJsValue(value);
+
         const foreignColumnType = foreignColumn.type;
-        if (foreignColumnType === 'String') return String(value);
+        if (foreignColumnType === 'String') return String(rawValue);
         if (foreignColumnType === 'BigInt') {
           try {
-            return typeof value === 'bigint' ? value : BigInt(String(value));
+            return typeof rawValue === 'bigint' ? rawValue : BigInt(String(rawValue));
           } catch {
-            return value;
+            return rawValue;
           }
         }
 
-        return safeParseNumber(value);
+        return safeParseNumber(rawValue);
       }
 
       return value;
