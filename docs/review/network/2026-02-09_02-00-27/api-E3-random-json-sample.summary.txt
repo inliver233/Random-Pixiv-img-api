@@ -1,0 +1,5 @@
+﻿url=https://i.mukyu.ru/random?format=json
+status=200
+first_line=HTTP/1.1 200 OK
+body_snippet=
+{"id":28251,"illust_id":132730693,"page_index":6,"r18":false,"width":null,"height":null,"orientation":"unknown","tags":[],"author":{"user_id":null,"name":null},"urls":{"proxy":"/i/28251.jpg","origin":"https://i.pximg.net/img-original/img/2025/07/15/20/22/40/132730693_p6.jpg"},"cache":{"max_age":31536000},"debug":{"picked_by":"random_key","attempt":3}}

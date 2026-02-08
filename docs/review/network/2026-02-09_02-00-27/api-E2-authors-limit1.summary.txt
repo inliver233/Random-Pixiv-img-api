@@ -1,0 +1,5 @@
+﻿url=https://i.mukyu.ru/authors?limit=1
+status=200
+first_line=HTTP/1.1 200 OK
+body_snippet=
+{"items":[],"next_cursor":null,"pagination":{"limit":1,"has_more":false},"query":{"q":null}}

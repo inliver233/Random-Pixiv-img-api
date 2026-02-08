@@ -6,6 +6,7 @@ describe('hydration run empty-state recovery', () => {
   it('supports start_backfill action on hydrationOps page handler', () => {
     const source = fs.readFileSync(path.join(process.cwd(), 'src/admin/adminJs.ts'), 'utf8');
     expect(source).toContain("if (action === 'start_backfill')");
+    expect(source).toContain('missing_metadata');
     expect(source).toContain('hydration_run_start_from_ops');
   });
 

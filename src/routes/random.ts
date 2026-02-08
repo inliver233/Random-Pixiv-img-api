@@ -363,6 +363,19 @@ function buildNoMatchHints(filters: Record<string, unknown>): {
   if (filters.userId !== undefined || filters.illustId !== undefined) suggestions.push('remove user_id/illust_id');
   if (filters.xRestrict !== undefined && filters.xRestrict !== 0) suggestions.push('fallback to r18=0');
 
+  const needsMetadata =
+    filters.orientation !== undefined ||
+    filters.minWidth !== undefined ||
+    filters.minHeight !== undefined ||
+    filters.minPixels !== undefined ||
+    filters.includedTags !== undefined ||
+    filters.excludedTags !== undefined ||
+    filters.userId !== undefined ||
+    filters.illustId !== undefined;
+  if (needsMetadata) {
+    suggestions.unshift('run hydration backfill to improve metadata coverage');
+  }
+
   if (suggestions.length === 0) {
     suggestions.push('import more metadata and retry with fewer filters');
   }

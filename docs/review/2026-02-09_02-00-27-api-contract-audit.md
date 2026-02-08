@@ -56,3 +56,24 @@
 ## 3. 发现的问题（待追加）
 
 （按 High/Medium/Low 追加；每条必须包含：复现步骤、network 摘要、证据路径、代码定位、期望vs实际、修复建议。）
+
+### 3.1 E) 元信息缺失导致强筛选价值不可用（/authors 为空、/random tags/author/尺寸为 null）
+- 复现步骤（真实站点）：
+  1) 请求：`GET https://i.mukyu.ru/random?format=json`
+  2) 观察：`width/height=null`、`tags=[]`、`author.user_id=null`（说明未补全）
+  3) 请求：`GET https://i.mukyu.ru/authors?limit=1`
+  4) 观察：`items=[]`
+  5) 请求：`GET https://i.mukyu.ru/tags?limit=1`
+  6) 观察：`image_count=0`（补全不足时计数不会增长）
+- 关键 network 摘要（脱敏）：
+  - `docs/review/network/2026-02-09_02-00-27/api-E3-random-json-sample.summary.txt`
+  - `docs/review/network/2026-02-09_02-00-27/api-E2-authors-limit1.summary.txt`
+  - `docs/review/network/2026-02-09_02-00-27/api-E1-tags-limit1.summary.txt`
+- root cause 假设：
+  - 可能存在“大批量导入跳过 hydrate_on_import”或“backfill 未运行/未覆盖 tags”等情况，导致 DB 中大部分 Image 元信息仍为空。
+- 修复落地（本仓库，待部署验证）：
+  - backfill 支持将 `tags` 作为缺失字段，并在 HydrationOps 的“一键 backfill”默认启用 `missing_metadata=true`（更贴近用户目标：优先补空字段而非全表重复）。
+  - HydrationOps 增加覆盖率统计（缺少几何/作者/x_restrict/tags 的计数），用于量化补全进度与闭环验收。
+  - /random 的 `NO_MATCH` hints 增加 “run hydration backfill…” 提示，避免用户误判为“系统无图”。
+- 部署后人工验收：
+  - Admin：`/admin/pages/hydrationOps` 创建 backfill run → 观察 progress/DLQ → 再次请求 `/random?format=json` 与 `/authors?limit=1` 验证元信息与分类不再为空。

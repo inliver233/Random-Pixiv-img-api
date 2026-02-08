@@ -128,7 +128,7 @@ function normalizeCriteria(criteria: unknown): NormalizedBackfillCriteria {
   const normalizedMissingFields = missingFields.length > 0
     ? missingFields
     : missingMetadata
-      ? ['width', 'height', 'userId', 'userName', 'title', 'createdAtPixiv', 'xRestrict']
+      ? ['width', 'height', 'userId', 'userName', 'title', 'createdAtPixiv', 'xRestrict', 'tags']
       : [];
 
   return {
@@ -169,6 +169,7 @@ function normalizeMissingFieldName(value: string): string | null {
   if (key === 'created_at_pixiv' || key === 'createdatpixiv') return 'createdAtPixiv';
   if (key === 'x_restrict' || key === 'xrestrict') return 'xRestrict';
   if (key === 'ai_type' || key === 'aitype') return 'aiType';
+  if (key === 'tags' || key === 'tag' || key === 'image_tags' || key === 'imagetags') return 'tags';
 
   return null;
 }
@@ -189,6 +190,7 @@ function buildMissingFieldsWhere(fields: string[]): Prisma.ImageWhereInput | nul
     else if (name === 'createdAtPixiv') or.push({ createdAtPixiv: null });
     else if (name === 'xRestrict') or.push({ xRestrict: null });
     else if (name === 'aiType') or.push({ aiType: null });
+    else if (name === 'tags') or.push({ imageTags: { none: {} } });
   }
 
   if (or.length === 0) return null;

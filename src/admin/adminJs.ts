@@ -1019,7 +1019,7 @@ export async function getAdminJsRouter(): Promise<Router> {
               if (action === 'start_backfill') {
                 const rawBatchSize = payload.batch_size ?? payload.batchSize;
                 const batchSize = Math.max(1, Math.min(1000, coerceInt(rawBatchSize, 200)));
-                const criteria = { batch_size: batchSize } as Prisma.InputJsonValue;
+                const criteria = { batch_size: batchSize, missing_metadata: true } as Prisma.InputJsonValue;
 
                 try {
                   // eslint-disable-next-line @typescript-eslint/no-var-requires
@@ -1096,6 +1096,59 @@ export async function getAdminJsRouter(): Promise<Router> {
               runs = [];
             }
 
+            const withTimeout = async <T,>(promise: Promise<T>, timeoutMs: number, timeoutMessage: string): Promise<T> =>
+              Promise.race([
+                promise,
+                new Promise<T>((_, reject) => {
+                  setTimeout(() => reject(new Error(timeoutMessage)), timeoutMs);
+                }),
+              ]);
+
+            let coverage: any = { ok: false, error: null };
+            try {
+              const baseWhere: Prisma.ImageWhereInput = { status: { not: 2 } };
+
+              const timeoutMs = 5000;
+              const [
+                imagesTotal,
+                imagesMissingGeometry,
+                imagesMissingAuthor,
+                imagesMissingXRestrict,
+                imagesMissingTags,
+                tagsTotal,
+                imageTagsTotal,
+              ] = await withTimeout(
+                Promise.all([
+                  prisma.image.count({ where: baseWhere }),
+                  prisma.image.count({ where: { AND: [baseWhere, { OR: [{ width: null }, { height: null }] }] } }),
+                  prisma.image.count({ where: { AND: [baseWhere, { OR: [{ userId: null }, { userName: null }] }] } }),
+                  prisma.image.count({ where: { AND: [baseWhere, { xRestrict: null }] } }),
+                  prisma.image.count({ where: { AND: [baseWhere, { imageTags: { none: {} } }] } }),
+                  prisma.tag.count(),
+                  prisma.imageTag.count(),
+                ]),
+                timeoutMs,
+                'coverage timeout',
+              );
+
+              coverage = {
+                ok: true,
+                generated_at: generatedAt,
+                images_total: imagesTotal,
+                missing: {
+                  geometry: imagesMissingGeometry,
+                  author: imagesMissingAuthor,
+                  x_restrict: imagesMissingXRestrict,
+                  tags: imagesMissingTags,
+                },
+                tags_total: tagsTotal,
+                image_tags_total: imageTagsTotal,
+              };
+            } catch (err: unknown) {
+              const normalized = normalizeRuntimeError(err);
+              coverage = { ok: false, error: normalized.message, error_code: normalized.code };
+            }
+
             const dlqMeta = await queryDlqQueues();
             const defaultQueueName = dlqMeta.ok && dlqMeta.queues.length > 0 ? String(dlqMeta.queues[0]?.name || '') : '';
             const jobs = defaultQueueName ? await queryDlqJobs(defaultQueueName, 50) : [];
@@ -1105,6 +1158,7 @@ export async function getAdminJsRouter(): Promise<Router> {
               generated_at: generatedAt,
               queue,
               runs,
+              coverage,
               dlq: {
                 enabled: dlqEnabled,
                 ok: dlqMeta.ok,

@@ -175,6 +175,9 @@ export default function HydrationOpsPage() {
   const dlq = data?.dlq || null;
   const dlqQueues = Array.isArray(dlq?.queues) ? dlq.queues : [];
   const queueDetail = toFriendlyOpsMessage(data?.queue?.message, '');
+  const coverage = data?.coverage || null;
+  const coverageOk = Boolean(coverage?.ok);
+  const coverageError = toFriendlyOpsMessage(coverage?.error, '');
   const dlqErrorMessage = toFriendlyOpsMessage(dlq?.error, 'DLQ 暂不可用。');
 
   const dlqCountsByName = useMemo(() => {
@@ -231,6 +234,44 @@ export default function HydrationOpsPage() {
               <td style={{ padding: '4px 8px', fontWeight: 600 }}>死信队列开关</td>
               <td style={{ padding: '4px 8px' }}>{dlq?.enabled ? '已启用' : '已关闭'}</td>
             </tr>
+            <tr>
+              <td style={{ padding: '4px 8px', borderTop: '1px solid #eee', fontWeight: 600 }}>元信息覆盖率</td>
+              <td style={{ padding: '4px 8px', borderTop: '1px solid #eee' }}>
+                {coverageOk ? '可用' : (coverageError ? `不可用 (${coverageError})` : '不可用')}
+              </td>
+            </tr>
+            {coverageOk ? (
+              <>
+                <tr>
+                  <td style={{ padding: '4px 8px', fontWeight: 600 }}>图片总数（status!=disabled）</td>
+                  <td style={{ padding: '4px 8px' }}>{formatOptionalNumber(coverage?.images_total)}</td>
+                </tr>
+                <tr>
+                  <td style={{ padding: '4px 8px', fontWeight: 600 }}>缺少几何信息（width/height）</td>
+                  <td style={{ padding: '4px 8px' }}>{formatOptionalNumber(coverage?.missing?.geometry)}</td>
+                </tr>
+                <tr>
+                  <td style={{ padding: '4px 8px', fontWeight: 600 }}>缺少作者信息（user_id/user_name）</td>
+                  <td style={{ padding: '4px 8px' }}>{formatOptionalNumber(coverage?.missing?.author)}</td>
+                </tr>
+                <tr>
+                  <td style={{ padding: '4px 8px', fontWeight: 600 }}>缺少分级信息（x_restrict）</td>
+                  <td style={{ padding: '4px 8px' }}>{formatOptionalNumber(coverage?.missing?.x_restrict)}</td>
+                </tr>
+                <tr>
+                  <td style={{ padding: '4px 8px', fontWeight: 600 }}>缺少标签（image_tags 为空）</td>
+                  <td style={{ padding: '4px 8px' }}>{formatOptionalNumber(coverage?.missing?.tags)}</td>
+                </tr>
+                <tr>
+                  <td style={{ padding: '4px 8px', fontWeight: 600 }}>标签总数</td>
+                  <td style={{ padding: '4px 8px' }}>{formatOptionalNumber(coverage?.tags_total)}</td>
+                </tr>
+                <tr>
+                  <td style={{ padding: '4px 8px', fontWeight: 600 }}>标签绑定总数（image_tags）</td>
+                  <td style={{ padding: '4px 8px' }}>{formatOptionalNumber(coverage?.image_tags_total)}</td>
+                </tr>
+              </>
+            ) : null}
           </tbody>
         </table>
 

@@ -50,10 +50,10 @@ describe('random NO_MATCH degrade hints', () => {
         xRestrict: 1,
       },
     });
+    expect(res.body.hints.suggestions).toContain('run hydration backfill to improve metadata coverage');
     expect(res.body.hints.suggestions).toContain('remove orientation filter');
     expect(res.body.hints.suggestions).toContain('relax included_tags');
     expect(res.body.hints.suggestions).toContain('remove user_id/illust_id');
     expect(res.body.hints.suggestions).toContain('fallback to r18=0');
   });
 });
-
