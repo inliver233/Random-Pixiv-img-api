@@ -25,6 +25,27 @@ afterEach(() => {
 });
 
 describe('AdminJS PixivToken resource options', () => {
+  it('list.after strips refreshToken from response records', async () => {
+    const response = {
+      records: [
+        { params: { id: '1', refreshToken: 'secret1', refreshTokenMasked: 'a...1' } },
+        { params: { id: '2', refreshToken: 'secret2', refreshTokenMasked: 'b...2' } },
+      ],
+    };
+
+    const out = await (pixivTokenResourceOptions.actions as any).list.after(response);
+    expect(out.records[0].params.refreshToken).toBeUndefined();
+    expect(out.records[1].params.refreshToken).toBeUndefined();
+    expect(out.records[0].params.refreshTokenMasked).toBe('a...1');
+  });
+
+  it('show.after strips refreshToken from response record', async () => {
+    const response = { record: { params: { id: '1', refreshToken: 'secret', refreshTokenMasked: 'a...1' } } };
+    const out = await (pixivTokenResourceOptions.actions as any).show.after(response);
+    expect(out.record.params.refreshToken).toBeUndefined();
+    expect(out.record.params.refreshTokenMasked).toBe('a...1');
+  });
+
   it('new.before sets refreshTokenMasked and normalizes empty label', async () => {
     const request = {
       method: 'post',

@@ -23,6 +23,22 @@ function stripSensitiveFields(recordParams: any): void {
   delete recordParams.refreshToken;
 }
 
+function sanitizeActionResponse(response: any): any {
+  if (!response || typeof response !== 'object') return response;
+
+  if (response.record?.params) {
+    stripSensitiveFields(response.record.params);
+  }
+
+  if (Array.isArray(response.records)) {
+    for (const record of response.records) {
+      if (record?.params) stripSensitiveFields(record.params);
+    }
+  }
+
+  return response;
+}
+
 function normalizeOptionalText(value: any): string | null | undefined {
   if (value === undefined) return undefined;
   if (value === null) return null;
@@ -61,6 +77,12 @@ export const pixivTokenResourceOptions = {
     'updatedAt',
   ],
   actions: {
+    list: {
+      after: async (response: any) => sanitizeActionResponse(response),
+    },
+    show: {
+      after: async (response: any) => sanitizeActionResponse(response),
+    },
     new: {
       before: async (request: any) => {
         if (String(request?.method || '').toLowerCase() === 'get') return request;
