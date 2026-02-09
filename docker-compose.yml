@@ -3,6 +3,9 @@ services:
     build:
       context: .
       target: runner
+      args:
+        APP_COMMIT: "${APP_COMMIT:-}"
+        APP_BUILD_TIME: "${APP_BUILD_TIME:-}"
     restart: unless-stopped
     ports:
       - "${BACKEND_PORT:-3000}:3000"
@@ -10,6 +13,9 @@ services:
       NODE_ENV: production
       HOST: "${HOST:-0.0.0.0}"
       PORT: "3000"
+      # Optional build/runtime traceability (recommended): set these at deploy time.
+      APP_COMMIT: "${APP_COMMIT:-}"
+      APP_BUILD_TIME: "${APP_BUILD_TIME:-}"
       TRUST_PROXY: "${TRUST_PROXY:-0}"
       REFRESH_TOKENS: '${REFRESH_TOKENS:-["please_set_refresh_token"]}'
       MEMCACHED_HOST: "${MEMCACHED_HOST:-memcached}"

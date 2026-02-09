@@ -1,6 +1,8 @@
 param(
   [string]$BaseUrl = 'http://127.0.0.1:3000',
-  [int]$TimeoutSec = 20
+  [int]$TimeoutSec = 20,
+  # Optional: provide "user:pass" to verify /metrics when Basic Auth is enabled.
+  [string]$MetricsBasicAuth = $env:METRICS_SMOKE_BASIC_AUTH
 )
 
 $ErrorActionPreference = 'Stop'
@@ -43,22 +45,35 @@ if ([int]$favicon.StatusCode -ne 200 -and [int]$favicon.StatusCode -ne 204) {
 }
 Write-Host "[proxy-smoke] favicon status=$([int]$favicon.StatusCode)"
 
-$metrics = Invoke-WebRequest -Uri "$BaseUrl/metrics" -TimeoutSec $TimeoutSec -UseBasicParsing -SkipHttpErrorCheck
-if ([int]$metrics.StatusCode -ne 200) {
-  throw "Unexpected /metrics status: $($metrics.StatusCode)"
+$metricsHeaders = @{}
+if (-not [string]::IsNullOrWhiteSpace($MetricsBasicAuth)) {
+  $encoded = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($MetricsBasicAuth))
+  $metricsHeaders['Authorization'] = "Basic $encoded"
 }
-$metricBody = [string]$metrics.Content
-$requiredMetrics = @(
-  'pixivcat_up',
-  'http_requests_total',
-  'outbound_errors_total'
-)
-foreach ($metric in $requiredMetrics) {
-  if ($metricBody -notmatch [regex]::Escape($metric)) {
-    throw "Missing metric: $metric"
+
+$metrics = Invoke-WebRequest -Uri "$BaseUrl/metrics" -TimeoutSec $TimeoutSec -UseBasicParsing -SkipHttpErrorCheck -Headers $metricsHeaders
+$metricsStatus = [int]$metrics.StatusCode
+
+if ($metricsStatus -eq 200) {
+  $metricBody = [string]$metrics.Content
+  $requiredMetrics = @(
+    'pixivcat_up',
+    'http_requests_total',
+    'outbound_errors_total'
+  )
+  foreach ($metric in $requiredMetrics) {
+    if ($metricBody -notmatch [regex]::Escape($metric)) {
+      throw "Missing metric: $metric"
+    }
   }
+  Write-Host "[proxy-smoke] metrics ok (found $($requiredMetrics -join ', '))"
+} elseif ($metricsStatus -eq 401) {
+  Write-Host '[proxy-smoke] metrics protected (401)'
+} elseif ($metricsStatus -eq 404) {
+  Write-Host '[proxy-smoke] metrics disabled/protected (404)'
+} else {
+  throw "Unexpected /metrics status: $metricsStatus"
 }
-Write-Host "[proxy-smoke] metrics ok (found $($requiredMetrics -join ', '))"
 
 $randomUrl = "$BaseUrl/random?format=json"
 $randomRes = Invoke-WebRequest -Uri $randomUrl -TimeoutSec $TimeoutSec -UseBasicParsing -SkipHttpErrorCheck

@@ -49,6 +49,10 @@ BACKEND_PORT=3000
 # 反代场景：信任 1 层代理（Nginx/Caddy）
 TRUST_PROXY=1
 
+# （可选但强烈推荐）部署追溯：用于 `/healthz` 与 `/version` 的 build.commit
+# APP_COMMIT=<git-sha>
+# APP_BUILD_TIME=<iso-8601>
+
 # Pixiv（必填；不要提交真实 token）
 REFRESH_TOKENS=["token1","token2"]
 
@@ -135,7 +139,11 @@ curl -i "http://127.0.0.1:${BACKEND_PORT:-3000}/healthz"
 curl -i "http://127.0.0.1:${BACKEND_PORT:-3000}/version"
 
 # 2) 指标（Prometheus）
-curl -s "http://127.0.0.1:${BACKEND_PORT:-3000}/metrics" | head
+# 默认策略：`/metrics` 受保护（不对公网匿名开放），因此可能返回 `401/404`（见 `docs/usage/handbook.md`）。
+curl -I "http://127.0.0.1:${BACKEND_PORT:-3000}/metrics"
+
+# 若你配置了 Basic Auth（推荐生产），可用以下方式抓取：
+# curl -u "<user>:<pass>" "http://127.0.0.1:${BACKEND_PORT:-3000}/metrics" | head
 
 # 3) /random：JSON（若未导入图片，可能 404 NO_MATCH）
 curl -i "http://127.0.0.1:${BACKEND_PORT:-3000}/random?format=json"
@@ -149,6 +157,8 @@ curl -I "http://127.0.0.1:${BACKEND_PORT:-3000}/12345678-1.jpg"
 ```
 
 更多 `/random` 参数说明：见 `docs/api/random.md`。
+
+更完整的发布/迁移/复验顺序（推荐按此执行）：`docs/deployment/redeploy-verify-runbook.md`。
 
 ### 1.9 反代（Nginx 示例）
 

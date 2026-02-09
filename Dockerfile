@@ -12,6 +12,11 @@ RUN npm ci
 
 FROM deps AS build
 
+ARG APP_COMMIT=""
+ARG APP_BUILD_TIME=""
+ENV APP_COMMIT=$APP_COMMIT
+ENV APP_BUILD_TIME=$APP_BUILD_TIME
+
 COPY tsconfig.json app.ts ./
 COPY src ./src
 COPY views ./views

@@ -767,6 +767,16 @@ curl -s "http://127.0.0.1:3000/images/1" | jq .
 curl -s "http://127.0.0.1:3000/healthz" | jq .
 ```
 
+发布一致性校验（推荐作为上线门禁）：
+
+```bash
+# 校验 /healthz 与 /version 的 build.commit 一致，并可选对齐期望 commit
+npm run smoke:runtime -- http://127.0.0.1:3000
+EXPECTED_COMMIT=<commit> npm run smoke:runtime -- https://<your-domain>
+```
+
+完整发布与复验流程：`docs/deployment/redeploy-verify-runbook.md`。
+
 字段说明：
 - `db.ok`：Postgres 是否可用
 - `memcached.ok`：Memcached 是否可用
