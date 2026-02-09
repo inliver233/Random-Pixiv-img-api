@@ -25,6 +25,7 @@ import { proxyPoolResourceOptions } from './resources/proxyPools';
 import { hasEffectiveFilterValue } from './utils/filterValue';
 import { runWithTimeout } from './utils/runWithTimeout';
 import { getBuildInfo } from '../utils/buildInfo';
+import { redactString, sanitizeStructuredData } from '../utils/redaction';
 
 let cachedRouter: Router | null = null;
 let cachedPromise: Promise<Router> | null = null;
@@ -557,9 +558,12 @@ export async function getAdminJsRouter(): Promise<Router> {
               if (!output || typeof output !== 'object') return { message: null, stack: null };
               const value = (output as any).value ?? output;
               if (!value || typeof value !== 'object') return { message: null, stack: null };
-              const message = typeof (value as any).message === 'string' ? (value as any).message : null;
-              const stack = typeof (value as any).stack === 'string' ? (value as any).stack : null;
-              return { message, stack };
+              const rawMessage = typeof (value as any).message === 'string' ? (value as any).message : null;
+              const rawStack = typeof (value as any).stack === 'string' ? (value as any).stack : null;
+              return {
+                message: rawMessage ? redactString(rawMessage) : null,
+                stack: rawStack ? redactString(rawStack) : null,
+              };
             };
 
             const truncate = (value: string, max = 240): string => {
@@ -612,7 +616,7 @@ export async function getAdminJsRouter(): Promise<Router> {
 
                 return rows.map((row) => {
                   const output = extractOutputMessage(row.output);
-                  const outputPreview = row.output ? truncate(JSON.stringify(row.output), 240) : null;
+                  const outputPreview = row.output ? truncate(JSON.stringify(sanitizeStructuredData(row.output)), 240) : null;
                   return {
                     id: row.id,
                     queue: row.queue,

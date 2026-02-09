@@ -1,5 +1,8 @@
 import logger from '../logger/logger';
 import { getPrismaClient } from '../db/prismaClient';
+import { extractAdminActor } from '../utils/redactionActor';
+import { pickForwardedFor, safeRequestId } from '../utils/requestMeta';
+import { sanitizeStructuredData } from '../utils/redaction';
 
 type AdminAuditEvent = {
   category: 'admin';
@@ -14,92 +17,6 @@ type AdminAuditEvent = {
   user_agent?: string;
   detail?: unknown;
 };
-
-const REDACTED_VALUE = '[REDACTED]';
-const TRUNCATED_VALUE = '[TRUNCATED]';
-const CIRCULAR_VALUE = '[CIRCULAR]';
-
-function pickForwardedFor(req: any): string | undefined {
-  const raw = req?.headers?.['x-forwarded-for'];
-  if (!raw) return undefined;
-  const value = Array.isArray(raw) ? raw[0] : String(raw);
-  const first = value.split(',')[0]?.trim();
-  return first || undefined;
-}
-
-function getRequestId(req: any): string | undefined {
-  return req?.request_id || req?.headers?.['x-request-id'] || undefined;
-}
-
-function extractAdminActor(req: any): string | undefined {
-  const user = req?.session?.admin_user;
-  if (typeof user === 'string' && user.trim()) return user.trim();
-  if (user !== undefined && user !== null) return String(user);
-  if (req?.session?.admin) return 'admin_session';
-  return 'admin_token';
-}
-
-function isSensitiveKey(key: string): boolean {
-  const normalized = key.trim().toLowerCase();
-  if (!normalized) return false;
-
-  if (normalized.includes('password')) return true;
-  if (normalized === 'refresh_token' || normalized === 'refreshtoken') return true;
-  if (normalized === 'authorization' || normalized === 'cookie') return true;
-  if (normalized.includes('secret')) return true;
-  return false;
-}
-
-function redactString(value: string): string {
-  const trimmed = value.trim();
-  if (!trimmed) return value;
-
-  const lower = trimmed.toLowerCase();
-  if (lower.startsWith('bearer ')) {
-    return `Bearer ${REDACTED_VALUE}`;
-  }
-
-  try {
-    const url = new URL(trimmed);
-    if (url.password) {
-      url.password = REDACTED_VALUE;
-      return url.toString();
-    }
-  } catch {
-    // ignore
-  }
-
-  return value;
-}
-
-function sanitizeAuditDetail(detail: unknown): unknown {
-  const seen = new WeakSet<object>();
-
-  const walk = (value: unknown, depth: number): unknown => {
-    if (value === null || value === undefined) return value;
-    if (typeof value === 'string') return redactString(value);
-    if (typeof value !== 'object') return value;
-
-    if (depth > 8) return TRUNCATED_VALUE;
-
-    const obj = value as object;
-    if (seen.has(obj)) return CIRCULAR_VALUE;
-    seen.add(obj);
-
-    if (Array.isArray(obj)) {
-      return obj.map((item) => walk(item, depth + 1));
-    }
-
-    const out: Record<string, unknown> = {};
-    for (const [k, v] of Object.entries(obj as Record<string, unknown>)) {
-      if (isSensitiveKey(k)) out[k] = REDACTED_VALUE;
-      else out[k] = walk(v, depth + 1);
-    }
-    return out;
-  };
-
-  return walk(detail, 0);
-}
 
 async function persistAdminAudit(full: AdminAuditEvent): Promise<void> {
   try {
@@ -133,7 +50,7 @@ export function auditAdminEvent(event: Omit<AdminAuditEvent, 'category'>): Promi
   const full: AdminAuditEvent = {
     category: 'admin',
     ...event,
-    detail: event.detail === undefined ? undefined : sanitizeAuditDetail(event.detail),
+    detail: event.detail === undefined ? undefined : sanitizeStructuredData(event.detail),
   };
   logger.info({ audit: full }, 'audit');
   return persistAdminAudit(full);
@@ -155,7 +72,7 @@ export function auditAdminImageStatusChange(params: {
     record_id: imageId.toString(),
     from_status: fromStatus,
     to_status: toStatus,
-    request_id: getRequestId(req),
+    request_id: safeRequestId(req),
     ip: req?.ip || pickForwardedFor(req),
     user_agent: req?.headers?.['user-agent'],
   });
@@ -175,7 +92,7 @@ export function auditAdminModelChange(params: {
     action,
     resource,
     record_id,
-    request_id: getRequestId(req),
+    request_id: safeRequestId(req),
     ip: req?.ip || pickForwardedFor(req),
     user_agent: req?.headers?.['user-agent'],
     detail,
