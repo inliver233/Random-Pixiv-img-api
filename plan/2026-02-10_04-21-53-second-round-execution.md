@@ -68,7 +68,8 @@
 - Commit after: 每个 issue（单 issue 单 commit + 必测 + 更新 CSV 状态）
 
 ## References
-- 真实站点深测总报告：`../../第二次最详细页面和功能实现问题.md`
-- Admin 深测过程：`../../docs/review/2026-02-09_15-20-48-admin-deep-audit.md`
-- API 契约审计：`../../docs/review/2026-02-09_15-20-48-api-contract-audit.md`
-
+- 深测总报告（待生成）：`第二次最详细页面和功能实现问题.md`
+- Admin 深测过程：`docs/review/2026-02-09_05-56-38-admin-deep-audit.md`
+- API 契约审计：`docs/review/2026-02-09_05-56-38-api-contract-audit.md`
+- 修复验证清单：`docs/review/fixes/2026-02-09_05-56-38/`
+- Issue CSV：`issues/2026-02-10_04-21-53-second-round-execution.csv`
