@@ -54,6 +54,8 @@ const GROUPS = [
 
 export default function OpsNavigatorPage() {
   const [meta, setMeta] = useState(null);
+  const [dashboard, setDashboard] = useState(null);
+  const [dashboardError, setDashboardError] = useState(null);
 
   useEffect(() => {
     let mounted = true;
@@ -66,10 +68,24 @@ export default function OpsNavigatorPage() {
         if (!mounted) return;
         setMeta(null);
       });
+
+    api.getDashboard()
+      .then((res) => {
+        if (!mounted) return;
+        setDashboard(res?.data || null);
+      })
+      .catch((err) => {
+        if (!mounted) return;
+        setDashboard(null);
+        setDashboardError(err?.message || String(err));
+      });
     return () => {
       mounted = false;
     };
   }, []);
+
+  const imagesTotal = Number(dashboard?.images?.total ?? 0);
+  const queueOk = dashboard?.queue?.ok;
 
   return (
     <div style={pageRootStyle}>
@@ -84,6 +100,39 @@ export default function OpsNavigatorPage() {
       <div style={{ ...createCalloutStyle('warning'), marginBottom: 12 }}>
         高风险操作提示：关闭代理、删除/禁用图片、重试 DLQ 任务前，请先查看仪表盘与操作审计。
       </div>
+
+      {dashboardError ? (
+        <div style={{ ...createCalloutStyle('warning'), marginBottom: 12 }}>
+          无法加载仪表盘数据：{String(dashboardError)}（仅影响本页告警提示；不影响功能使用）
+        </div>
+      ) : null}
+
+      {dashboard && Number.isFinite(imagesTotal) && imagesTotal === 0 ? (
+        <div style={{ ...createCalloutStyle('danger'), marginBottom: 12 }}>
+          <b>图片库为空（Image=0）</b>
+          <div style={{ marginTop: 6 }}>
+            当前 `/random` 必然 NO_MATCH。请先导入 pximg 原图 URL，并确认导入任务已被队列消费。
+          </div>
+          <ul style={{ marginTop: 8, marginBottom: 0, paddingLeft: 18 }}>
+            <li><a href="/admin/pages/importUrls" style={{ color: '#2563eb' }}>批量导入 URL（ImportUrls）</a></li>
+            <li><a href="/admin/resources/Import" style={{ color: '#2563eb' }}>导入记录（Import）</a></li>
+            <li><a href="/admin/pages/adminJobs" style={{ color: '#2563eb' }}>后台任务（AdminJobs）</a></li>
+          </ul>
+        </div>
+      ) : null}
+
+      {dashboard && queueOk === false ? (
+        <div style={{ ...createCalloutStyle('warning'), marginBottom: 12 }}>
+          <b>队列异常（导入/补全可能不会执行）</b>
+          <div style={{ marginTop: 6 }}>
+            建议先修复数据库连接/pg-boss，再进行导入与补全（可在仪表盘与 /healthz 查看详情）。
+          </div>
+          <ul style={{ marginTop: 8, marginBottom: 0, paddingLeft: 18 }}>
+            <li><a href="/admin/pages/adminJobs" style={{ color: '#2563eb' }}>后台任务（AdminJobs）</a></li>
+            <li><a href="/healthz" style={{ color: '#2563eb' }}>健康检查（/healthz）</a></li>
+          </ul>
+        </div>
+      ) : null}
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 12 }}>
         {GROUPS.map((group) => (

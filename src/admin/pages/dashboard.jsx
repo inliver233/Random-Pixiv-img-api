@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { ApiClient } from 'adminjs';
 import {
   createButtonStyle,
+  createCalloutStyle,
   createCardStyle,
   mutedTextStyle,
   pageCardStyle,
@@ -97,6 +98,40 @@ export default function Dashboard() {
     };
   }, [data]);
 
+  const callouts = useMemo(() => {
+    if (!data) return [];
+    const out = [];
+
+    const imagesTotal = Number(data.images?.total ?? 0);
+    if (Number.isFinite(imagesTotal) && imagesTotal === 0) {
+      out.push({
+        type: 'danger',
+        title: '图片库为空（Image=0）',
+        message: '当前 /random 必然 NO_MATCH。请先导入 pximg 原图 URL，并确认导入任务已被队列消费（可在 AdminJobs 查看）。',
+        links: [
+          { href: '/admin/pages/importUrls', label: '批量导入 URL（ImportUrls）' },
+          { href: '/admin/resources/Import', label: '导入记录（Import）' },
+          { href: '/admin/pages/adminJobs', label: '后台任务（AdminJobs）' },
+          { href: '/admin/resources/Image', label: '图片资源（Image）' },
+        ],
+      });
+    }
+
+    if (data.queue && data.queue.ok === false) {
+      out.push({
+        type: 'warning',
+        title: '队列异常（导入/补全可能不会执行）',
+        message: `队列状态异常：${String(data.queue.message || 'unknown')}。建议先修复数据库连接/pg-boss，再进行导入与补全。`,
+        links: [
+          { href: '/admin/pages/adminJobs', label: '后台任务（AdminJobs）' },
+          { href: '/healthz', label: '健康检查（/healthz）' },
+        ],
+      });
+    }
+
+    return out;
+  }, [data]);
+
   if (error) {
     return (
       <div style={pageRootStyle}>
@@ -181,6 +216,26 @@ export default function Dashboard() {
           ，按「导入 → 补全 → 代理 → 令牌 → 统计」顺序操作，减少误操作。
         </p>
       </div>
+
+      {callouts.length > 0 ? (
+        <div style={{ marginBottom: 12 }}>
+          {callouts.map((c) => (
+            <div key={c.title} style={{ ...createCalloutStyle(c.type), marginBottom: 10 }}>
+              <div style={{ fontWeight: 800 }}>{c.title}</div>
+              <div style={{ marginTop: 6 }}>{c.message}</div>
+              {Array.isArray(c.links) && c.links.length > 0 ? (
+                <ul style={{ marginTop: 8, marginBottom: 0, paddingLeft: 18 }}>
+                  {c.links.map((link) => (
+                    <li key={link.href} style={{ marginBottom: 4 }}>
+                      <a href={link.href} style={{ color: '#2563eb' }}>{link.label}</a>
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+            </div>
+          ))}
+        </div>
+      ) : null}
 
       <div style={{
         border: proxyEnabled === false ? '1px solid #fecaca' : '1px solid #e5e7eb',
