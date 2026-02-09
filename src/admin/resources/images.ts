@@ -56,7 +56,7 @@ export const imageResourceOptions = {
 
     delete: {
       actionType: 'record',
-      component: false,
+      component: 'RecordActionRunner',
       icon: 'Trash2',
       guard: 'Soft delete this image? (status will become disabled)',
       isVisible: (context: any) => toNumberOrNull(context?.record?.params?.status) !== IMAGE_STATUS_DISABLED,
@@ -94,7 +94,7 @@ export const imageResourceOptions = {
 
     enable: {
       actionType: 'record',
-      component: false,
+      component: 'RecordActionRunner',
       icon: 'Play',
       guard: 'Enable this image?',
       isVisible: (context: any) => toNumberOrNull(context?.record?.params?.status) !== IMAGE_STATUS_ACTIVE,
@@ -132,7 +132,7 @@ export const imageResourceOptions = {
 
     disable: {
       actionType: 'record',
-      component: false,
+      component: 'RecordActionRunner',
       icon: 'Pause',
       guard: 'Disable this image?',
       isVisible: (context: any) => toNumberOrNull(context?.record?.params?.status) === IMAGE_STATUS_ACTIVE,
@@ -170,9 +170,13 @@ export const imageResourceOptions = {
 
     statusCounts: {
       actionType: 'resource',
-      component: false,
+      component: 'RecordActionRunner',
       icon: 'BarChart2',
-      handler: async (_req: any, _res: any, context: any) => {
+      handler: async (request: any, _res: any, context: any) => {
+        if (String(request?.method || '').toLowerCase() === 'get') {
+          return {};
+        }
+
         const prisma = getPrismaClient();
         const [total, active, disabled, broken, x0, x1, x2, xUnknown] = await Promise.all([
           prisma.image.count(),

@@ -16,10 +16,10 @@ function hasComponentSettingForAction(source: string, actionName: string, compon
 describe('admin action component contract', () => {
   it('keeps resource-module actions explicitly configured (view vs no-view)', () => {
     const imageActions = (imageResourceOptions as any).actions;
-    expect(imageActions.delete.component).toBe(false);
-    expect(imageActions.enable.component).toBe(false);
-    expect(imageActions.disable.component).toBe(false);
-    expect(imageActions.statusCounts.component).toBe(false);
+    expect(imageActions.delete.component).toBe('RecordActionRunner');
+    expect(imageActions.enable.component).toBe('RecordActionRunner');
+    expect(imageActions.disable.component).toBe('RecordActionRunner');
+    expect(imageActions.statusCounts.component).toBe('RecordActionRunner');
     expect(imageActions.hydrateMetadata.component).toBe('RecordActionRunner');
 
     const tokenActions = (pixivTokenResourceOptions as any).actions;
