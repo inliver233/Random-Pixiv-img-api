@@ -775,7 +775,16 @@ curl -s "http://127.0.0.1:3000/healthz" | jq .
 
 ### 7.5 GET /metrics（Prometheus）
 
-默认开启（`METRICS_ENABLED=1`）。建议生产对 `/metrics` 加 Basic Auth：
+`/metrics` 默认 **启用但受保护**（安全默认）：
+
+- `METRICS_ENABLED=1`（默认）
+- `METRICS_ALLOW_UNAUTHENTICATED=false`（默认）
+
+因此当你 **未配置 Basic Auth** 时，访问 `/metrics` 会返回 `404`（JSON `code=METRICS_PROTECTED`），避免公网匿名抓取内部指标。
+
+#### 推荐（生产）：Basic Auth
+
+配置 Basic Auth：
 
 ```bash
 METRICS_BASIC_AUTH_USER=metrics
@@ -787,6 +796,26 @@ METRICS_BASIC_AUTH_PASS=change-me
 ```bash
 curl -u "metrics:change-me" "http://127.0.0.1:3000/metrics"
 ```
+
+行为约定：
+- 未携带/错误 Basic Auth：`401` + `WWW-Authenticate` + JSON `code=UNAUTHORIZED`
+- 正确 Basic Auth：`200` + Prometheus text format
+
+#### 仅内网：允许无鉴权暴露（不推荐公网）
+
+```bash
+METRICS_ALLOW_UNAUTHENTICATED=true
+```
+
+强烈建议仅在 **反代隔离/容器网络/VPN/内网段** 场景使用，并用网络策略限制来源。
+
+#### 不使用指标：禁用
+
+```bash
+METRICS_ENABLED=false
+```
+
+此时访问 `/metrics` 返回 `404`（JSON `code=METRICS_DISABLED`）。
 
 ### 7.6 legacy Pixivcat 兼容路由（重要：保持不回归）
 
@@ -1035,8 +1064,11 @@ gunzip -c backup.sql.gz | docker compose exec -T postgres psql -U "${POSTGRES_US
 
 4) `/metrics` 401：
 - 你设置了 `METRICS_BASIC_AUTH_USER/PASS` 但请求没带 basic auth
+5) `/metrics` 404：
+- `code=METRICS_DISABLED`：你禁用了 metrics（`METRICS_ENABLED=false`）
+- `code=METRICS_PROTECTED`：metrics 已启用但处于保护态（未配置 Basic Auth，且 `METRICS_ALLOW_UNAUTHENTICATED=false`）
 
-5) legacy 路由偶发 503（上游限流）：
+6) legacy 路由偶发 503（上游限流）：
 - 这是 Pixiv 上游限流导致；增加 token 数量/轮换策略可能缓解
 - 可以查看日志中的 `code=UPSTREAM_RATE_LIMIT` 与 `request_id`
 
