@@ -1,0 +1,9 @@
+[proxy-smoke] base_url=https://i.mukyu.ru
+[proxy-smoke] healthz status=200
+[proxy-smoke] favicon status=204
+[proxy-smoke] metrics disabled/protected (404)
+[proxy-smoke] random json returned NO_MATCH (dataset empty)
+[proxy-smoke] filtered random NO_MATCH includes degrade hints
+[proxy-smoke] redirect returned 404 (NO_MATCH)
+[proxy-smoke] legacy invalid-page route returns JSON BAD_REQUEST
+[proxy-smoke] done

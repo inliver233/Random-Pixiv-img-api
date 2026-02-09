@@ -1,0 +1,8 @@
+{
+  "ok": false,
+  "message": "commit_missing",
+  "base_url": "https://i.mukyu.ru",
+  "healthz_commit": null,
+  "version_commit": null,
+  "expected_commit": "3b9e488a65c8fcfb08bbe7725824b72fcfd2ca20"
+}
