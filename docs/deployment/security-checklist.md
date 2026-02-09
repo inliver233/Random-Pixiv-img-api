@@ -69,6 +69,7 @@
 4. [ ] （可选）启用自定义 `BACKEND_LIMIT_*` 后启动，确认容器启动成功（必要时用 `docker inspect` 查看限制是否生效）
 5. [ ] （可选）确认 backend 的日志轮转策略（`docker inspect` 查看 LogConfig 或宿主侧日志采集/轮转）
 6. [ ] 运行 `pwsh test/admin-ui-smoke.ps1 -BaseUrl http://127.0.0.1:3000 -AdminToken <ADMIN_TOKEN>`，确认 Admin 关键页面可访问
+7. [ ] 运行 `npm run smoke:runtime -- http://127.0.0.1:3000`，确认 `/healthz` 与 `/version` 的 `commit` 不为空且一致（并尽可能与本次构建 commit 对齐）
 
 ## 4.1) compose 受限环境（无 daemon）兜底检查
 

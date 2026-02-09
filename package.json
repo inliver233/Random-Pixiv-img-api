@@ -16,6 +16,7 @@
     "prisma:migrate:deploy": "prisma migrate deploy",
     "test": "vitest run",
     "smoke": "vitest run test/smoke.test.ts",
+    "smoke:runtime": "node scripts/smoke-runtime.mjs",
     "test:admin-runtime": "vitest run test/admin_components_bundle_route.test.ts test/proxyUriImporter.test.ts",
     "smoke:admin-ui": "pwsh -NoProfile -File test/admin-ui-smoke.ps1",
     "smoke:admin-ui:strict": "pwsh -NoProfile -File test/admin-ui-smoke.ps1 -RequireAuthChecks",
