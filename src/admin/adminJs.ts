@@ -1888,7 +1888,7 @@ export async function getAdminJsRouter(): Promise<Router> {
 
                 rebindPrimary: {
                   actionType: 'resource',
-                  component: false,
+                  component: TokenProxyBindings,
                   icon: 'Shuffle',
                   label: '重绑主代理（页面入口）',
                   handler: async (request: any, _res: any, context: any) => {
@@ -2046,7 +2046,7 @@ export async function getAdminJsRouter(): Promise<Router> {
 
                 setOverride: {
                   actionType: 'resource',
-                  component: false,
+                  component: TokenProxyBindings,
                   icon: 'Clock',
                   label: '设置临时覆盖（页面入口）',
                   handler: async (request: any, _res: any, context: any) => {
@@ -2226,7 +2226,7 @@ export async function getAdminJsRouter(): Promise<Router> {
 
                 clearOverride: {
                   actionType: 'resource',
-                  component: false,
+                  component: TokenProxyBindings,
                   icon: 'Close',
                   label: '清空临时覆盖（页面入口）',
                   handler: async (request: any, _res: any, context: any) => {

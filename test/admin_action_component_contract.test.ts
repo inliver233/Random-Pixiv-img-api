@@ -36,14 +36,14 @@ describe('admin action component contract', () => {
 
   it('keeps inline adminJs custom actions using correct view contracts', () => {
     const source = fs.readFileSync(path.join(process.cwd(), 'src/admin/adminJs.ts'), 'utf8');
-    const noViewActions = [
+    const pageEntryActions = [
       'rebindPrimary',
       'setOverride',
       'clearOverride',
     ];
 
-    for (const actionName of noViewActions) {
-      expect(hasComponentSettingForAction(source, actionName, false)).toBe(true);
+    for (const actionName of pageEntryActions) {
+      expect(hasComponentSettingForAction(source, actionName, 'TokenProxyBindings')).toBe(true);
     }
 
     const deepLinkableActions = ['pause', 'resume', 'cancel'];
