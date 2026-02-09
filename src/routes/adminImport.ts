@@ -106,6 +106,7 @@ type ImportResponse = {
   total_lines: number;
   unique_images: number;
   deduped: number;
+  accepted: number;
   success: number;
   failed: number;
   enqueued: {
@@ -393,7 +394,8 @@ router.post(
 
       const totalLines = lines.length;
 
-      const success = dryRun ? parsedOk.length : 0;
+      const accepted = parsedOk.length;
+      const success = dryRun ? accepted : 0;
       const failed = parseFailedCount;
 
       const maxExportErrors = 1000;
@@ -439,14 +441,15 @@ router.post(
             }))
             : undefined,
           error_export: errorExport,
-          total_lines: totalLines,
-          unique_images: dedup.size,
-          deduped,
-          success,
-          failed,
-          enqueued: {
-            hydrate_metadata: 0,
-            note: 'dry_run',
+        total_lines: totalLines,
+        unique_images: dedup.size,
+        deduped,
+        accepted,
+        success,
+        failed,
+        enqueued: {
+          hydrate_metadata: 0,
+          note: 'dry_run',
           },
           results,
           errors,
@@ -550,6 +553,7 @@ router.post(
         total_lines: totalLines,
         unique_images: dedup.size,
         deduped,
+        accepted,
         success: 0,
         failed,
         enqueued: {

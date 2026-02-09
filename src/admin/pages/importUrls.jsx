@@ -375,6 +375,7 @@ export default function ImportUrlsPage() {
           total_lines: 0,
           unique_images: 0,
           deduped: 0,
+          accepted: 0,
           success: 0,
           failed: 0,
           enqueued_hydrate_metadata: 0,
@@ -420,6 +421,7 @@ export default function ImportUrlsPage() {
         } else {
           combined.unique_images += Number(data.unique_images || 0);
           combined.deduped += Number(data.deduped || 0);
+          combined.accepted += Number(data.accepted || 0);
           combined.success += Number(data.success || 0);
           if (data.import_id) combined.import_ids.push(String(data.import_id));
         }
@@ -679,16 +681,20 @@ export default function ImportUrlsPage() {
                     <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee', fontWeight: 600 }}>unique_images</td>
                     <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee', textAlign: 'right' }}>{result.combined.unique_images}</td>
                   </tr>
-                  <tr>
-                    <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee', fontWeight: 600 }}>deduped</td>
-                    <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee', textAlign: 'right' }}>{result.combined.deduped}</td>
-                  </tr>
-                  <tr>
-                    <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee', fontWeight: 600 }}>success</td>
-                    <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee', textAlign: 'right' }}>{result.combined.success}</td>
-                  </tr>
-                </>
-              )}
+                   <tr>
+                     <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee', fontWeight: 600 }}>deduped</td>
+                     <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee', textAlign: 'right' }}>{result.combined.deduped}</td>
+                   </tr>
+                   <tr>
+                     <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee', fontWeight: 600 }}>accepted（已接收/入队）</td>
+                     <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee', textAlign: 'right' }}>{result.combined.accepted}</td>
+                   </tr>
+                   <tr>
+                     <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee', fontWeight: 600 }}>success（处理完成后累计）</td>
+                     <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee', textAlign: 'right' }}>{result.combined.success}</td>
+                   </tr>
+                 </>
+               )}
               <tr>
                 <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee', fontWeight: 600 }}>failed</td>
                 <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee', textAlign: 'right' }}>{result.combined.failed}</td>
@@ -702,10 +708,10 @@ export default function ImportUrlsPage() {
 
           {result.mode !== 'hydrate' && Array.isArray(result.combined.import_ids) && result.combined.import_ids.length > 0 ? (
             <div style={{ marginTop: 12 }}>
-              <h4 style={{ marginTop: 0 }}>import_id（可审计 / 可回滚）</h4>
-              <p style={{ marginTop: 0, color: '#666' }}>
-                导入写入已异步入队：可用「刷新进度」查看处理进度；回滚会<b>禁用</b>本次新增图片（不删除导入记录）。
-              </p>
+                <h4 style={{ marginTop: 0 }}>import_id（可审计 / 可回滚）</h4>
+                <p style={{ marginTop: 0, color: '#666' }}>
+                  导入写入已异步入队：本页 <code>accepted</code> 表示已接收/入队的唯一图片数；<code>success</code> 会在后台 job 处理完成后写入 Import 记录，可用「刷新进度」查看。回滚会<b>禁用</b>本次新增图片（不删除导入记录）。
+                </p>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {result.combined.import_ids.map((importId) => {
