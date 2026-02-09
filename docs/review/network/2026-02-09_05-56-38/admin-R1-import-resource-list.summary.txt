@@ -1,0 +1,6 @@
+Import resource list (sanitized evidence)
+- target: https://i.mukyu.ru/admin/resources/Import
+- network:
+  - GET https://i.mukyu.ru/admin/resources/Import => 200 (page)
+  - GET https://i.mukyu.ru/admin/api/resources/Import/actions/list => 304
+

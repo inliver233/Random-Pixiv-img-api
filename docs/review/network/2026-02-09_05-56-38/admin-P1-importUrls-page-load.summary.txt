@@ -1,0 +1,7 @@
+ImportUrls page load (sanitized evidence)
+- target: https://i.mukyu.ru/admin/pages/importUrls
+- network (method url => status):
+  - GET https://i.mukyu.ru/admin => 200
+  - GET https://i.mukyu.ru/admin/api/dashboard => 200
+  - GET https://i.mukyu.ru/admin/api/pages/importUrls => 304
+

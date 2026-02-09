@@ -11,6 +11,15 @@
 
 ---
 
+## 0.1 本轮回归摘要（修复后）
+
+- 本地回归（已通过）：`docs/review/console/2026-02-09_05-56-38/local-regression.summary.txt`
+- 线上版本状态（2026-02-09 实测）：生产站点仍未 redeploy（因此“修复后线上契约”无法验证）
+  - `GET /healthz`：不包含 `build.*`（证据：`docs/review/network/2026-02-09_05-56-38/api-E1-healthz.body.txt`）
+  - `GET /version`：`404 text/html`（证据：`docs/review/network/2026-02-09_05-56-38/api-E2-version.headers.txt`）
+  - `GET /metrics`：`200`（证据：`docs/review/network/2026-02-09_05-56-38/api-E3-metrics.head.txt`）
+- 结论：本轮“修复后线上合约复验”需要在 redeploy 后重跑；当前文档以“修复前线上行为”作为对照基线，并以单测/契约测试证明代码侧已修复。
+
 ## 0. 审计基线摘要（执行前必读 → 本轮已读）
 
 基线来源：

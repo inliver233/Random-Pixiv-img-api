@@ -1,0 +1,15 @@
+local_regression: ok
+timestamp: 2026-02-09T08:49:19.4224822+08:00
+commands:
+  - npm run test:all (pass)
+  - pwsh -NoProfile -File test/run-regression.ps1 -SkipProxySmoke (pass)
+  - start local server: node dist/app.js (env overrides: REFRESH_TOKENS=["smoke"], MEMCACHED_HOST=127.0.0.1, DATABASE_URL empty, METRICS_ALLOW_UNAUTHENTICATED=1)
+  - pwsh -NoProfile -File test/proxy-smoke.ps1 -BaseUrl http://127.0.0.1:3000 (pass)
+proxy-smoke output:
+  - healthz status=503 (expected when deps unavailable)
+  - favicon status=204
+  - metrics ok
+  - random json returned 500 (dependency not ready; acceptable in smoke)
+  - redirect returned 500 (dependency not ready; acceptable in smoke)
+  - legacy invalid-page route returns JSON BAD_REQUEST
+
