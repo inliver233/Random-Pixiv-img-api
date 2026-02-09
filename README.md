@@ -24,6 +24,9 @@ curl -I "http://127.0.0.1:3000/12345678.jpg"
 
 # 多图第 1 张（pageNumber 从 1 开始）
 curl -I "http://127.0.0.1:3000/12345678-1.jpg"
+
+# 兼容输入：pageNumber=0 会 301 到 pageNumber=1（避免与 Pixiv 的 p0 语义产生误解）
+curl -I "http://127.0.0.1:3000/12345678-0.jpg"
 ```
 
 缓存策略（legacy）：

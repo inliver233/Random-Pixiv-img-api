@@ -201,14 +201,12 @@ describe('legacy pixivcat routes contract', () => {
     expect(res.body.toString('utf8')).toBe('single');
   });
 
-  it('returns JSON BAD_REQUEST for invalid legacy page number', async () => {
+  it('redirects legacy page=0 to the canonical first page (page=1)', async () => {
     const app = createLegacyApp();
 
-    const res = await request(app).get('/123-0.jpg').expect(400);
+    const res = await request(app).get('/123-0.jpg').expect(301);
 
-    expect(res.headers['content-type']).toContain('application/json');
-    expect(res.body.code).toBe('BAD_REQUEST');
-    expect(res.body.message).toContain('Invalid page number');
-    expect(typeof res.body.request_id).toBe('string');
+    expect(res.headers.location).toBe('/123-1.jpg');
+    expect(res.headers['cache-control']).toBe('no-store');
   });
 });
