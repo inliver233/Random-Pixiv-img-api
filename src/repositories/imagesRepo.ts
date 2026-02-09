@@ -14,6 +14,7 @@ export type UpsertImageInput = {
   proxyPath: string;
   randomKey: number;
   status?: number;
+  createdImportId?: bigint | null;
 
   width?: number | null;
   height?: number | null;
@@ -59,6 +60,7 @@ export async function upsert(input: UpsertImageInput) {
     proxyPath,
     randomKey,
     status,
+    createdImportId,
     width,
     height,
     aspectRatio,
@@ -86,6 +88,7 @@ export async function upsert(input: UpsertImageInput) {
       proxyPath,
       randomKey,
       status: status ?? IMAGE_STATUS_ACTIVE,
+      createdImportId,
       width,
       height,
       aspectRatio,

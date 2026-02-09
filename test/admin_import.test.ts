@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { resetEnvForTest } from '../src/config/env';
 import { setPrismaClientForTest } from '../src/db/prismaClient';
-import * as hydrateMetadataJob from '../src/jobs/hydrateMetadata';
+import * as importJobs from '../src/jobs/importImages';
 import * as queue from '../src/queue/queue';
 import adminImportRoute from '../src/routes/adminImport';
 
@@ -22,22 +22,16 @@ const VALID_URL = 'https://i.pximg.net/img-original/img/2020/01/01/00/00/00/1234
 
 describe('POST /admin/images/import', () => {
   const prisma = {
-    $executeRaw: vi.fn(),
-    image: {
-      upsert: vi.fn(),
-      update: vi.fn(),
-    },
     import: {
       create: vi.fn(),
+      update: vi.fn(),
       findUnique: vi.fn(),
     },
   } as any;
 
   beforeEach(() => {
-    prisma.$executeRaw.mockReset();
-    prisma.image.upsert.mockReset();
-    prisma.image.update.mockReset();
     prisma.import.create.mockReset();
+    prisma.import.update.mockReset();
     prisma.import.findUnique.mockReset();
 
     delete process.env.ADMIN_IMPORT_MAX_LINES;
@@ -62,10 +56,11 @@ describe('POST /admin/images/import', () => {
     resetEnvForTest();
   });
 
-  it('imports from textarea and writes audit', async () => {
-    prisma.image.upsert.mockResolvedValue({ id: 1n, ext: 'jpg', proxyPath: '/i/pending.jpg' });
-    prisma.image.update.mockResolvedValue({ id: 1n, proxyPath: '/i/1.jpg' });
-    prisma.import.create.mockResolvedValue({ id: 10n });
+  it('enqueues import job and returns import_id', async () => {
+    prisma.import.create.mockResolvedValue({ id: 10n, detail: null, total: 1, success: 0, failed: 0 });
+    prisma.import.update.mockResolvedValue({ id: 10n });
+
+    vi.spyOn(importJobs, 'enqueueAdminImagesImport').mockResolvedValueOnce('job-1');
 
     const app = createApp();
 
@@ -82,29 +77,34 @@ describe('POST /admin/images/import', () => {
       total_lines: 1,
       unique_images: 1,
       deduped: 0,
-      success: 1,
+      queued: true,
+      job_id: 'job-1',
+      success: 0,
       failed: 0,
-      enqueued: { hydrate_metadata: 0 },
+      enqueued: { hydrate_metadata: 0, note: 'queued' },
     });
 
-    expect(res.body.results[0]).toMatchObject({
-      illust_id: '12345678',
-      page_index: 0,
-      image_id: '1',
-      ext: 'jpg',
-      original_url: VALID_URL,
-      proxy_path: '/i/1.jpg',
-    });
-
-    expect(prisma.image.upsert).toHaveBeenCalledTimes(1);
-    expect(prisma.image.update).toHaveBeenCalledWith({ where: { id: 1n }, data: { proxyPath: '/i/1.jpg' } });
+    expect(importJobs.enqueueAdminImagesImport).toHaveBeenCalledTimes(1);
+    expect(importJobs.enqueueAdminImagesImport).toHaveBeenCalledWith(
+      expect.objectContaining({
+        importId: 10n,
+        items: [
+          expect.objectContaining({
+            illust_id: '12345678',
+            page_index: 0,
+            ext: 'jpg',
+          }),
+        ],
+      }),
+    );
 
     expect(prisma.import.create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
           total: 1,
+          createdBy: 'admin_token',
           source: 'admin_api',
-          success: 1,
+          success: 0,
           failed: 0,
           detail: expect.objectContaining({
             deduped: 0,
@@ -113,34 +113,6 @@ describe('POST /admin/images/import', () => {
         }),
       }),
     );
-  });
-
-  it('uses bulk DB writes when ADMIN_IMPORT_BULK_MIN_IMAGES is met', async () => {
-    process.env.ADMIN_IMPORT_BULK_MIN_IMAGES = '1';
-    resetEnvForTest();
-
-    prisma.$executeRaw.mockResolvedValue(1);
-    prisma.import.create.mockResolvedValue({ id: 101n });
-
-    const app = createApp();
-
-    const res = await request(app)
-      .post('/admin/images/import')
-      .field('urls', VALID_URL)
-      .expect(200);
-
-    expect(res.body).toMatchObject({
-      ok: true,
-      import_id: '101',
-      total_lines: 1,
-      unique_images: 1,
-      success: 1,
-      failed: 0,
-    });
-
-    expect(prisma.$executeRaw).toHaveBeenCalledTimes(1);
-    expect(prisma.image.upsert).not.toHaveBeenCalled();
-    expect(prisma.image.update).not.toHaveBeenCalled();
   });
 
   it('GET /admin/imports/:id returns progress details', async () => {
@@ -201,9 +173,10 @@ describe('POST /admin/images/import', () => {
   });
 
   it('imports from file upload', async () => {
-    prisma.image.upsert.mockResolvedValue({ id: 2n, ext: 'jpg', proxyPath: '/i/pending.jpg' });
-    prisma.image.update.mockResolvedValue({ id: 2n, proxyPath: '/i/2.jpg' });
-    prisma.import.create.mockResolvedValue({ id: 11n });
+    prisma.import.create.mockResolvedValue({ id: 11n, detail: null, total: 1, success: 0, failed: 0 });
+    prisma.import.update.mockResolvedValue({ id: 11n });
+
+    vi.spyOn(importJobs, 'enqueueAdminImagesImport').mockResolvedValueOnce('job-file');
 
     const app = createApp();
 
@@ -216,20 +189,18 @@ describe('POST /admin/images/import', () => {
       ok: true,
       import_id: '11',
       total_lines: 1,
-      success: 1,
+      queued: true,
+      job_id: 'job-file',
+      success: 0,
       failed: 0,
-    });
-
-    expect(res.body.results[0]).toMatchObject({
-      image_id: '2',
-      proxy_path: '/i/2.jpg',
     });
   });
 
   it('records invalid URLs as errors', async () => {
-    prisma.image.upsert.mockResolvedValue({ id: 1n, ext: 'jpg', proxyPath: '/i/pending.jpg' });
-    prisma.image.update.mockResolvedValue({ id: 1n, proxyPath: '/i/1.jpg' });
-    prisma.import.create.mockResolvedValue({ id: 12n });
+    prisma.import.create.mockResolvedValue({ id: 12n, detail: null, total: 2, success: 0, failed: 1 });
+    prisma.import.update.mockResolvedValue({ id: 12n });
+
+    vi.spyOn(importJobs, 'enqueueAdminImagesImport').mockResolvedValueOnce('job-invalid');
 
     const app = createApp();
 
@@ -241,7 +212,9 @@ describe('POST /admin/images/import', () => {
     expect(res.body).toMatchObject({
       total_lines: 2,
       unique_images: 1,
-      success: 1,
+      queued: true,
+      job_id: 'job-invalid',
+      success: 0,
       failed: 1,
     });
 
@@ -261,6 +234,7 @@ describe('POST /admin/images/import', () => {
   });
 
   it('supports dry_run=1 without writing DB', async () => {
+    const enqueueSpy = vi.spyOn(importJobs, 'enqueueAdminImagesImport');
     const app = createApp();
 
     const res = await request(app)
@@ -290,12 +264,12 @@ describe('POST /admin/images/import', () => {
       proxy_path: null,
     });
 
-    expect(prisma.image.upsert).not.toHaveBeenCalled();
-    expect(prisma.image.update).not.toHaveBeenCalled();
     expect(prisma.import.create).not.toHaveBeenCalled();
+    expect(enqueueSpy).not.toHaveBeenCalled();
   });
 
   it('supports preview=1 (dedupe + parse) without writing DB', async () => {
+    const enqueueSpy = vi.spyOn(importJobs, 'enqueueAdminImagesImport');
     const app = createApp();
 
     const res = await request(app)
@@ -324,15 +298,15 @@ describe('POST /admin/images/import', () => {
       },
     ]);
 
-    expect(prisma.image.upsert).not.toHaveBeenCalled();
-    expect(prisma.image.update).not.toHaveBeenCalled();
     expect(prisma.import.create).not.toHaveBeenCalled();
+    expect(enqueueSpy).not.toHaveBeenCalled();
   });
 
   it('dedupes repeated lines by (illustId,pageIndex)', async () => {
-    prisma.image.upsert.mockResolvedValue({ id: 3n, ext: 'jpg', proxyPath: '/i/pending.jpg' });
-    prisma.image.update.mockResolvedValue({ id: 3n, proxyPath: '/i/3.jpg' });
-    prisma.import.create.mockResolvedValue({ id: 13n });
+    prisma.import.create.mockResolvedValue({ id: 13n, detail: null, total: 2, success: 0, failed: 0 });
+    prisma.import.update.mockResolvedValue({ id: 13n });
+
+    vi.spyOn(importJobs, 'enqueueAdminImagesImport').mockResolvedValueOnce('job-dedupe');
 
     const app = createApp();
 
@@ -345,42 +319,11 @@ describe('POST /admin/images/import', () => {
       total_lines: 2,
       unique_images: 1,
       deduped: 1,
-      success: 1,
+      queued: true,
+      job_id: 'job-dedupe',
+      success: 0,
       failed: 0,
     });
-
-    expect(prisma.image.upsert).toHaveBeenCalledTimes(1);
-  });
-
-  it('dedupes hydrate_metadata enqueue by illust_id', async () => {
-    const urlP1 = VALID_URL.replace('_p0.', '_p1.');
-
-    prisma.image.upsert
-      .mockResolvedValueOnce({ id: 20n, ext: 'jpg', proxyPath: '/i/pending.jpg' })
-      .mockResolvedValueOnce({ id: 21n, ext: 'jpg', proxyPath: '/i/pending.jpg' });
-    prisma.image.update.mockResolvedValue({});
-    prisma.import.create.mockResolvedValue({ id: 20n });
-
-    const enqueueSpy = vi.spyOn(hydrateMetadataJob, 'enqueueHydrateMetadata').mockResolvedValue('job-1');
-
-    const app = createApp();
-
-    const res = await request(app)
-      .post('/admin/images/import')
-      .field('urls', `${VALID_URL}\n${urlP1}`)
-      .expect(200);
-
-    expect(res.body).toMatchObject({
-      ok: true,
-      total_lines: 2,
-      unique_images: 2,
-      success: 2,
-      failed: 0,
-      enqueued: { hydrate_metadata: 1 },
-    });
-
-    expect(enqueueSpy).toHaveBeenCalledTimes(1);
-    expect(enqueueSpy).toHaveBeenCalledWith(12345678n);
   });
 
   it('returns 413 when uploaded file exceeds the configured limit', async () => {
@@ -426,8 +369,74 @@ describe('POST /admin/images/import', () => {
   });
 });
 
+describe('POST /admin/imports/:id/rollback', () => {
+  const prisma = {
+    import: {
+      update: vi.fn(),
+      findUnique: vi.fn(),
+    },
+  } as any;
+
+  beforeEach(() => {
+    setPrismaClientForTest(prisma);
+    prisma.import.update.mockReset();
+    prisma.import.findUnique.mockReset();
+  });
+
+  afterEach(() => {
+    setPrismaClientForTest(undefined);
+    vi.restoreAllMocks();
+  });
+
+  it('enqueues rollback job and returns job_id', async () => {
+    prisma.import.findUnique.mockResolvedValueOnce({ id: 99n, detail: { foo: 'bar' } });
+    prisma.import.update.mockResolvedValueOnce({ id: 99n });
+
+    vi.spyOn(importJobs, 'enqueueAdminImportRollback').mockResolvedValueOnce('job-rb-1');
+
+    const app = createApp();
+
+    const res = await request(app)
+      .post('/admin/imports/99/rollback')
+      .expect(200);
+
+    expect(res.body).toMatchObject({ ok: true, import_id: '99', mode: 'disable', job_id: 'job-rb-1' });
+    expect(importJobs.enqueueAdminImportRollback).toHaveBeenCalledWith(expect.objectContaining({ importId: 99n, mode: 'disable' }));
+    expect(prisma.import.update).toHaveBeenCalledTimes(1);
+  });
+
+  it('supports mode=delete via querystring', async () => {
+    prisma.import.findUnique.mockResolvedValueOnce({ id: 100n, detail: null });
+    prisma.import.update.mockResolvedValueOnce({ id: 100n });
+
+    vi.spyOn(importJobs, 'enqueueAdminImportRollback').mockResolvedValueOnce('job-rb-2');
+
+    const app = createApp();
+
+    const res = await request(app)
+      .post('/admin/imports/100/rollback?mode=delete')
+      .expect(200);
+
+    expect(res.body).toMatchObject({ ok: true, import_id: '100', mode: 'delete', job_id: 'job-rb-2' });
+    expect(importJobs.enqueueAdminImportRollback).toHaveBeenCalledWith(expect.objectContaining({ importId: 100n, mode: 'delete' }));
+  });
+
+  it('returns 404 when import is missing', async () => {
+    prisma.import.findUnique.mockResolvedValueOnce(null);
+
+    const app = createApp();
+
+    const res = await request(app)
+      .post('/admin/imports/123/rollback')
+      .expect(404);
+
+    expect(res.body).toMatchObject({ code: 'IMPORT_NOT_FOUND' });
+  });
+});
+
 describe('POST /admin/images/hydrate', () => {
   beforeEach(() => {
+    setPrismaClientForTest({} as any);
     delete process.env.ADMIN_IMPORT_MAX_LINES;
     delete process.env.ADMIN_IMPORT_MAX_FILE_BYTES;
     delete process.env.ADMIN_IMPORT_ALLOWED_MIME_TYPES;
@@ -435,6 +444,7 @@ describe('POST /admin/images/hydrate', () => {
   });
 
   afterEach(() => {
+    setPrismaClientForTest(undefined);
     vi.restoreAllMocks();
 
     delete process.env.ADMIN_IMPORT_MAX_LINES;

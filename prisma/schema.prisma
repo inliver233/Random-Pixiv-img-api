@@ -61,6 +61,7 @@ model Image {
 
   addedAt       DateTime @default(now()) @map("added_at")
   updatedAt     DateTime @default(now()) @updatedAt @map("updated_at")
+  createdImportId BigInt? @map("created_import_id") @db.BigInt
 
   imageTags     ImageTag[]
 
@@ -68,6 +69,7 @@ model Image {
   @@index([status, xRestrict, orientation, width, height, randomKey], map: "images_filter_idx")
   @@index([status, userId, randomKey], map: "images_user_random_idx")
   @@index([createdAtPixiv], map: "images_created_at_pixiv_idx")
+  @@index([createdImportId], map: "images_created_import_id_idx")
   @@map("images")
 }
 

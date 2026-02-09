@@ -167,6 +167,58 @@ async function postHydrate({ baseUrl, formData }) {
   return data;
 }
 
+async function fetchImportProgress({ baseUrl, importId }) {
+  const res = await fetch(`${baseUrl}/admin/imports/${encodeURIComponent(String(importId))}`, {
+    method: 'GET',
+    credentials: 'include',
+  });
+
+  const text = await res.text();
+  let data;
+  try {
+    data = JSON.parse(text);
+  } catch {
+    data = { ok: false, status: res.status, body: text };
+  }
+
+  if (!res.ok) {
+    const message = data?.message || data?.error || `HTTP ${res.status}`;
+    const err = new Error(message);
+    err.data = data;
+    err.status = res.status;
+    throw err;
+  }
+
+  return data;
+}
+
+async function postRollback({ baseUrl, importId, mode = 'disable' }) {
+  const res = await fetch(`${baseUrl}/admin/imports/${encodeURIComponent(String(importId))}/rollback`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ mode }),
+  });
+
+  const text = await res.text();
+  let data;
+  try {
+    data = JSON.parse(text);
+  } catch {
+    data = { ok: false, status: res.status, body: text };
+  }
+
+  if (!res.ok) {
+    const message = data?.message || data?.error || `HTTP ${res.status}`;
+    const err = new Error(message);
+    err.data = data;
+    err.status = res.status;
+    throw err;
+  }
+
+  return data;
+}
+
 function downloadText(filename, text) {
   const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
   const url = URL.createObjectURL(blob);
@@ -193,6 +245,8 @@ export default function ImportUrlsPage() {
 
   const [result, setResult] = useState(null);
   const [progress, setProgress] = useState(null);
+  const [progressByImportId, setProgressByImportId] = useState({});
+  const [rollbackBusy, setRollbackBusy] = useState(false);
 
   const fileInputRef = useRef(null);
 
@@ -240,6 +294,7 @@ export default function ImportUrlsPage() {
     setError(null);
     setResult(null);
     setProgress(null);
+    setProgressByImportId({});
 
     const hydrateOnly = mode === 'hydrate';
     const postFn = hydrateOnly ? postHydrate : postImport;
@@ -403,6 +458,44 @@ export default function ImportUrlsPage() {
     } finally {
       setLoading(false);
       setProgress(null);
+    }
+  }
+
+  async function refreshImportProgress(importId) {
+    const baseUrl = config?.baseUrl || '';
+    try {
+      const data = await fetchImportProgress({ baseUrl, importId });
+      setProgressByImportId((prev) => ({ ...prev, [String(importId)]: data }));
+    } catch (err) {
+      setProgressByImportId((prev) => ({
+        ...prev,
+        [String(importId)]: {
+          ok: false,
+          error: err?.message || String(err),
+          status: err?.status || err?.data?.status || null,
+          code: err?.data?.code || null,
+        },
+      }));
+    }
+  }
+
+  async function rollbackImport(importId) {
+    const baseUrl = config?.baseUrl || '';
+    const id = String(importId);
+
+    const confirmed = globalThis.confirm
+      ? globalThis.confirm(`确认回滚导入 #${id} 吗？\n\n将禁用“本次新增”的图片（不会删除导入记录）。`)
+      : true;
+    if (!confirmed) return;
+
+    try {
+      setRollbackBusy(true);
+      await postRollback({ baseUrl, importId: id, mode: 'disable' });
+      await refreshImportProgress(id);
+    } catch (err) {
+      setError(err?.message || String(err));
+    } finally {
+      setRollbackBusy(false);
     }
   }
 
@@ -606,6 +699,64 @@ export default function ImportUrlsPage() {
               </tr>
             </tbody>
           </table>
+
+          {result.mode !== 'hydrate' && Array.isArray(result.combined.import_ids) && result.combined.import_ids.length > 0 ? (
+            <div style={{ marginTop: 12 }}>
+              <h4 style={{ marginTop: 0 }}>import_id（可审计 / 可回滚）</h4>
+              <p style={{ marginTop: 0, color: '#666' }}>
+                导入写入已异步入队：可用「刷新进度」查看处理进度；回滚会<b>禁用</b>本次新增图片（不删除导入记录）。
+              </p>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {result.combined.import_ids.map((importId) => {
+                  const id = String(importId);
+                  const p = progressByImportId?.[id] || null;
+                  return (
+                    <div key={id} style={{ padding: '8px 10px', border: '1px solid #eee', borderRadius: 10, background: '#fafafa' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                        <code>#{id}</code>
+                        <a href={`/admin/resources/Import/records/${encodeURIComponent(id)}/show`} target="_blank" rel="noreferrer">
+                          打开记录
+                        </a>
+                        <button
+                          type="button"
+                          disabled={loading || rollbackBusy}
+                          onClick={() => refreshImportProgress(id)}
+                          style={createButtonStyle({ disabled: loading || rollbackBusy })}
+                        >
+                          刷新进度
+                        </button>
+                        <button
+                          type="button"
+                          disabled={loading || rollbackBusy}
+                          onClick={() => rollbackImport(id)}
+                          style={createButtonStyle({ tone: 'danger', disabled: loading || rollbackBusy })}
+                        >
+                          回滚（禁用）
+                        </button>
+                      </div>
+
+                      {p ? (
+                        p.ok ? (
+                          <p style={{ margin: '6px 0 0', color: '#666' }}>
+                            progress: {p.progress?.processed}/{p.progress?.total}
+                            {Number.isFinite(p.progress?.deduped) ? ` (deduped ${p.progress?.deduped})` : ''}
+                            {Number.isFinite(p.progress?.remaining) ? ` remaining ${p.progress?.remaining}` : ''}
+                            {typeof p.progress?.done === 'boolean' ? ` done=${String(p.progress?.done)}` : ''}
+                            {p.queue ? `; queue=${p.queue.ok ? 'ok' : 'not_ok'}` : ''}
+                          </p>
+                        ) : (
+                          <p style={{ margin: '6px 0 0', color: '#b91c1c' }}>
+                            progress fetch failed: {p.error || 'error'}
+                          </p>
+                        )
+                      ) : null}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ) : null}
 
           {(result.combined.errors || []).length > 0 ? (
             <div style={{ marginTop: 12 }}>

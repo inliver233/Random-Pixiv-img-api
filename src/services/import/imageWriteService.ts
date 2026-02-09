@@ -23,10 +23,14 @@ export type BulkUpsertImageForImportRow = {
   proxyPath: string;
 };
 
-export async function bulkUpsertImagesForImport(rows: BulkUpsertImageForImportRow[]): Promise<void> {
+export async function bulkUpsertImagesForImport(
+  rows: BulkUpsertImageForImportRow[],
+  options: { createdImportId?: bigint } = {},
+): Promise<void> {
   if (rows.length === 0) return;
 
   const prisma = getPrismaClient();
+  const createdImportId = options.createdImportId ?? null;
 
   const values = rows.map((row) => Prisma.sql`(
       ${row.illustId},
@@ -34,12 +38,13 @@ export async function bulkUpsertImagesForImport(rows: BulkUpsertImageForImportRo
       ${row.ext},
       ${row.originalUrl},
       ${row.proxyPath},
-      random()
+      random(),
+      ${createdImportId}
     )`);
 
   await prisma.$executeRaw(
     Prisma.sql`
-      INSERT INTO images (illust_id, page_index, ext, original_url, proxy_path, random_key)
+      INSERT INTO images (illust_id, page_index, ext, original_url, proxy_path, random_key, created_import_id)
       VALUES ${Prisma.join(values)}
       ON CONFLICT (illust_id, page_index) DO UPDATE SET
         ext = EXCLUDED.ext,

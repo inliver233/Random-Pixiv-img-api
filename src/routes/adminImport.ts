@@ -2,14 +2,11 @@ import { Router } from 'express';
 import fs from 'node:fs/promises';
 
 import { getEnv } from '../config/env';
-import { getEffectiveRuntimeConfig } from '../config/runtimeConfig';
-import { getPrismaClient } from '../db/prismaClient';
-import { enqueueHydrateMetadata } from '../jobs/hydrateMetadata';
 import { ensureQueue, getQueueHealth } from '../queue/queue';
 import { parsePixivUrl } from '../utils/parsePixivUrl';
-import { bulkUpsertImagesForImport, upsertImageForImport } from '../services/import/imageWriteService';
-import { createImport, getById as getImportById } from '../repositories/importsRepo';
+import { createImport, getById as getImportById, updateImport } from '../repositories/importsRepo';
 import { auditAdminEvent } from '../audit/adminAudit';
+import { enqueueAdminImagesImport, enqueueAdminImportRollback } from '../jobs/importImages';
 
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const formidable = require('express-formidable') as (options?: any) => any;
@@ -95,6 +92,8 @@ type ImportErrorRow = {
 type ImportResponse = {
   ok: true;
   import_id: string | null;
+  queued?: boolean;
+  job_id?: string | null;
   dry_run: boolean;
   preview?: Array<Pick<ImportOkRow, 'illust_id' | 'page_index' | 'ext' | 'original_url'>>;
   error_export?: {
@@ -153,14 +152,6 @@ async function readUploadFileText(file: any): Promise<string> {
   return fs.readFile(filePath, 'utf8');
 }
 
-function buildStableProxyPath(id: bigint, ext: string): string {
-  return `/i/${id.toString()}.${ext}`;
-}
-
-function buildImportProxyPath(illustId: bigint, pageIndex: number, ext: string): string {
-  return `/i/${illustId.toString()}_${pageIndex}.${ext}`;
-}
-
 const router = Router();
 
 function parsePositiveBigInt(value: unknown): bigint | null {
@@ -195,7 +186,9 @@ router.get('/imports/:id', (req, res, next) => {
     const total = Number(record.total ?? 0);
     const success = Number(record.success ?? 0);
     const failed = Number(record.failed ?? 0);
-    const processed = success + failed;
+    const detailObj = record.detail && typeof record.detail === 'object' ? (record.detail as any) : null;
+    const deduped = detailObj && Number.isFinite(Number(detailObj?.deduped)) ? Math.max(0, Math.trunc(Number(detailObj.deduped))) : 0;
+    const processed = success + failed + deduped;
     const remaining = Math.max(0, total - processed);
     const done = total > 0 ? processed >= total : false;
 
@@ -215,11 +208,75 @@ router.get('/imports/:id', (req, res, next) => {
       progress: {
         total,
         processed,
+        deduped,
         remaining,
         done,
       },
       queue,
     });
+  })().catch(next);
+});
+
+router.post('/imports/:id/rollback', (req, res, next) => {
+  (async () => {
+    res.setHeader('Cache-Control', 'no-store');
+
+    const id = parsePositiveBigInt((req.params as any).id);
+    if (!id) {
+      const err = new Error('Invalid import id.');
+      (err as any).status = 400;
+      throw err;
+    }
+
+    const record = await getImportById(id);
+    if (!record) {
+      const err = new Error('Import not found.');
+      (err as any).status = 404;
+      (err as any).code = 'IMPORT_NOT_FOUND';
+      throw err;
+    }
+
+    const modeRaw = normalizeText((req.body as any)?.mode ?? (req.query as any)?.mode);
+    const normalizedMode = modeRaw.trim().toLowerCase();
+    const mode = normalizedMode === 'delete' ? 'delete' : 'disable';
+
+    const requestIdRaw = (req as any).request_id;
+    const requestId = typeof requestIdRaw === 'string' && requestIdRaw.trim() ? requestIdRaw.trim() : undefined;
+    const actorRaw = (req as any)?.session?.admin_user;
+    const actor = typeof actorRaw === 'string' && actorRaw.trim() ? actorRaw.trim() : 'admin_token';
+
+    const jobId = await enqueueAdminImportRollback({
+      importId: id,
+      mode,
+      requestId,
+      actor,
+    });
+
+    const detailObj = record.detail && typeof record.detail === 'object' ? (record.detail as any) : {};
+    await updateImport({
+      id,
+      detail: {
+        ...detailObj,
+        rollback_enqueued: {
+          at: new Date().toISOString(),
+          mode,
+          job_id: jobId,
+        },
+      },
+    });
+
+    void auditAdminEvent({
+      actor,
+      action: 'images_import_rollback_enqueued',
+      resource: 'Import',
+      record_id: id.toString(),
+      request_id: requestId,
+      ip: (req as any)?.ip,
+      user_agent: (req as any)?.headers?.['user-agent'],
+      detail: { mode, job_id: jobId },
+    });
+
+    res.status(200).json({ ok: true, import_id: id.toString(), mode, job_id: jobId });
   })().catch(next);
 });
 
@@ -248,6 +305,13 @@ router.post(
       const combined = [textarea, fileText].filter((v) => v && v.trim()).join('\n');
       const lines = readLines(combined);
 
+      if (lines.length === 0) {
+        const err = new Error('No URLs provided.');
+        (err as any).status = 400;
+        (err as any).code = 'EMPTY_INPUT';
+        throw err;
+      }
+
       if (env.ADMIN_IMPORT_MAX_LINES > 0 && lines.length > env.ADMIN_IMPORT_MAX_LINES) {
         const err = new Error(
           `Too many lines: ${lines.length}. Max is ${env.ADMIN_IMPORT_MAX_LINES}. `
@@ -263,14 +327,11 @@ router.post(
 
       const MAX_RESULTS = 200;
       const MAX_ERRORS = 2000;
-      const BULK_BATCH_SIZE = 5000;
 
       const dedup = new Set<string>();
       let deduped = 0;
       const illustIdsToHydrate = new Set<string>();
-      let failedCount = 0;
-
-      const prisma = dryRun ? null : getPrismaClient();
+      let parseFailedCount = 0;
 
       const parsedOk: Array<{
         line: number;
@@ -280,17 +341,25 @@ router.post(
         originalUrl: string;
       }> = [];
 
+      const plannedItems: Array<{
+        line: number;
+        illust_id: string;
+        page_index: number;
+        ext: string;
+        original_url: string;
+      }> = [];
+
       for (const item of lines) {
         const parsed = parsePixivUrl(item.url);
         if (!parsed.ok) {
-          failedCount += 1;
+          parseFailedCount += 1;
           if (errors.length < MAX_ERRORS) {
             errors.push({
               ok: false,
               line: item.line,
-            url: item.url,
-            code: parsed.code,
-            message: parsed.message,
+              url: item.url,
+              code: parsed.code,
+              message: parsed.message,
             });
           }
           continue;
@@ -310,93 +379,22 @@ router.post(
           ext: parsed.ext,
           originalUrl: item.url,
         });
+
+        plannedItems.push({
+          line: item.line,
+          illust_id: parsed.illustId.toString(),
+          page_index: parsed.pageIndex,
+          ext: parsed.ext,
+          original_url: item.url,
+        });
+
+        illustIdsToHydrate.add(parsed.illustId.toString());
       }
 
       const totalLines = lines.length;
 
-      const bulkMin = Math.max(0, Math.trunc(env.ADMIN_IMPORT_BULK_MIN_IMAGES || 0));
-      const useBulk = !dryRun && bulkMin > 0 && parsedOk.length >= bulkMin;
-
-      let success = 0;
-
-      if (dryRun) {
-        success = parsedOk.length;
-        for (const row of parsedOk.slice(0, MAX_RESULTS)) {
-          results.push({
-            ok: true,
-            illust_id: row.illustId.toString(),
-            page_index: row.pageIndex,
-            image_id: null,
-            ext: row.ext,
-            original_url: row.originalUrl,
-            proxy_path: null,
-          });
-        }
-      } else if (useBulk) {
-        for (let offset = 0; offset < parsedOk.length; offset += BULK_BATCH_SIZE) {
-          const chunk = parsedOk.slice(offset, offset + BULK_BATCH_SIZE).map((row) => ({
-            illustId: row.illustId,
-            pageIndex: row.pageIndex,
-            ext: row.ext,
-            originalUrl: row.originalUrl,
-            proxyPath: buildImportProxyPath(row.illustId, row.pageIndex, row.ext),
-          }));
-          // eslint-disable-next-line no-await-in-loop
-          await bulkUpsertImagesForImport(chunk);
-        }
-
-        success = parsedOk.length;
-        for (const row of parsedOk) {
-          illustIdsToHydrate.add(row.illustId.toString());
-        }
-      } else {
-        for (const row of parsedOk) {
-          const provisionalProxyPath = `/i/pending.${row.ext}`;
-
-          try {
-            const image = await upsertImageForImport({
-              illustId: row.illustId,
-              pageIndex: row.pageIndex,
-              ext: row.ext,
-              originalUrl: row.originalUrl,
-              proxyPath: provisionalProxyPath,
-            });
-
-            const stableProxyPath = buildStableProxyPath(image.id, row.ext);
-            if (image.proxyPath !== stableProxyPath && prisma) {
-              await prisma.image.update({ where: { id: image.id }, data: { proxyPath: stableProxyPath } });
-            }
-
-            if (results.length < MAX_RESULTS) {
-              results.push({
-                ok: true,
-                illust_id: row.illustId.toString(),
-                page_index: row.pageIndex,
-                image_id: image.id.toString(),
-                ext: row.ext,
-                original_url: row.originalUrl,
-                proxy_path: stableProxyPath,
-              });
-            }
-
-            success += 1;
-            illustIdsToHydrate.add(row.illustId.toString());
-          } catch (err: unknown) {
-            failedCount += 1;
-            if (errors.length < MAX_ERRORS) {
-              errors.push({
-                ok: false,
-                line: row.line,
-                url: row.originalUrl,
-                code: 'upsert_failed',
-                message: err instanceof Error ? err.message : String(err),
-              });
-            }
-          }
-        }
-      }
-
-      const failed = failedCount;
+      const success = dryRun ? parsedOk.length : 0;
+      const failed = parseFailedCount;
 
       const maxExportErrors = 1000;
       const exportErrors = errors.slice(0, maxExportErrors);
@@ -410,124 +408,155 @@ router.post(
           .join('\n'),
       };
 
-      let enqueuedHydrateMetadata = 0;
-      let enqueueNote = dryRun ? 'dry_run: queue not enqueued' : 'ok';
       const requestIdRaw = (req as any).request_id;
       const requestId = typeof requestIdRaw === 'string' && requestIdRaw.trim() ? requestIdRaw.trim() : undefined;
+      const actorRaw = (req as any)?.session?.admin_user;
+      const actor = typeof actorRaw === 'string' && actorRaw.trim() ? actorRaw.trim() : 'admin_token';
 
-      if (!dryRun && illustIdsToHydrate.size > 0) {
-        const runtimeConfig = await getEffectiveRuntimeConfig({ prisma: prisma ?? undefined });
-        const maxHydrateIllusts = Math.max(0, Math.trunc(runtimeConfig.adminImportMaxHydrateIllusts || 0));
-
-        if (!runtimeConfig.hydrateOnImport) {
-          enqueueNote = 'skipped:policy_disabled';
-        } else if (maxHydrateIllusts > 0 && illustIdsToHydrate.size > maxHydrateIllusts) {
-          enqueueNote = `skipped:too_many_illusts:${illustIdsToHydrate.size}`;
-        } else if (useBulk) {
-          try {
-            const boss = await ensureQueue('hydrate_metadata');
-            for (const rawIllustId of illustIdsToHydrate) {
-              const payload: any = { illust_id: rawIllustId };
-              if (requestId) payload.request_id = requestId;
-              // eslint-disable-next-line no-await-in-loop
-              const id = await boss.send('hydrate_metadata', payload);
-              if (!id) continue;
-              enqueuedHydrateMetadata += 1;
-            }
-          } catch (err: unknown) {
-            const code = typeof (err as any)?.code === 'string' ? (err as any).code : '';
-            const message = err instanceof Error ? err.message : String(err);
-            enqueueNote = code ? `enqueue_failed:${code}:${message}` : `enqueue_failed:${message}`;
-          }
-        } else {
-        try {
-          for (const rawIllustId of illustIdsToHydrate) {
-            if (requestId) {
-              await enqueueHydrateMetadata(BigInt(rawIllustId), requestId);
-            } else {
-              await enqueueHydrateMetadata(BigInt(rawIllustId));
-            }
-            enqueuedHydrateMetadata += 1;
-          }
-        } catch (err: unknown) {
-          const code = typeof (err as any)?.code === 'string' ? (err as any).code : '';
-          const message = err instanceof Error ? err.message : String(err);
-          enqueueNote = code ? `enqueue_failed:${code}:${message}` : `enqueue_failed:${message}`;
+      if (dryRun) {
+        for (const row of parsedOk.slice(0, MAX_RESULTS)) {
+          results.push({
+            ok: true,
+            illust_id: row.illustId.toString(),
+            page_index: row.pageIndex,
+            image_id: null,
+            ext: row.ext,
+            original_url: row.originalUrl,
+            proxy_path: null,
+          });
         }
-        }
-      }
 
-      const importRecord = dryRun
-        ? null
-        : await createImport({
-          total: totalLines,
-          source: 'admin_api',
+        const response: ImportResponse = {
+          ok: true,
+          import_id: null,
+          dry_run: true,
+          preview: preview
+            ? results.map((row) => ({
+              illust_id: row.illust_id,
+              page_index: row.page_index,
+              ext: row.ext,
+              original_url: row.original_url,
+            }))
+            : undefined,
+          error_export: errorExport,
+          total_lines: totalLines,
+          unique_images: dedup.size,
+          deduped,
           success,
           failed,
-          detail: {
-            deduped,
-            unique: dedup.size,
-            errors: errors.slice(0, 50),
-            error_export: {
-              total_errors: errorExport.total_errors,
-              exported_errors: errorExport.exported_errors,
-              truncated: errorExport.truncated,
-            },
-            enqueued: {
-              hydrate_metadata: enqueuedHydrateMetadata,
-              note: enqueueNote,
-              unique_illusts: illustIdsToHydrate.size,
-            },
+          enqueued: {
+            hydrate_metadata: 0,
+            note: 'dry_run',
           },
-        });
+          results,
+          errors,
+        };
 
-      if (!dryRun && importRecord) {
-        void auditAdminEvent({
-          actor: 'admin_token',
-          action: 'images_import',
-          resource: 'Import',
-          record_id: importRecord.id.toString(),
-          request_id: (req as any)?.request_id,
-          ip: (req as any)?.ip,
-          user_agent: (req as any)?.headers?.['user-agent'],
-          detail: {
-            total_lines: totalLines,
-            unique_images: dedup.size,
-            deduped,
-            success,
-            failed,
-            enqueued: {
-              hydrate_metadata: enqueuedHydrateMetadata,
-              note: enqueueNote,
-              unique_illusts: illustIdsToHydrate.size,
-            },
-          },
-        });
+        res.setHeader('Cache-Control', 'no-store');
+        res.status(200).json(response);
+        return;
       }
+
+      const detailBase: any = {
+        deduped,
+        unique: dedup.size,
+        errors: errors.slice(0, 50),
+        error_export: {
+          total_errors: errorExport.total_errors,
+          exported_errors: errorExport.exported_errors,
+          truncated: errorExport.truncated,
+        },
+        planned: {
+          unique_images: dedup.size,
+          unique_illusts: illustIdsToHydrate.size,
+        },
+      };
+
+      const importRecord = await createImport({
+        total: totalLines,
+        createdBy: actor,
+        source: 'admin_api',
+        success: 0,
+        failed,
+        detail: detailBase,
+      });
+
+      let jobId: string | null = null;
+      let enqueueNote = 'skipped:no_valid_images';
+      if (plannedItems.length > 0) {
+        try {
+          jobId = await enqueueAdminImagesImport({
+            importId: importRecord.id,
+            items: plannedItems,
+            requestId,
+            actor,
+          });
+          enqueueNote = 'queued';
+        } catch (err: unknown) {
+          const code = typeof (err as any)?.code === 'string' ? (err as any).code : 'IMPORT_ENQUEUE_FAILED';
+          const message = err instanceof Error ? err.message : String(err);
+          const nextDetail: any = {
+            ...detailBase,
+            job: { enqueued_job_id: null, enqueue_error: { code, message } },
+          };
+          await updateImport({ id: importRecord.id, detail: nextDetail });
+          const httpErr = new Error(message);
+          (httpErr as any).status = code === 'QUEUE_DISABLED' ? 503 : 500;
+          (httpErr as any).code = code;
+          (httpErr as any).import_id = importRecord.id.toString();
+          throw httpErr;
+        }
+      }
+
+      const nextDetail: any = {
+        ...detailBase,
+        job: { enqueued_job_id: jobId },
+        enqueued: {
+          hydrate_metadata: 0,
+          note: enqueueNote,
+          unique_illusts: illustIdsToHydrate.size,
+        },
+      };
+      await updateImport({ id: importRecord.id, detail: nextDetail });
+
+      void auditAdminEvent({
+        actor,
+        action: 'images_import_enqueued',
+        resource: 'Import',
+        record_id: importRecord.id.toString(),
+        request_id: (req as any)?.request_id,
+        ip: (req as any)?.ip,
+        user_agent: (req as any)?.headers?.['user-agent'],
+        detail: {
+          job_id: jobId,
+          total_lines: totalLines,
+          unique_images: dedup.size,
+          deduped,
+          parse_failed: failed,
+          planned: {
+            unique_images: dedup.size,
+            unique_illusts: illustIdsToHydrate.size,
+          },
+        },
+      });
 
       const response: ImportResponse = {
         ok: true,
-        import_id: importRecord ? importRecord.id.toString() : null,
-        dry_run: dryRun,
-        preview: preview
-          ? results.map((row) => ({
-            illust_id: row.illust_id,
-            page_index: row.page_index,
-            ext: row.ext,
-            original_url: row.original_url,
-          }))
-          : undefined,
+        import_id: importRecord.id.toString(),
+        job_id: jobId,
+        queued: Boolean(jobId),
+        dry_run: false,
         error_export: errorExport,
         total_lines: totalLines,
         unique_images: dedup.size,
         deduped,
-        success,
+        success: 0,
         failed,
         enqueued: {
-          hydrate_metadata: enqueuedHydrateMetadata,
+          hydrate_metadata: 0,
           note: enqueueNote,
         },
-        results,
+        results: [],
         errors,
       };
 
