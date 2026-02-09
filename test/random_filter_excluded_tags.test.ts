@@ -46,6 +46,30 @@ describe('GET /random (filter excluded_tags)', () => {
     expect(filters).toEqual({ xRestrict: 0, excludedTags: ['tag1', 'tag2'] });
   });
 
+  it('parses excluded_tags from repeated query params', async () => {
+    const app = await createApp();
+
+    await request(app)
+      .get('/random?excluded_tags=tag1&excluded_tags=tag2')
+      .set('accept', 'application/json')
+      .expect(404);
+
+    const filters = pickRandomImageStream.mock.calls[0]?.[0];
+    expect(filters).toEqual({ xRestrict: 0, excludedTags: ['tag1', 'tag2'] });
+  });
+
+  it('parses excluded_tags as a comma separated list', async () => {
+    const app = await createApp();
+
+    await request(app)
+      .get('/random?excluded_tags=tag1,tag2')
+      .set('accept', 'application/json')
+      .expect(404);
+
+    const filters = pickRandomImageStream.mock.calls[0]?.[0];
+    expect(filters).toEqual({ xRestrict: 0, excludedTags: ['tag1', 'tag2'] });
+  });
+
   it('deduplicates and trims excluded_tags', async () => {
     const app = await createApp();
 
@@ -87,4 +111,3 @@ describe('GET /random (filter excluded_tags)', () => {
     expect(pickRandomImageStream).not.toHaveBeenCalled();
   });
 });
-

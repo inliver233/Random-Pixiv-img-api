@@ -211,7 +211,10 @@ curl -i "http://127.0.0.1:3000/random?min_pixels=2073600"
 
 `included_tags` 用于筛选“必须包含”的标签（AND 语义）：
 
-- 传入格式：`tag1|tag2|tag3`（`|` 分隔）
+- 支持多值输入（最终会合并、trim、去重）：
+  - `included_tags=tag1|tag2|tag3`（`|` 分隔）
+  - `included_tags=tag1,tag2,tag3`（`,` 分隔）
+  - `included_tags=tag1&included_tags=tag2`（重复 query param）
 - 语义：图片必须同时包含所有给定标签
 
 ### 示例
@@ -219,6 +222,8 @@ curl -i "http://127.0.0.1:3000/random?min_pixels=2073600"
 ```bash
 curl -i "http://127.0.0.1:3000/random?included_tags=cat"
 curl -i "http://127.0.0.1:3000/random?included_tags=cat|dog"
+curl -i "http://127.0.0.1:3000/random?included_tags=cat,dog"
+curl -i "http://127.0.0.1:3000/random?included_tags=cat&included_tags=dog"
 ```
 
 ### 注意事项
@@ -230,7 +235,10 @@ curl -i "http://127.0.0.1:3000/random?included_tags=cat|dog"
 
 `excluded_tags` 用于筛选“必须不包含”的标签（NOT 语义）：
 
-- 传入格式：`tag1|tag2|tag3`（`|` 分隔）
+- 支持多值输入（最终会合并、trim、去重）：
+  - `excluded_tags=tag1|tag2|tag3`（`|` 分隔）
+  - `excluded_tags=tag1,tag2,tag3`（`,` 分隔）
+  - `excluded_tags=tag1&excluded_tags=tag2`（重复 query param）
 - 语义：只要命中任意一个排除标签就会被过滤掉（OR / NOT）
 
 ### 示例
@@ -238,6 +246,8 @@ curl -i "http://127.0.0.1:3000/random?included_tags=cat|dog"
 ```bash
 curl -i "http://127.0.0.1:3000/random?excluded_tags=r18"
 curl -i "http://127.0.0.1:3000/random?excluded_tags=r18|r18g"
+curl -i "http://127.0.0.1:3000/random?excluded_tags=r18,r18g"
+curl -i "http://127.0.0.1:3000/random?excluded_tags=r18&excluded_tags=r18g"
 ```
 
 ### 注意事项

@@ -773,7 +773,10 @@ components:
         type: string
       description: |
         包含标签过滤（AND 语义）。
-        - 传入格式：`tag1|tag2|tag3`（`|` 分隔；会 trim；重复会去重）
+        - 支持多值输入（最终会合并、trim、去重）：
+          - `included_tags=tag1|tag2|tag3`（`|` 分隔）
+          - `included_tags=tag1,tag2,tag3`（`,` 分隔）
+          - `included_tags=tag1&included_tags=tag2`（重复 query param）
         - 语义：必须同时包含所有给定标签（AND）
         空值或解析后为空将返回 400（code=BAD_REQUEST, message=Invalid included_tags.）。
       examples:
@@ -789,7 +792,10 @@ components:
         type: string
       description: |
         排除标签过滤（NOT 语义）。
-        - 传入格式：`tag1|tag2|tag3`（`|` 分隔；会 trim；重复会去重）
+        - 支持多值输入（最终会合并、trim、去重）：
+          - `excluded_tags=tag1|tag2|tag3`（`|` 分隔）
+          - `excluded_tags=tag1,tag2,tag3`（`,` 分隔）
+          - `excluded_tags=tag1&excluded_tags=tag2`（重复 query param）
         - 语义：只要命中任意一个排除标签就会被过滤掉（NOT / OR）
         空值或解析后为空将返回 400（code=BAD_REQUEST, message=Invalid excluded_tags.）。
       examples:

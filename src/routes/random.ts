@@ -6,6 +6,7 @@ import { buildRandomJsonResponse } from '../contracts/randomResponse';
 import { buildSignedImgproxyUrl } from '../imgproxy/imgproxy';
 import { incrementRandomFailTotal, incrementRandomSuccessTotal, observeRandomAttemptsHistogram } from '../metrics/randomMetrics';
 import { getImageContentTypeFromFilename } from '../utils/contentType';
+import { parseStringListQueryParam } from '../utils/queryList';
 import { pickRandomImageRecord, pickRandomImageStream } from '../services/randomService';
 import { IMAGE_STATUS_BROKEN, markFail } from '../repositories/imagesRepo';
 import { isOpportunisticHydrateCandidate, scheduleOpportunisticHydrate } from '../hydration/opportunisticHydrate';
@@ -225,55 +226,11 @@ function parseMinPixels(value: unknown): number | undefined {
 }
 
 function parseIncludedTags(value: unknown): string[] | undefined {
-  if (value === undefined || value === null) return undefined;
-
-  const raw = Array.isArray(value) ? String(value[0] || '') : String(value ?? '');
-  const normalized = raw.trim();
-
-  if (!normalized) {
-    const err = new Error('Invalid included_tags.');
-    (err as any).status = 400;
-    throw err;
-  }
-
-  const tags = normalized
-    .split('|')
-    .map((tag) => tag.trim())
-    .filter((tag) => tag !== '');
-
-  if (tags.length === 0) {
-    const err = new Error('Invalid included_tags.');
-    (err as any).status = 400;
-    throw err;
-  }
-
-  return [...new Set(tags)];
+  return parseStringListQueryParam(value, { paramName: 'included_tags' });
 }
 
 function parseExcludedTags(value: unknown): string[] | undefined {
-  if (value === undefined || value === null) return undefined;
-
-  const raw = Array.isArray(value) ? String(value[0] || '') : String(value ?? '');
-  const normalized = raw.trim();
-
-  if (!normalized) {
-    const err = new Error('Invalid excluded_tags.');
-    (err as any).status = 400;
-    throw err;
-  }
-
-  const tags = normalized
-    .split('|')
-    .map((tag) => tag.trim())
-    .filter((tag) => tag !== '');
-
-  if (tags.length === 0) {
-    const err = new Error('Invalid excluded_tags.');
-    (err as any).status = 400;
-    throw err;
-  }
-
-  return [...new Set(tags)];
+  return parseStringListQueryParam(value, { paramName: 'excluded_tags' });
 }
 
 const PG_BIGINT_MAX = 9223372036854775807n;

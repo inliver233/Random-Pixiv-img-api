@@ -245,6 +245,21 @@ describe('Classification APIs (/tags /authors /images)', () => {
     });
   });
 
+  it('GET /images parses included_tags/excluded_tags from repeated query params and comma/| delimiters', async () => {
+    prisma.image.findMany.mockResolvedValueOnce([]);
+
+    const app = createApp();
+
+    const res = await request(app)
+      .get('/images?limit=1&included_tags=tag1&included_tags=tag2,tag3|tag4&excluded_tags=ex1,ex2&excluded_tags=ex3|ex4')
+      .set('x-request-id', 'req-images-tags-multi')
+      .expect(200);
+
+    expect(res.body.items).toEqual([]);
+    expect(res.body.query.filters.included_tags).toEqual(['tag1', 'tag2', 'tag3', 'tag4']);
+    expect(res.body.query.filters.excluded_tags).toEqual(['ex1', 'ex2', 'ex3', 'ex4']);
+  });
+
   it('GET /images supports min_pixels via raw SQL path', async () => {
     prisma.$queryRaw.mockResolvedValueOnce([{ id: 3n }, { id: 2n }, { id: 1n }]);
     prisma.image.findMany.mockResolvedValueOnce([

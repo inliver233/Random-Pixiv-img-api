@@ -3,6 +3,7 @@ import { Router } from 'express';
 import { getEnv } from '../config/env';
 import { incClassificationRequest } from '../metrics/classificationMetrics';
 import { IMAGE_STATUS_ACTIVE, IMAGE_STATUS_BROKEN, IMAGE_STATUS_DISABLED, getByIdWithTags, listImagesWithTags, type PickRandomFilters } from '../repositories/imagesRepo';
+import { parseStringListQueryParam } from '../utils/queryList';
 
 const router = Router();
 
@@ -176,55 +177,11 @@ function parseMinInt(value: unknown, errorMessage: string): number | undefined {
 }
 
 function parseIncludedTags(value: unknown): string[] | undefined {
-  if (value === undefined || value === null) return undefined;
-
-  const raw = Array.isArray(value) ? String(value[0] || '') : String(value ?? '');
-  const normalized = raw.trim();
-
-  if (!normalized) {
-    const err = new Error('Invalid included_tags.');
-    (err as any).status = 400;
-    throw err;
-  }
-
-  const tags = normalized
-    .split('|')
-    .map((tag) => tag.trim())
-    .filter((tag) => tag !== '');
-
-  if (tags.length === 0) {
-    const err = new Error('Invalid included_tags.');
-    (err as any).status = 400;
-    throw err;
-  }
-
-  return [...new Set(tags)];
+  return parseStringListQueryParam(value, { paramName: 'included_tags' });
 }
 
 function parseExcludedTags(value: unknown): string[] | undefined {
-  if (value === undefined || value === null) return undefined;
-
-  const raw = Array.isArray(value) ? String(value[0] || '') : String(value ?? '');
-  const normalized = raw.trim();
-
-  if (!normalized) {
-    const err = new Error('Invalid excluded_tags.');
-    (err as any).status = 400;
-    throw err;
-  }
-
-  const tags = normalized
-    .split('|')
-    .map((tag) => tag.trim())
-    .filter((tag) => tag !== '');
-
-  if (tags.length === 0) {
-    const err = new Error('Invalid excluded_tags.');
-    (err as any).status = 400;
-    throw err;
-  }
-
-  return [...new Set(tags)];
+  return parseStringListQueryParam(value, { paramName: 'excluded_tags' });
 }
 
 function parseUserId(value: unknown): bigint | undefined {

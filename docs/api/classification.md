@@ -30,8 +30,8 @@
 - `r18_strict=1`：当 `r18=0` 时是否排除 `xRestrict IS NULL`。
 - `orientation=any|portrait|landscape|square`
 - `min_width=<int>=0`、`min_height=<int>=0`、`min_pixels=<int>=0`
-- `included_tags=tag1|tag2`（AND 语义）
-- `excluded_tags=tag1|tag2`（NOT 语义）
+- `included_tags`：支持 `|` / `,` / 重复 query param（AND 语义；详见 `docs/api/random.md`）
+- `excluded_tags`：支持 `|` / `,` / 重复 query param（NOT 语义；详见 `docs/api/random.md`）
 - `user_id=<pixiv_user_id>`：精确作者筛选
 - `illust_id=<pixiv_illust_id>`：精确作品筛选
 
@@ -123,4 +123,3 @@
 ```
 
 详见 `docs/errors.md` 的错误码与可观测性约定。
-
