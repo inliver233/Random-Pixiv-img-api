@@ -32,15 +32,56 @@ function normalizeActor(value: unknown): string | undefined {
   return v ? v : undefined;
 }
 
-function toBigIntId(value: unknown, label: string): bigint {
-  try {
-    if (typeof value === 'bigint') return value;
-    if (typeof value === 'number' && Number.isFinite(value)) return BigInt(Math.trunc(value));
-    if (typeof value === 'string' && value.trim()) return BigInt(value.trim());
-  } catch {
-    // ignore
+function unwrapAdminJsIdShape(value: unknown): unknown {
+  let current: unknown = value;
+  for (let i = 0; i < 4; i += 1) {
+    if (!current || typeof current !== 'object') break;
+
+    if ('id' in (current as any)) {
+      current = (current as any).id;
+      continue;
+    }
+
+    if ('value' in (current as any)) {
+      current = (current as any).value;
+      continue;
+    }
+
+    const params = (current as any).params;
+    if (params && typeof params === 'object' && 'id' in (params as any)) {
+      current = (params as any).id;
+      continue;
+    }
+
+    break;
   }
-  throw new Error(`Invalid ${label}`);
+  return current;
+}
+
+export type AdminJobBigIntIdParseResult =
+  | { ok: true; id: bigint }
+  | { ok: false; code: string; message: string };
+
+export function parseAdminJobBigIntId(value: unknown, label: 'token_id' | 'endpoint_id'): AdminJobBigIntIdParseResult {
+  const normalized = unwrapAdminJsIdShape(value);
+  let asBigInt: bigint | null = null;
+  try {
+    if (typeof normalized === 'bigint') asBigInt = normalized;
+    else if (typeof normalized === 'number' && Number.isFinite(normalized)) asBigInt = BigInt(Math.trunc(normalized));
+    else if (typeof normalized === 'string' && normalized.trim()) asBigInt = BigInt(normalized.trim());
+  } catch {
+    asBigInt = null;
+  }
+
+  if (asBigInt === null || asBigInt <= 0n) {
+    return {
+      ok: false,
+      code: `invalid_${label}`,
+      message: `Invalid ${label} (expected string/number/bigint/{id}/{value}/{params.id}).`,
+    };
+  }
+
+  return { ok: true, id: asBigInt };
 }
 
 function runWithTimeout<T>(work: Promise<T>, timeoutMs: number): Promise<{ status: 'ok'; value: T } | { status: 'timeout' } | { status: 'error'; error: string }> {
@@ -120,7 +161,19 @@ async function registerPixivTokenTestRefreshWorker(): Promise<void> {
     const requestId = normalizeRequestId(jobData.request_id ?? jobData.requestId);
     const actor = normalizeActor(jobData.actor);
 
-    const tokenId = toBigIntId(tokenIdRaw, 'token_id');
+    const tokenIdResult = parseAdminJobBigIntId(tokenIdRaw, 'token_id');
+    if (!tokenIdResult.ok) {
+      auditAdminModelChange({
+        action: 'pixiv_token_test_refresh_fail',
+        resource: 'PixivToken',
+        record_id: undefined,
+        req: { request_id: requestId, session: { admin_user: actor }, headers: { 'user-agent': 'admin_job_worker' } },
+        detail: { ok: false, code: tokenIdResult.code, message: tokenIdResult.message, job_id: job?.id ?? null },
+      });
+      return { ok: false, code: tokenIdResult.code, message: tokenIdResult.message, token_id: null };
+    }
+
+    const tokenId = tokenIdResult.id;
     const prisma = getPrismaClient();
 
     const token = await prisma.pixivToken.findUnique({
@@ -189,7 +242,19 @@ async function registerProxyEndpointProbeWorker(): Promise<void> {
     const requestId = normalizeRequestId(jobData.request_id ?? jobData.requestId);
     const actor = normalizeActor(jobData.actor);
 
-    const endpointId = toBigIntId(endpointIdRaw, 'endpoint_id');
+    const endpointIdResult = parseAdminJobBigIntId(endpointIdRaw, 'endpoint_id');
+    if (!endpointIdResult.ok) {
+      auditAdminModelChange({
+        action: 'proxy_endpoint_probe_error',
+        resource: 'ProxyEndpoint',
+        record_id: undefined,
+        req: { request_id: requestId, session: { admin_user: actor }, headers: { 'user-agent': 'admin_job_worker' } },
+        detail: { ok: false, code: endpointIdResult.code, message: endpointIdResult.message, job_id: job?.id ?? null },
+      });
+      return { ok: false, code: endpointIdResult.code, message: endpointIdResult.message, endpoint_id: null };
+    }
+
+    const endpointId = endpointIdResult.id;
     const prisma = getPrismaClient();
 
     const endpoint = await prisma.proxyEndpoint.findUnique({
@@ -306,4 +371,3 @@ export async function registerAdminActionsWorker(): Promise<void> {
     throw err;
   }
 }
-
