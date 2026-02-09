@@ -8,6 +8,29 @@ function safeText(value) {
   return String(value);
 }
 
+function normalizeUuid(value) {
+  const s = safeText(value).trim();
+  if (!s) return null;
+  if (!/^[0-9a-fA-F-]{36}$/.test(s)) return null;
+  return s;
+}
+
+function tryExtractJobId(payload) {
+  const fromObj = payload?.job?.id || payload?.job_id || payload?.jobId;
+  const normalized = normalizeUuid(fromObj);
+  if (normalized) return normalized;
+
+  const msg = safeText(payload?.notice?.message || '');
+  const m = /([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})/.exec(msg);
+  return m ? m[1] : null;
+}
+
+function tryExtractQueueName(payload) {
+  const q = payload?.job?.queue || payload?.job_queue || payload?.jobQueue;
+  const s = safeText(q).trim();
+  return s || null;
+}
+
 export default function RecordActionRunner(props) {
   const { action, resource, record, records } = props;
   const sendNotice = useNotice();
@@ -80,6 +103,8 @@ export default function RecordActionRunner(props) {
         ok: true,
         at: new Date().toISOString(),
         redirectUrl: payload.redirectUrl || null,
+        jobId: tryExtractJobId(payload),
+        jobQueue: tryExtractQueueName(payload),
       });
 
       if (payload.redirectUrl) {
@@ -146,6 +171,17 @@ export default function RecordActionRunner(props) {
                 / redirect: <a href={lastResult.redirectUrl}>{safeText(lastResult.redirectUrl)}</a>
               </>
             ) : null}
+            {lastResult.jobId ? (
+              <>
+                {' '}
+                / job:{' '}
+                <a
+                  href={`/admin/pages/adminJobs?job_id=${encodeURIComponent(lastResult.jobId)}${lastResult.jobQueue ? `&queue=${encodeURIComponent(lastResult.jobQueue)}` : ''}`}
+                >
+                  {safeText(lastResult.jobId)}
+                </a>
+              </>
+            ) : null}
           </div>
           {!lastResult.ok && lastResult.error ? (
             <pre style={{ marginTop: 10, whiteSpace: 'pre-wrap', color: '#b91c1c' }}>{safeText(lastResult.error)}</pre>
@@ -155,4 +191,3 @@ export default function RecordActionRunner(props) {
     </div>
   );
 }
-

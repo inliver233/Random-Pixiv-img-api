@@ -16,6 +16,13 @@ function safeString(value) {
   return String(value);
 }
 
+function normalizeUuid(value) {
+  const v = safeString(value).trim();
+  if (!v) return null;
+  if (!/^[0-9a-fA-F-]{36}$/.test(v)) return null;
+  return v;
+}
+
 function formatOptionalIso(iso) {
   if (!iso) return '';
   const s = safeString(iso);
@@ -45,18 +52,53 @@ export default function AdminJobsPage() {
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
   const [notice, setNotice] = useState(null);
-  const [queueFilter, setQueueFilter] = useState('');
+  const queryInit = useMemo(() => {
+    try {
+      const qs = new URLSearchParams(window.location.search || '');
+      return {
+        queue: safeString(qs.get('queue') || ''),
+        jobId: safeString(qs.get('job_id') || qs.get('jobId') || ''),
+        requestId: safeString(qs.get('request_id') || qs.get('requestId') || ''),
+      };
+    } catch {
+      return { queue: '', jobId: '', requestId: '' };
+    }
+  }, []);
 
-  async function refresh() {
+  const [queueFilter, setQueueFilter] = useState(queryInit.queue || '');
+  const [jobIdFilter, setJobIdFilter] = useState(queryInit.jobId || '');
+  const [requestIdFilter, setRequestIdFilter] = useState(queryInit.requestId || '');
+
+  async function refresh(overrides) {
     setError(null);
     try {
       setLoading(true);
-      const res = await api.getPage({ pageName: 'adminJobs' });
+      const nextQueueFilter = overrides && typeof overrides.queueFilter === 'string' ? overrides.queueFilter : queueFilter;
+      const nextJobIdFilter = overrides && typeof overrides.jobIdFilter === 'string' ? overrides.jobIdFilter : jobIdFilter;
+      const nextRequestIdFilter = overrides && typeof overrides.requestIdFilter === 'string' ? overrides.requestIdFilter : requestIdFilter;
+
+      const jobId = normalizeUuid(nextJobIdFilter);
+      const requestId = normalizeUuid(nextRequestIdFilter);
+      const queue = safeString(nextQueueFilter).trim();
+      const params = jobId
+        ? { job_id: jobId, ...(queue ? { queue } : {}) }
+        : requestId
+          ? { request_id: requestId, ...(queue ? { queue } : {}) }
+          : undefined;
+      const res = await api.getPage({ pageName: 'adminJobs', params });
       const next = res?.data || null;
       setData(next);
-      if (!queueFilter) {
-        const queues = Array.isArray(next?.queues) ? next.queues : [];
-        if (queues.length > 0) setQueueFilter(safeString(queues[0]));
+      const nextQueues = Array.isArray(next?.queues) ? next.queues : [];
+      const nextJobs = Array.isArray(next?.jobs) ? next.jobs : [];
+
+      if (jobId) {
+        const desired = safeString(nextJobs?.[0]?.queue || '').trim();
+        setQueueFilter(desired || '');
+      } else if (requestId) {
+        if (queue && nextQueues.length > 0 && !nextQueues.includes(queue)) setQueueFilter('');
+      } else if (nextQueues.length > 0) {
+        if (!queueFilter) setQueueFilter(safeString(nextQueues[0]));
+        else if (!nextQueues.includes(queueFilter)) setQueueFilter(safeString(nextQueues[0]));
       }
     } catch (err) {
       setData(null);
@@ -134,9 +176,25 @@ export default function AdminJobsPage() {
 
   const filteredJobs = useMemo(() => {
     const q = safeString(queueFilter);
-    if (!q) return jobs;
-    return jobs.filter((j) => safeString(j?.queue) === q);
-  }, [jobs, queueFilter]);
+    const filteredByQueue = q ? jobs.filter((j) => safeString(j?.queue) === q) : jobs;
+
+    const jobQ = safeString(jobIdFilter).trim();
+    const reqQ = safeString(requestIdFilter).trim();
+
+    let out = filteredByQueue;
+
+    if (jobQ) {
+      const needle = jobQ.toLowerCase();
+      out = out.filter((j) => safeString(j?.id).toLowerCase().includes(needle));
+    }
+
+    if (reqQ) {
+      const needle = reqQ.toLowerCase();
+      out = out.filter((j) => safeString(j?.data_summary?.request_id).toLowerCase().includes(needle));
+    }
+
+    return out;
+  }, [jobs, queueFilter, jobIdFilter, requestIdFilter]);
 
   const queueDetail = toFriendlyOpsMessage(data?.queue?.message, '');
   const buttonStyle = createButtonStyle({ disabled: loading });
@@ -197,10 +255,49 @@ export default function AdminJobsPage() {
             disabled={loading}
             style={{ ...createInputStyle(), minWidth: 260 }}
           >
+            <option key="__all__" value="">全部（所有队列）</option>
             {queues.map((q) => (
               <option key={safeString(q)} value={safeString(q)}>{safeString(q)}</option>
             ))}
           </select>
+          <label style={{ fontWeight: 600 }}>job_id</label>
+          <input
+            value={safeString(jobIdFilter)}
+            onChange={(e) => setJobIdFilter(e.target.value)}
+            disabled={loading}
+            placeholder="uuid（可粘贴）"
+            style={{ ...createInputStyle({ mono: true }), width: 340 }}
+          />
+          <label style={{ fontWeight: 600 }}>request_id</label>
+          <input
+            value={safeString(requestIdFilter)}
+            onChange={(e) => setRequestIdFilter(e.target.value)}
+            disabled={loading}
+            placeholder="uuid（可粘贴）"
+            style={{ ...createInputStyle({ mono: true }), width: 340 }}
+          />
+          <button
+            type="button"
+            disabled={loading}
+            onClick={() => refresh()}
+            style={smallBtn('primary')}
+            title="当输入完整 UUID 时，会向后端按 job_id/request_id 精确查询"
+          >
+            查询
+          </button>
+          <button
+            type="button"
+            disabled={loading}
+            onClick={() => {
+              setJobIdFilter('');
+              setRequestIdFilter('');
+              void refresh({ jobIdFilter: '', requestIdFilter: '', queueFilter: '' });
+            }}
+            style={smallBtn('danger')}
+            title="清除 job_id/request_id 并回到最近 jobs"
+          >
+            清除
+          </button>
           <input
             value={safeString(data?.limit)}
             readOnly

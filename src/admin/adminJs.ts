@@ -25,8 +25,8 @@ import { proxyPoolResourceOptions } from './resources/proxyPools';
 import { hasEffectiveFilterValue } from './utils/filterValue';
 import { runWithTimeout } from './utils/runWithTimeout';
 import { getAdminJobsQueueNames } from './utils/adminJobsQueueNames';
+import { queryAdminJobs, safeJobSummary } from './utils/adminJobsQuery';
 import { getBuildInfo } from '../utils/buildInfo';
-import { redactString, sanitizeStructuredData } from '../utils/redaction';
 
 let cachedRouter: Router | null = null;
 let cachedPromise: Promise<Router> | null = null;
@@ -535,38 +535,6 @@ export async function getAdminJsRouter(): Promise<Router> {
               return v;
             };
 
-            const safeJobSummary = (data: any): Record<string, unknown> => {
-              const out: Record<string, unknown> = {};
-              if (!data || typeof data !== 'object') return out;
-              const keys = [
-                'request_id',
-                'illust_id',
-                'run_id',
-                'token_id',
-                'endpoint_id',
-              ];
-              for (const key of keys) {
-                const value = (data as any)[key];
-                if (value === undefined || value === null) continue;
-                const s = String(value).trim();
-                if (!s) continue;
-                out[key] = s;
-              }
-              return out;
-            };
-
-            const extractOutputMessage = (output: any): { message: string | null; stack: string | null } => {
-              if (!output || typeof output !== 'object') return { message: null, stack: null };
-              const value = (output as any).value ?? output;
-              if (!value || typeof value !== 'object') return { message: null, stack: null };
-              const rawMessage = typeof (value as any).message === 'string' ? (value as any).message : null;
-              const rawStack = typeof (value as any).stack === 'string' ? (value as any).stack : null;
-              return {
-                message: rawMessage ? redactString(rawMessage) : null,
-                stack: rawStack ? redactString(rawStack) : null,
-              };
-            };
-
             const truncate = (value: string, max = 240): string => {
               const s = String(value ?? '');
               if (s.length <= max) return s;
@@ -575,64 +543,6 @@ export async function getAdminJsRouter(): Promise<Router> {
 
             const queues = getAdminJobsQueueNames();
             const defaultLimit = 80;
-
-            const queryJobs = async (limit: number) => {
-              const maxLimit = Math.max(1, Math.min(200, limit));
-              if (queues.length === 0) return [];
-
-              try {
-                const rows = await prisma.$queryRaw<{
-                  id: string;
-                  queue: string;
-                  state: string;
-                  created_on: Date;
-                  data: any;
-                  output: any;
-                }[]>(
-                  Prisma.sql`
-                    SELECT
-                      id::text as id,
-                      name::text as queue,
-                      state::text as state,
-                      created_on,
-                      data,
-                      output
-                    FROM pgboss.job
-                    WHERE name IN (${Prisma.join(queues)})
-                    ORDER BY created_on DESC
-                    LIMIT ${maxLimit}
-                  `,
-                );
-
-                return rows.map((row) => {
-                  const output = extractOutputMessage(row.output);
-                  const outputPreview = row.output ? truncate(JSON.stringify(sanitizeStructuredData(row.output)), 240) : null;
-                  return {
-                    id: row.id,
-                    queue: row.queue,
-                    state: row.state,
-                    created_on: row.created_on ? row.created_on.toISOString() : null,
-                    data_summary: safeJobSummary(row.data),
-                    output_message: output.message,
-                    output_stack: output.stack,
-                    output_preview: output.message ? null : outputPreview,
-                  };
-                });
-              } catch (err: unknown) {
-                const normalized = normalizeRuntimeError(err);
-                const outputPreview = truncate(JSON.stringify({ error: normalized.message }), 240);
-                return [{
-                  id: 'query_failed',
-                  queue: queues[0] ?? 'unknown',
-                  state: 'error',
-                  created_on: null,
-                  data_summary: {},
-                  output_message: normalized.message,
-                  output_stack: null,
-                  output_preview: outputPreview,
-                }];
-              }
-            };
 
             if (method === 'post') {
               const payload = request?.payload && typeof request.payload === 'object' ? (request.payload as Record<string, unknown>) : {};
@@ -710,14 +620,44 @@ export async function getAdminJsRouter(): Promise<Router> {
               return { ok: false, error: 'unsupported_action' };
             }
 
-            const jobs = await queryJobs(coerceInt((request as any)?.query?.limit, defaultLimit));
+            const query = (request as any)?.query && typeof (request as any).query === 'object' ? (request as any).query : {};
+            const limit = coerceInt(query?.limit, defaultLimit);
+            const jobId = normalizeUuid(query?.job_id ?? query?.jobId);
+            const requestId = normalizeUuid(query?.request_id ?? query?.requestId);
+
+            let jobsResult: { limit: number; queues: string[]; jobs: any[] };
+            try {
+              jobsResult = await queryAdminJobs(prisma as any, { queues, limit, jobId, requestId });
+            } catch (err: unknown) {
+              const normalized = normalizeRuntimeError(err);
+              const outputPreview = truncate(JSON.stringify({ error: normalized.message }), 240);
+              jobsResult = {
+                limit: defaultLimit,
+                queues,
+                jobs: [{
+                  id: 'query_failed',
+                  queue: queues[0] ?? 'unknown',
+                  state: 'error',
+                  created_on: null,
+                  data_summary: {},
+                  output_message: normalized.message,
+                  output_stack: null,
+                  output_preview: outputPreview,
+                }],
+              };
+            }
+
             return {
               ok: true,
               generated_at: new Date().toISOString(),
               queue,
-              queues,
-              limit: defaultLimit,
-              jobs,
+              queues: jobsResult.queues,
+              limit: jobsResult.limit,
+              jobs: jobsResult.jobs,
+              filters: {
+                ...(jobId ? { job_id: jobId } : {}),
+                ...(requestId ? { request_id: requestId } : {}),
+              },
             };
           },
         },
