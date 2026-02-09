@@ -24,6 +24,7 @@ import { createProxyEndpointResourceOptions } from './resources/proxyEndpoints';
 import { proxyPoolResourceOptions } from './resources/proxyPools';
 import { hasEffectiveFilterValue } from './utils/filterValue';
 import { runWithTimeout } from './utils/runWithTimeout';
+import { getAdminJobsQueueNames } from './utils/adminJobsQueueNames';
 import { getBuildInfo } from '../utils/buildInfo';
 import { redactString, sanitizeStructuredData } from '../utils/redaction';
 
@@ -572,18 +573,7 @@ export async function getAdminJsRouter(): Promise<Router> {
               return `${s.slice(0, max)}...`;
             };
 
-            const getQueueNames = (): string[] => {
-              try {
-                // eslint-disable-next-line @typescript-eslint/no-var-requires
-                const { getAdminActionQueueNames } = require('../jobs/adminActions') as typeof import('../jobs/adminActions');
-                const names = getAdminActionQueueNames();
-                return Array.isArray(names) ? names : [];
-              } catch {
-                return [];
-              }
-            };
-
-            const queues = getQueueNames();
+            const queues = getAdminJobsQueueNames();
             const defaultLimit = 80;
 
             const queryJobs = async (limit: number) => {
