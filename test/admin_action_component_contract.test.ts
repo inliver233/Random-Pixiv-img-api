@@ -26,6 +26,11 @@ describe('admin action component contract', () => {
     expect(tokenActions.testRefresh.component).toBe('RecordActionRunner');
 
     const proxyActions = (createProxyEndpointResourceOptions({}) as any).actions;
+    expect(proxyActions.setProxyEnabled.component).toBe('ResourceActionForm');
+    expect(proxyActions.importProxyUris.component).toBe('ResourceActionForm');
+    expect(proxyActions.easyProxiesConfigSave.component).toBe('ResourceActionForm');
+    expect(proxyActions.easyProxiesImport.component).toBe('RecordActionRunner');
+    expect(proxyActions.easyProxiesRollback.component).toBe('RecordActionRunner');
     expect(proxyActions.probe.component).toBe('RecordActionRunner');
   });
 

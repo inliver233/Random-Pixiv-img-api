@@ -59,7 +59,7 @@ export function createProxyEndpointResourceOptions(prisma: any) {
       },
       setProxyEnabled: {
         actionType: 'resource',
-        component: false,
+        component: 'ResourceActionForm',
         icon: 'Switch',
         label: '代理总开关（直连回退）',
         guard: '关闭代理后将改为直连（真实 IP 暴露风险）。确认继续吗？',
@@ -129,7 +129,7 @@ export function createProxyEndpointResourceOptions(prisma: any) {
       },
       importProxyUris: {
         actionType: 'resource',
-        component: false,
+        component: 'ResourceActionForm',
         icon: 'Upload',
         label: 'URI 批量导入',
         guard: '确认导入 URI 吗？URI 中密码会保存到数据库，但不会在后台明文展示。',
@@ -238,7 +238,7 @@ export function createProxyEndpointResourceOptions(prisma: any) {
       },
       easyProxiesConfigSave: {
         actionType: 'resource',
-        component: false,
+        component: 'ResourceActionForm',
         icon: 'Settings',
         label: 'easy_proxies 配置保存',
         guard: '确认保存 easy_proxies 配置吗？密码仅保存不会回显。',
@@ -369,7 +369,7 @@ export function createProxyEndpointResourceOptions(prisma: any) {
       },
       easyProxiesImport: {
         actionType: 'resource',
-        component: false,
+        component: 'RecordActionRunner',
         icon: 'Download',
         label: 'easy_proxies 导入',
         guard: '确认从 easy_proxies 的 /api/export 导入代理吗？',
@@ -444,7 +444,7 @@ export function createProxyEndpointResourceOptions(prisma: any) {
       },
       easyProxiesRollback: {
         actionType: 'resource',
-        component: false,
+        component: 'RecordActionRunner',
         icon: 'Undo',
         label: 'easy_proxies 回滚到手动代理列表',
         guard: '确认回滚 easy_proxies 代理并关闭自动刷新吗？',

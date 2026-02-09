@@ -361,6 +361,7 @@ export async function getAdminJsRouter(): Promise<Router> {
     const ProxyPoolOverview = componentLoader.add('ProxyPoolOverview', path.join(__dirname, 'pages', 'proxyPoolOverview.jsx'));
     const EasyProxiesImport = componentLoader.add('EasyProxiesImport', path.join(__dirname, 'pages', 'easyProxiesImport.jsx'));
     const RecordActionRunner = componentLoader.add('RecordActionRunner', path.join(__dirname, 'components', 'recordActionRunner.jsx'));
+    componentLoader.add('ResourceActionForm', path.join(__dirname, 'components', 'resourceActionForm.jsx'));
 
     const admin = new AdminJS({
       rootPath: '/admin',
