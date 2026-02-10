@@ -1,0 +1,23 @@
+GET https://i.mukyu.ru/random?format=json&orientation=landscape&min_width=1000
+Invoke-WebRequest: 
+Line |
+  15 |      $resp=Invoke-WebRequest -Uri $url -Method Get -TimeoutSec 30;
+     |            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+     | 
+{
+  "code": "NO_MATCH",
+  "message": "No matching image.",
+  "request_id": "2ddcead7-25ab-4412-aa61-ac68895ccb2e",
+  "hints": {
+    "applied_filters": {
+      "xRestrict": 0,
+      "orientation": 2,
+      "minWidth": 1000
+    },
+    "suggestions": [
+      "run hydration backfill to improve metadata coverage",
+      "remove orientation filter",
+      "lower min_width/min_height/min_pixels"
+    ]
+  }
+}

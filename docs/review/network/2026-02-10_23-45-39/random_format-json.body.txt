@@ -1,0 +1,1 @@
+{"id":93452,"illust_id":137002155,"page_index":0,"r18":false,"width":null,"height":null,"orientation":"unknown","tags":[],"author":{"user_id":null,"name":null},"urls":{"proxy":"/i/93452.jpg","origin":"https://i.pximg.net/img-original/img/2025/11/02/13/42/54/137002155_p0.jpg"},"cache":{"max_age":31536000},"debug":{"picked_by":"random_key","attempt":3}}

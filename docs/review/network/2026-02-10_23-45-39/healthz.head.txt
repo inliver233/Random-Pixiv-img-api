@@ -1,0 +1,27 @@
+GET https://i.mukyu.ru/healthz
+status=200
+Access-Control-Allow-Origin: *
+Alt-Svc: h3=":443"
+Cache-Control: no-store
+cf-cache-status: DYNAMIC
+CF-RAY: 9cbcc50abe6749d4-LAX
+Connection: keep-alive
+Content-Type: application/json; charset=utf-8
+cross-origin-resource-policy: cross-origin
+Date: Tue, 10 Feb 2026 15:51:45 GMT
+ETag: W/"fb-W2+Jnmbs4RdMzhfVYER7dRiyQjI"
+Nel: {"report_to":"cf-nel","success_fraction":0.0,"max_age":604800}
+origin-agent-cluster: ?1
+Referrer-Policy: no-referrer
+Report-To: {"group":"cf-nel","max_age":604800,"endpoints":[{"url":"https://a.nel.cloudflare.com/report/v4?s=hSgprwsAmpGMs5RSO9kS1GszO%2FtwQCfRgPDwE4wDYKkZLhZVFKPmalybL0nPwsYy1hmMEJ1RHBwsfF4d4y2RMAhgH8QFPsDPbx4%3D"}]}
+Server: cloudflare
+Server-Timing: cfCacheStatus;desc="DYNAMIC" cfEdge;dur=4,cfOrigin;dur=364
+Strict-Transport-Security: max-age=31536000; includeSubDomains max-age=31536000
+Transfer-Encoding: chunked
+X-Content-Type-Options: nosniff
+x-dns-prefetch-control: off
+x-download-options: noopen
+X-Frame-Options: SAMEORIGIN
+x-permitted-cross-domain-policies: none
+X-Request-ID: a2dfd837-1a3d-4b93-b5e2-2f779d7c734d
+X-XSS-Protection: 0

@@ -1,0 +1,19 @@
+GET https://i.mukyu.ru/authors
+status=200
+Access-Control-Allow-Origin: *
+Alt-Svc: h3=":443"
+Cache-Control: no-store
+cf-cache-status: DYNAMIC
+CF-RAY: 9cbcc526fc348a80-LAX
+Connection: keep-alive
+Content-Type: application/json; charset=utf-8
+Date: Tue, 10 Feb 2026 15:51:49 GMT
+ETag: W/"5d-a9wNu3luZqmngH6WIwcNFfs/6lk"
+Nel: {"report_to":"cf-nel","success_fraction":0.0,"max_age":604800}
+Report-To: {"group":"cf-nel","max_age":604800,"endpoints":[{"url":"https://a.nel.cloudflare.com/report/v4?s=NFBmjoefyOxhMKc9qIA1dD7TfRAoQ5zqt1xjpXn7gMtSr2WG11GBoR%2Byo5tHgBW38z56HQtKLMfBX4ielyLYVse1N3EihbvN7ss%3D"}]}
+Server: cloudflare
+Server-Timing: cfCacheStatus;desc="DYNAMIC" cfEdge;dur=4,cfOrigin;dur=360
+Strict-Transport-Security: max-age=31536000
+Transfer-Encoding: chunked
+X-Powered-By: Express
+X-Request-ID: ec7f64b0-2dc5-4a90-a4e6-390a6fb32671

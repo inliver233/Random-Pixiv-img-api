@@ -1,0 +1,29 @@
+GET https://i.mukyu.ru/random?format=json
+status=200
+Access-Control-Allow-Origin: *
+Alt-Svc: h3=":443"
+Cache-Control: no-store
+cf-cache-status: DYNAMIC
+CF-RAY: 9cbcc50f7e8e2f20-LAX
+Connection: keep-alive
+Content-Type: application/json; charset=utf-8
+cross-origin-resource-policy: cross-origin
+Date: Tue, 10 Feb 2026 15:51:46 GMT
+ETag: W/"161-L6Ww53F6BN61TUL70Kt2GwmQCbE"
+Nel: {"report_to":"cf-nel","success_fraction":0.0,"max_age":604800}
+origin-agent-cluster: ?1
+ratelimit: limit=100, remaining=99, reset=60
+ratelimit-policy: 100;w=60
+Referrer-Policy: no-referrer
+Report-To: {"group":"cf-nel","max_age":604800,"endpoints":[{"url":"https://a.nel.cloudflare.com/report/v4?s=%2BqcsKsKtDV7VVq%2BGrwkhQl3WQCuqeYwiFS%2Bbhhn4NHpHP7sD2iFkwoR1IdJp3o%2BOu%2FqxY%2BSCOWjfmLXs0EgPqLRriPOb%2Fp88h9k%3D"}]}
+Server: cloudflare
+Server-Timing: cfCacheStatus;desc="DYNAMIC" cfEdge;dur=10,cfOrigin;dur=674
+Strict-Transport-Security: max-age=31536000; includeSubDomains max-age=31536000
+Transfer-Encoding: chunked
+X-Content-Type-Options: nosniff
+x-dns-prefetch-control: off
+x-download-options: noopen
+X-Frame-Options: SAMEORIGIN
+x-permitted-cross-domain-policies: none
+X-Request-ID: bbd7b6a5-ae3a-4ca8-869e-5dcf62af0564
+X-XSS-Protection: 0

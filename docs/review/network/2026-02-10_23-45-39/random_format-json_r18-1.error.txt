@@ -1,0 +1,19 @@
+GET https://i.mukyu.ru/random?format=json&r18=1
+Invoke-WebRequest: 
+Line |
+  15 |      $resp=Invoke-WebRequest -Uri $url -Method Get -TimeoutSec 30;
+     |            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+     | 
+{
+  "code": "NO_MATCH",
+  "message": "No matching image.",
+  "request_id": "bcf5a01a-107d-43be-bcfe-842330ae604f",
+  "hints": {
+    "applied_filters": {
+      "xRestrict": 1
+    },
+    "suggestions": [
+      "fallback to r18=0"
+    ]
+  }
+}
