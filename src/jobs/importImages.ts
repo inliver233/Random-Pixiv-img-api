@@ -334,7 +334,25 @@ export async function registerAdminImportWorker(): Promise<void> {
     ensureQueue(ADMIN_IMPORT_ROLLBACK_JOB),
   ]);
 
-  await boss.work(ADMIN_IMAGES_IMPORT_JOB, async (job: any) => {
+  // pg-boss v12 passes `jobs[]` to the handler (even when batchSize=1).
+  // Use batchSize=1 so each Import runs independently and remains debuggable.
+  await boss.work(
+    ADMIN_IMAGES_IMPORT_JOB,
+    { batchSize: 1 },
+    async (jobs: any[]) => adminImportWorkerHandlers.handleAdminImagesImportJobs(jobs),
+  );
+  await boss.work(
+    ADMIN_IMPORT_ROLLBACK_JOB,
+    { batchSize: 1 },
+    async (jobs: any[]) => adminImportWorkerHandlers.handleAdminImportRollbackJobs(jobs),
+  );
+}
+
+export async function handleAdminImagesImportJobs(jobs: any[]): Promise<any> {
+  const batch = Array.isArray(jobs) ? jobs : [];
+  let lastResult: any = undefined;
+
+  for (const job of batch) {
     const jobData: any = job?.data ?? {};
     const importId = toBigIntId(jobData.import_id ?? jobData.importId ?? jobData.id, 'import_id');
     const requestId = normalizeRequestId(jobData.request_id ?? jobData.requestId);
@@ -368,10 +386,17 @@ export async function registerAdminImportWorker(): Promise<void> {
       'admin_images_import done',
     );
 
-    return result;
-  });
+    lastResult = result;
+  }
 
-  await boss.work(ADMIN_IMPORT_ROLLBACK_JOB, async (job: any) => {
+  return batch.length === 1 ? lastResult : undefined;
+}
+
+export async function handleAdminImportRollbackJobs(jobs: any[]): Promise<any> {
+  const batch = Array.isArray(jobs) ? jobs : [];
+  let lastResult: any = undefined;
+
+  for (const job of batch) {
     const jobData: any = job?.data ?? {};
     const importId = toBigIntId(jobData.import_id ?? jobData.importId ?? jobData.id, 'import_id');
     const requestId = normalizeRequestId(jobData.request_id ?? jobData.requestId);
@@ -400,7 +425,13 @@ export async function registerAdminImportWorker(): Promise<void> {
       'admin_import_rollback done',
     );
 
-    return result;
-  });
+    lastResult = result;
+  }
+
+  return batch.length === 1 ? lastResult : undefined;
 }
 
+export const adminImportWorkerHandlers = {
+  handleAdminImagesImportJobs,
+  handleAdminImportRollbackJobs,
+};
