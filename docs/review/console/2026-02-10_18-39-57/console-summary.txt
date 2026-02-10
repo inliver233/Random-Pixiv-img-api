@@ -1,0 +1,8 @@
+Console messages (Chrome MCP, includePreservedMessages=true)
+- [info] Slow network is detected... fallback font while loading Roboto woff2
+- [issue] No label associated with a form field (count: 4)
+- [issue] A form field element should have an id or name attribute (count: 2)
+- [issue] Incorrect use of <label for=FORM_ELEMENT> (count: 1)
+- [issue] Incorrect use of <label for=FORM_ELEMENT> (count: 2)
+- [issue] No label associated with a form field (count: 2)
+- [issue] A form field element should have an id or name attribute (count: 5)

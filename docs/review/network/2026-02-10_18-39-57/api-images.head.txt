@@ -1,0 +1,29 @@
+HTTP/1.1 200 OK
+Date: Tue, 10 Feb 2026 10:41:23 GMT
+Content-Type: application/json; charset=utf-8
+Content-Length: 278
+Connection: keep-alive
+Server: cloudflare
+x-request-id: 01314f3a-1eda-4890-8742-d376a7f079cf
+access-control-allow-origin: *
+cross-origin-resource-policy: cross-origin
+origin-agent-cluster: ?1
+referrer-policy: no-referrer
+strict-transport-security: max-age=31536000; includeSubDomains
+strict-transport-security: max-age=31536000
+x-content-type-options: nosniff
+x-dns-prefetch-control: off
+x-download-options: noopen
+x-frame-options: SAMEORIGIN
+x-permitted-cross-domain-policies: none
+x-xss-protection: 0
+ratelimit-policy: 100;w=60
+ratelimit: limit=100, remaining=99, reset=60
+Cache-Control: no-store
+etag: W/"116-ihPHcqrjeaJEz7/yowArlNBGf88"
+cf-cache-status: DYNAMIC
+Nel: {"report_to":"cf-nel","success_fraction":0.0,"max_age":604800}
+Report-To: {"group":"cf-nel","max_age":604800,"endpoints":[{"url":"https://a.nel.cloudflare.com/report/v4?s=vUwsitc5lKsNbqdeWCLogjSHR%2FUrq6zG73LaTbfV5nOrY%2FPz%2B9tu8umlo0FzdJyRdNrwox0taeCWI%2BN4uNB6RYH1JtR9GcwLGQo%3D"}]}
+CF-RAY: 9cbafe681ff3a425-LAX
+alt-svc: h3=":443"; ma=86400
+

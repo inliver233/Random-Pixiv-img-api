@@ -1,0 +1,11 @@
+{
+  "source": "GET /admin/api/pages/adminJobs (captured via Chrome MCP evaluate_script)",
+  "sample_job": {
+    "id": "201c340c-2b80-40c6-8136-9377d2b0350e",
+    "queue": "admin_images_import__dlq",
+    "state": "created",
+    "data_summary": {"request_id": "f87c58dc-ae29-4048-a3ba-ad2251ecb707"},
+    "output_message": "Invalid import_id",
+    "output_stack": "Error: Invalid import_id\n    at toBigIntId (/app/dist/src/jobs/importImages.js:48:11)\n    at /app/dist/src/jobs/importImages.js:281:26\n    at #processJobs (file:///app/node_modules/pg-boss/dist/manager.js:187:55)\n    at Worker.onFetch (file:///app/node_modules/pg-boss/dist/manager.js:277:44)\n    at Worker.run (file:///app/node_modules/pg-boss/dist/worker.js:54:32)\n    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)"
+  }
+}

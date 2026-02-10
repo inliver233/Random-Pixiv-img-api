@@ -1,0 +1,28 @@
+HTTP/1.1 404 Not Found
+Date: Tue, 10 Feb 2026 10:41:22 GMT
+Content-Type: application/json; charset=utf-8
+Content-Length: 214
+Connection: keep-alive
+Server: cloudflare
+x-request-id: 9a34208f-264c-499b-896d-04d57f3ae2a8
+access-control-allow-origin: *
+cross-origin-resource-policy: cross-origin
+origin-agent-cluster: ?1
+referrer-policy: no-referrer
+strict-transport-security: max-age=31536000; includeSubDomains
+x-content-type-options: nosniff
+x-dns-prefetch-control: off
+x-download-options: noopen
+x-frame-options: SAMEORIGIN
+x-permitted-cross-domain-policies: none
+x-xss-protection: 0
+ratelimit-policy: 100;w=60
+ratelimit: limit=100, remaining=98, reset=60
+Cache-Control: no-store
+etag: W/"d6-Gk3WvftruFVLIsFG/QwFzMSazKg"
+cf-cache-status: DYNAMIC
+Nel: {"report_to":"cf-nel","success_fraction":0.0,"max_age":604800}
+Report-To: {"group":"cf-nel","max_age":604800,"endpoints":[{"url":"https://a.nel.cloudflare.com/report/v4?s=rheu1xfbOtVyijYVkkaD09L9gyFJVRtWQ25iwy1T43xCNR7P6Ixu7zcf2L9zDYr1FPzDFhH%2BvToA15XsAczvxWlZTObRKyVc%2BTE%3D"}]}
+CF-RAY: 9cbafe631fcd2f5e-LAX
+alt-svc: h3=":443"; ma=86400
+
