@@ -3,6 +3,9 @@ services:
     restart: unless-stopped
     environment:
       NODE_ENV: production
+      # Optional build/runtime traceability (recommended): set these at deploy time.
+      APP_COMMIT: "${APP_COMMIT:-}"
+      APP_BUILD_TIME: "${APP_BUILD_TIME:-}"
     # Optional hardening: enable with BACKEND_READ_ONLY=true
     # When read-only, allow runtime temp writes via tmpfs mounts.
     read_only: ${BACKEND_READ_ONLY:-false}

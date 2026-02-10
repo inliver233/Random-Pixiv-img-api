@@ -130,6 +130,11 @@ export function getBuildInfo(): BuildInfo {
   const commit = normalizeCommit(process.env.APP_COMMIT)
     ?? normalizeCommit(process.env.GIT_COMMIT)
     ?? normalizeCommit(process.env.GIT_COMMIT_SHA)
+    ?? normalizeCommit(process.env.GITHUB_SHA)
+    ?? normalizeCommit(process.env.CF_PAGES_COMMIT_SHA)
+    ?? normalizeCommit(process.env.VERCEL_GIT_COMMIT_SHA)
+    ?? normalizeCommit(process.env.RAILWAY_GIT_COMMIT_SHA)
+    ?? normalizeCommit(process.env.RENDER_GIT_COMMIT)
     ?? normalizeCommit(process.env.COMMIT_SHA)
     ?? normalizeCommit(process.env.SOURCE_VERSION)
     ?? normalizeCommit(fileInfo?.commit)
@@ -138,4 +143,3 @@ export function getBuildInfo(): BuildInfo {
   cached = { version, commit, build_time };
   return cached;
 }
-
