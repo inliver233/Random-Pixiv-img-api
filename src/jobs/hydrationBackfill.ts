@@ -79,7 +79,7 @@ function toBigInt(value: unknown): bigint | null {
   if (value === undefined || value === null) return null;
   if (typeof value === 'bigint') return value;
   if (typeof value === 'number' && Number.isFinite(value)) return BigInt(Math.trunc(value));
-  if (typeof value === 'string' && value.trim() && /^\\d+$/.test(value.trim())) return BigInt(value.trim());
+  if (typeof value === 'string' && value.trim() && /^\d+$/.test(value.trim())) return BigInt(value.trim());
   return null;
 }
 
