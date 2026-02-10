@@ -376,7 +376,6 @@ export default function ImportUrlsPage() {
           unique_images: 0,
           deduped: 0,
           accepted: 0,
-          success: 0,
           failed: 0,
           enqueued_hydrate_metadata: 0,
           errors: [],
@@ -422,7 +421,6 @@ export default function ImportUrlsPage() {
           combined.unique_images += Number(data.unique_images || 0);
           combined.deduped += Number(data.deduped || 0);
           combined.accepted += Number(data.accepted || 0);
-          combined.success += Number(data.success || 0);
           if (data.import_id) combined.import_ids.push(String(data.import_id));
         }
 
@@ -443,6 +441,10 @@ export default function ImportUrlsPage() {
       }
 
       setResult({ mode, batches: responses.length, combined, responses });
+      if (!hydrateOnly && Array.isArray(combined.import_ids) && combined.import_ids.length > 0) {
+        // Best-effort: auto refresh progress so users can see async processing state.
+        void refreshAllImportProgress(combined.import_ids);
+      }
     } catch (err) {
       const status = Number(err?.status || err?.data?.status || 0);
       const code = String(err?.data?.code || '');
@@ -460,6 +462,16 @@ export default function ImportUrlsPage() {
     } finally {
       setLoading(false);
       setProgress(null);
+    }
+  }
+
+  async function refreshAllImportProgress(importIds) {
+    const ids = Array.isArray(importIds) ? importIds.map((v) => String(v)) : [];
+    for (const id of ids) {
+      // eslint-disable-next-line no-await-in-loop
+      await refreshImportProgress(id);
+      // eslint-disable-next-line no-await-in-loop
+      await sleep(120);
     }
   }
 
@@ -504,6 +516,50 @@ export default function ImportUrlsPage() {
   const maxBytesLabel = config?.adminImportMaxFileBytes
     ? `${Math.round(Number(config.adminImportMaxFileBytes) / (1024 * 1024))} MB`
     : 'unknown';
+
+  const importProgressAgg = useMemo(() => {
+    if (!result || result.mode === 'hydrate') return null;
+    const ids = Array.isArray(result.combined.import_ids) ? result.combined.import_ids.map((v) => String(v)) : [];
+    if (ids.length === 0) return null;
+
+    let processed = 0;
+    let total = 0;
+    let deduped = 0;
+    let remaining = 0;
+    let done = 0;
+    let okFetched = 0;
+    let failedFetched = 0;
+    let queueNotOk = 0;
+
+    for (const id of ids) {
+      const p = progressByImportId?.[id] || null;
+      if (!p) continue;
+      if (!p.ok) {
+        failedFetched += 1;
+        continue;
+      }
+
+      okFetched += 1;
+      processed += Number(p.progress?.processed || 0);
+      total += Number(p.progress?.total || 0);
+      deduped += Number(p.progress?.deduped || 0);
+      remaining += Number(p.progress?.remaining || 0);
+      if (p.progress?.done) done += 1;
+      if (p.queue && p.queue.ok === false) queueNotOk += 1;
+    }
+
+    return {
+      import_count: ids.length,
+      ok_fetched: okFetched,
+      failed_fetched: failedFetched,
+      processed,
+      total,
+      deduped,
+      remaining,
+      done,
+      queue_not_ok: queueNotOk,
+    };
+  }, [result, progressByImportId]);
 
   return (
     <div style={{ ...pageRootStyle, maxWidth: 980 }}>
@@ -690,8 +746,12 @@ export default function ImportUrlsPage() {
                      <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee', textAlign: 'right' }}>{result.combined.accepted}</td>
                    </tr>
                    <tr>
-                     <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee', fontWeight: 600 }}>success（处理完成后累计）</td>
-                     <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee', textAlign: 'right' }}>{result.combined.success}</td>
+                     <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee', fontWeight: 600 }}>progress（已处理/总计）</td>
+                     <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee', textAlign: 'right' }}>
+                       {importProgressAgg
+                         ? `${importProgressAgg.processed}/${importProgressAgg.total} (done ${importProgressAgg.done}/${importProgressAgg.import_count})`
+                         : '（请看下方 import_id 进度）'}
+                     </td>
                    </tr>
                  </>
                )}
@@ -710,8 +770,17 @@ export default function ImportUrlsPage() {
             <div style={{ marginTop: 12 }}>
                 <h4 style={{ marginTop: 0 }}>import_id（可审计 / 可回滚）</h4>
                 <p style={{ marginTop: 0, color: '#666' }}>
-                  导入写入已异步入队：本页 <code>accepted</code> 表示已接收/入队的唯一图片数；<code>success</code> 会在后台 job 处理完成后写入 Import 记录，可用「刷新进度」查看。回滚会<b>禁用</b>本次新增图片（不删除导入记录）。
+                  导入写入已异步入队：本页 <code>accepted</code> 表示已接收/入队的唯一图片数；处理进度以 Import 记录的 <code>progress</code> 为准，可用「刷新进度」查看。回滚会<b>禁用</b>本次新增图片（不删除导入记录）。
                 </p>
+
+              <button
+                type="button"
+                disabled={loading || rollbackBusy}
+                onClick={() => refreshAllImportProgress(result.combined.import_ids)}
+                style={createButtonStyle({ disabled: loading || rollbackBusy })}
+              >
+                刷新全部进度
+              </button>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {result.combined.import_ids.map((importId) => {
