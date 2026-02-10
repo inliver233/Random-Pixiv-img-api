@@ -155,7 +155,45 @@ async function registerPixivTokenTestRefreshWorker(): Promise<void> {
 
   await ensureQueue(ADMIN_PIXIV_TOKEN_TEST_REFRESH_JOB);
 
-  await boss.work(ADMIN_PIXIV_TOKEN_TEST_REFRESH_JOB, async (job: any) => {
+  // pg-boss v12 passes `jobs[]` to the handler (even when batchSize=1).
+  await boss.work(
+    ADMIN_PIXIV_TOKEN_TEST_REFRESH_JOB,
+    { batchSize: 1 },
+    async (jobs: any[]) => adminActionsWorkerHandlers.handleAdminPixivTokenTestRefreshJobs(jobs),
+  );
+}
+
+async function registerProxyEndpointProbeWorker(): Promise<void> {
+  const boss = await startQueue();
+  if (!boss) return;
+
+  await ensureQueue(ADMIN_PROXY_ENDPOINT_PROBE_JOB);
+
+  // pg-boss v12 passes `jobs[]` to the handler (even when batchSize=1).
+  await boss.work(
+    ADMIN_PROXY_ENDPOINT_PROBE_JOB,
+    { batchSize: 1 },
+    async (jobs: any[]) => adminActionsWorkerHandlers.handleAdminProxyEndpointProbeJobs(jobs),
+  );
+}
+
+export async function registerAdminActionsWorker(): Promise<void> {
+  try {
+    await Promise.all([
+      registerPixivTokenTestRefreshWorker(),
+      registerProxyEndpointProbeWorker(),
+    ]);
+  } catch (err: unknown) {
+    logger.error({ err }, 'register admin actions worker failed');
+    throw err;
+  }
+}
+
+export async function handleAdminPixivTokenTestRefreshJobs(jobs: any[]): Promise<any> {
+  const batch = Array.isArray(jobs) ? jobs : [];
+  let lastResult: any = undefined;
+
+  for (const job of batch) {
     const jobData: any = job?.data ?? {};
     const tokenIdRaw = jobData.token_id ?? jobData.tokenId ?? jobData.id;
     const requestId = normalizeRequestId(jobData.request_id ?? jobData.requestId);
@@ -170,7 +208,8 @@ async function registerPixivTokenTestRefreshWorker(): Promise<void> {
         req: { request_id: requestId, session: { admin_user: actor }, headers: { 'user-agent': 'admin_job_worker' } },
         detail: { ok: false, code: tokenIdResult.code, message: tokenIdResult.message, job_id: job?.id ?? null },
       });
-      return { ok: false, code: tokenIdResult.code, message: tokenIdResult.message, token_id: null };
+      lastResult = { ok: false, code: tokenIdResult.code, message: tokenIdResult.message, token_id: null };
+      continue;
     }
 
     const tokenId = tokenIdResult.id;
@@ -190,7 +229,8 @@ async function registerPixivTokenTestRefreshWorker(): Promise<void> {
         req: { request_id: requestId, session: { admin_user: actor }, headers: { 'user-agent': 'admin_job_worker' } },
         detail: { ok: false, code: message, message, job_id: job?.id ?? null },
       });
-      return { ok: false, code: message, message, token_id: tokenId.toString() };
+      lastResult = { ok: false, code: message, message, token_id: tokenId.toString() };
+      continue;
     }
 
     if (!token.enabled) {
@@ -200,9 +240,17 @@ async function registerPixivTokenTestRefreshWorker(): Promise<void> {
         resource: 'PixivToken',
         record_id: token.id.toString(),
         req: { request_id: requestId, session: { admin_user: actor }, headers: { 'user-agent': 'admin_job_worker' } },
-        detail: { ok: false, code: message, message, job_id: job?.id ?? null, label: token.label ?? null, refreshTokenMasked: token.refreshTokenMasked },
+        detail: {
+          ok: false,
+          code: message,
+          message,
+          job_id: job?.id ?? null,
+          label: token.label ?? null,
+          refreshTokenMasked: token.refreshTokenMasked,
+        },
       });
-      return { ok: false, code: message, message, token_id: token.id.toString() };
+      lastResult = { ok: false, code: message, message, token_id: token.id.toString() };
+      continue;
     }
 
     const result = await testRefreshToken(token.refreshToken);
@@ -224,19 +272,19 @@ async function registerPixivTokenTestRefreshWorker(): Promise<void> {
       },
     });
 
-    return result.ok
+    lastResult = result.ok
       ? { ok: true, token_id: token.id.toString(), expires_in: result.expires_in }
       : { ok: false, token_id: token.id.toString(), status: result.status ?? null, code: result.code, message: result.message };
-  });
+  }
+
+  return batch.length === 1 ? lastResult : undefined;
 }
 
-async function registerProxyEndpointProbeWorker(): Promise<void> {
-  const boss = await startQueue();
-  if (!boss) return;
+export async function handleAdminProxyEndpointProbeJobs(jobs: any[]): Promise<any> {
+  const batch = Array.isArray(jobs) ? jobs : [];
+  let lastResult: any = undefined;
 
-  await ensureQueue(ADMIN_PROXY_ENDPOINT_PROBE_JOB);
-
-  await boss.work(ADMIN_PROXY_ENDPOINT_PROBE_JOB, async (job: any) => {
+  for (const job of batch) {
     const jobData: any = job?.data ?? {};
     const endpointIdRaw = jobData.endpoint_id ?? jobData.endpointId ?? jobData.id;
     const requestId = normalizeRequestId(jobData.request_id ?? jobData.requestId);
@@ -251,7 +299,8 @@ async function registerProxyEndpointProbeWorker(): Promise<void> {
         req: { request_id: requestId, session: { admin_user: actor }, headers: { 'user-agent': 'admin_job_worker' } },
         detail: { ok: false, code: endpointIdResult.code, message: endpointIdResult.message, job_id: job?.id ?? null },
       });
-      return { ok: false, code: endpointIdResult.code, message: endpointIdResult.message, endpoint_id: null };
+      lastResult = { ok: false, code: endpointIdResult.code, message: endpointIdResult.message, endpoint_id: null };
+      continue;
     }
 
     const endpointId = endpointIdResult.id;
@@ -271,7 +320,8 @@ async function registerProxyEndpointProbeWorker(): Promise<void> {
         req: { request_id: requestId, session: { admin_user: actor }, headers: { 'user-agent': 'admin_job_worker' } },
         detail: { ok: false, code: message, message, job_id: job?.id ?? null },
       });
-      return { ok: false, code: message, message, endpoint_id: endpointId.toString() };
+      lastResult = { ok: false, code: message, message, endpoint_id: endpointId.toString() };
+      continue;
     }
 
     const proxyUri = buildProxyUri({
@@ -311,7 +361,8 @@ async function registerProxyEndpointProbeWorker(): Promise<void> {
         req: { request_id: requestId, session: { admin_user: actor }, headers: { 'user-agent': 'admin_job_worker' } },
         detail: { timeoutMs: probeTimeoutMs, job_id: job?.id ?? null },
       });
-      return { ok: false, endpoint_id: endpoint.id.toString(), status: 'timeout', timeout_ms: probeTimeoutMs };
+      lastResult = { ok: false, endpoint_id: endpoint.id.toString(), status: 'timeout', timeout_ms: probeTimeoutMs };
+      continue;
     }
 
     if (probeResult.status === 'error') {
@@ -323,7 +374,8 @@ async function registerProxyEndpointProbeWorker(): Promise<void> {
         req: { request_id: requestId, session: { admin_user: actor }, headers: { 'user-agent': 'admin_job_worker' } },
         detail: { error: message, job_id: job?.id ?? null },
       });
-      return { ok: false, endpoint_id: endpoint.id.toString(), status: 'error', message };
+      lastResult = { ok: false, endpoint_id: endpoint.id.toString(), status: 'error', message };
+      continue;
     }
 
     const report = probeResult.value;
@@ -350,24 +402,19 @@ async function registerProxyEndpointProbeWorker(): Promise<void> {
       },
     });
 
-    return {
+    lastResult = {
       ok,
       endpoint_id: endpoint.id.toString(),
       status,
       latency_ms: typeof latencyMs === 'number' && Number.isFinite(latencyMs) ? Math.round(latencyMs) : null,
       error: error ?? null,
     };
-  });
+  }
+
+  return batch.length === 1 ? lastResult : undefined;
 }
 
-export async function registerAdminActionsWorker(): Promise<void> {
-  try {
-    await Promise.all([
-      registerPixivTokenTestRefreshWorker(),
-      registerProxyEndpointProbeWorker(),
-    ]);
-  } catch (err: unknown) {
-    logger.error({ err }, 'register admin actions worker failed');
-    throw err;
-  }
-}
+export const adminActionsWorkerHandlers = {
+  handleAdminPixivTokenTestRefreshJobs,
+  handleAdminProxyEndpointProbeJobs,
+};
