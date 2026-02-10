@@ -39,7 +39,7 @@ export type HydrateMetadataOptions = {
 function toBigInt(value: unknown): bigint {
   if (typeof value === 'bigint') return value;
   if (typeof value === 'number' && Number.isFinite(value)) return BigInt(Math.trunc(value));
-  if (typeof value === 'string' && value.trim() && /^\\d+$/.test(value.trim())) return BigInt(value.trim());
+  if (typeof value === 'string' && value.trim() && /^\d+$/.test(value.trim())) return BigInt(value.trim());
   throw new Error('Invalid illust_id');
 }
 
