@@ -530,6 +530,8 @@ export default function ImportUrlsPage() {
     let okFetched = 0;
     let failedFetched = 0;
     let queueNotOk = 0;
+    let enqueuedHydrateMetadata = 0;
+    const enqueueNotes = new Map();
 
     for (const id of ids) {
       const p = progressByImportId?.[id] || null;
@@ -546,7 +548,20 @@ export default function ImportUrlsPage() {
       remaining += Number(p.progress?.remaining || 0);
       if (p.progress?.done) done += 1;
       if (p.queue && p.queue.ok === false) queueNotOk += 1;
+
+      const enqueued = p.import?.detail?.enqueued;
+      const n = Number(enqueued?.hydrate_metadata ?? 0);
+      if (Number.isFinite(n)) enqueuedHydrateMetadata += Math.max(0, Math.trunc(n));
+
+      const note = typeof enqueued?.note === 'string' ? enqueued.note.trim() : '';
+      if (note) enqueueNotes.set(note, (enqueueNotes.get(note) || 0) + 1);
     }
+
+    const enqueueNotesText = [...enqueueNotes.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5)
+      .map(([note, count]) => `${note}×${count}`)
+      .join(', ');
 
     return {
       import_count: ids.length,
@@ -558,6 +573,8 @@ export default function ImportUrlsPage() {
       remaining,
       done,
       queue_not_ok: queueNotOk,
+      enqueued_hydrate_metadata: enqueuedHydrateMetadata,
+      enqueue_notes_text: enqueueNotesText,
     };
   }, [result, progressByImportId]);
 
@@ -760,8 +777,14 @@ export default function ImportUrlsPage() {
                 <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee', textAlign: 'right' }}>{result.combined.failed}</td>
               </tr>
               <tr>
-                <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee', fontWeight: 600 }}>enqueued.hydrate_metadata</td>
-                <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee', textAlign: 'right' }}>{result.combined.enqueued_hydrate_metadata}</td>
+                <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee', fontWeight: 600 }}>enqueued.hydrate_metadata（以 Import 记录为准）</td>
+                <td style={{ padding: '4px 8px', borderBottom: '1px solid #eee', textAlign: 'right' }}>
+                  {result.mode === 'hydrate'
+                    ? result.combined.enqueued_hydrate_metadata
+                    : importProgressAgg
+                      ? `${importProgressAgg.enqueued_hydrate_metadata}${importProgressAgg.enqueue_notes_text ? ` (${importProgressAgg.enqueue_notes_text})` : ''}`
+                      : '（后台异步写入 Import 记录；请在下方点击「刷新全部进度」）'}
+                </td>
               </tr>
             </tbody>
           </table>
@@ -825,6 +848,13 @@ export default function ImportUrlsPage() {
                             progress fetch failed: {p.error || 'error'}
                           </p>
                         )
+                      ) : null}
+
+                      {p && p.ok && p.import?.detail?.enqueued ? (
+                        <p style={{ margin: '6px 0 0', color: '#666' }}>
+                          hydrate_metadata enqueued: {Number(p.import.detail.enqueued.hydrate_metadata || 0)}
+                          {p.import.detail.enqueued.note ? `; note=${String(p.import.detail.enqueued.note)}` : ''}
+                        </p>
                       ) : null}
                     </div>
                   );
